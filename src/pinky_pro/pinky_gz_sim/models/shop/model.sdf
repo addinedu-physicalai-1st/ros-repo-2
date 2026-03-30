@@ -53,14 +53,6 @@
       </collision>
 
       <!-- divider: L = thin bar along +x + thin bar along +y (local AABBs → same DAE matrix) -->
-      <collision name="divider_arm_x">
-        <pose>0.938081 0.202085 0.175 0 0 0</pose>
-        <geometry>
-          <box>
-            <size>0.818344 0.02 0.35</size>
-          </box>
-        </geometry>
-      </collision>
       <collision name="divider_arm_y">
         <pose>1.344758 0.299388 0.175 0 0 0</pose>
         <geometry>

@@ -33,22 +33,15 @@ ros2 run nav2_map_server map_saver_cli -f "<저장할 맵이름>"
 
 ```bash
 ## 생성한 월드로 시뮬 실행
-ros2 launch pinky_gz_sim launch_second_map_sim.launch.xml
+ros2 launch pinky_gz_sim launch_sim_shop.launch.xml
 ```
 
 ## 네비게이션
 
 시뮬레이션의 경우
 ```bash
-# 아래 둘 중 하나만 실행 (동시에 둘 다 실행하면 Gazebo/브리지/TF가 충돌할 수 있음)
-# 기본 공장 월드
-# ros2 launch pinky_gz_sim launch_sim.launch.xml
-
-# custom_map 월드
-ros2 launch pinky_gz_sim launch_custom_map_sim.launch.xml
-
-# custom_map 월드를 쓴다면 map도 custom_map.yaml로 맞춰서 전달
-ros2 launch pinky_navigation gz_bringup_launch.xml map:=maps/custom_map.yaml
+ros2 launch pinky_gz_sim launch_sim_shop.launch.xml
+ros2 launch pinky_navigation gz_bringup_launch.xml map:=src/pinky_pro/pinky_navigation/map/shop.yaml
 ros2 launch pinky_navigation gz_nav2_view.launch.xml
 ```
 
