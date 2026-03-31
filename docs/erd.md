@@ -73,6 +73,7 @@ erDiagram
         float pos_y
         int battery_level
         datetime last_seen
+        string active_user_id "현재 활성 세션 user_id. NULL이면 빈 카트 (SR-19 중복 체크용)"
     }
 
     ALARM_LOG {
@@ -82,6 +83,15 @@ erDiagram
         string event_type
         datetime occurred_at
         datetime resolved_at
+    }
+
+    EVENT_LOG {
+        int log_id PK
+        int robot_id FK
+        string user_id
+        string event_type
+        string event_detail
+        datetime occurred_at
     }
 
     SESSION {
@@ -119,6 +129,7 @@ erDiagram
     USER ||--o{ CARD : "has"
     ROBOT ||--o{ ALARM_LOG : "generates"
     USER ||--o{ ALARM_LOG : "linked to"
+    ROBOT ||--o{ EVENT_LOG : "logged"
 
     %% Pi 5 로컬 DB 내부 관계
     SESSION ||--|| CART : "has"
@@ -212,9 +223,25 @@ erDiagram
 | log_id | INT | PK |
 | robot_id | INT | FK → ROBOT |
 | user_id | STRING | FK → USER (알람 발생 시점의 세션 사용자, null 가능) |
-| event_type | STRING | `TIMEOUT` / `THEFT` / `BATTERY` / `PAYMENT_ERROR` |
+| event_type | STRING | `TIMEOUT` / `THEFT` / `BATTERY_LOW` / `PAYMENT_ERROR` |
 | occurred_at | DATETIME | 이벤트 발생 시각 |
 | resolved_at | DATETIME | 처리 완료 시각 (null = 미처리) |
+
+> **표기 통일:** event_type은 채널 C 명세 기준 `BATTERY_LOW`로 통일 (이전 `BATTERY` 표기 수정).
+
+#### EVENT_LOG
+로봇 운용 중 발생하는 주요 이벤트 타임라인. 알람 외 세션·모드·시스템 이벤트를 포함 (scenario_17).
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| log_id | INT | PK (AUTOINCREMENT) |
+| robot_id | INT | FK → ROBOT (null 가능 — 시스템 이벤트) |
+| user_id | STRING | 세션 사용자 (null 가능) |
+| event_type | STRING | `SESSION_START` / `SESSION_END` / `FORCE_TERMINATE` / `ALARM_RAISED` / `ALARM_DISMISSED` / `PAYMENT_SUCCESS` / `PAYMENT_FAIL` / `MODE_CHANGE` / `OFFLINE` / `ONLINE` / `QUEUE_ADVANCE` |
+| event_detail | STRING | JSON 문자열 (추가 컨텍스트) |
+| occurred_at | DATETIME | 이벤트 발생 시각 (DEFAULT now) |
+
+> **ALARM_LOG와 관계:** ALARM_RAISED / ALARM_DISMISSED는 EVENT_LOG에 요약 기록되며, ALARM_LOG가 resolved_at을 포함하는 원본. 중복 기록이나 EVENT_LOG가 ALARM_LOG를 대체하지 않는다.
 
 ---
 

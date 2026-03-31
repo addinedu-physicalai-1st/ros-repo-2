@@ -96,33 +96,39 @@ flowchart TD
 
 ## BT 2: SEARCHING
 
-**목적:** 제자리에서 일정 각도씩 회전하며 360° 탐색. 재발견 시 TRACKING 복귀, 실패 시 WAITING 전환.
+**목적:** 30초간 제자리 회전하며 탐색. 재발견 시 TRACKING 복귀, 타임아웃/장애물 시 WAITING 전환.
 **연관 SR:** SR-21, SR-22, SR-37
 
 ```mermaid
 flowchart TD
-    ROOT["→ Sequence\n재탐색 진입"]
-    ROOT --> REPEAT["⟳ Repeat (8스텝, 45° × 8 = 360°)"]
+    ROOT["BTSearching\n(30초 타이머 시작, CCW 회전)"]
 
-    REPEAT --> SEQ_STEP["→ Sequence\n탐색 1스텝"]
+    ROOT --> T{"30초 타임아웃?"}
+    T -- Yes --> W["[ sm.trigger: to_waiting ]"]
 
-    SEQ_STEP --> A1["[ 45° 제자리 회전 ]"]
-    A1 --> A2["[ 카메라 프레임 취득 ]"]
-    A2 --> A3["[ YOLOv8n 추론 ]"]
-    A3 --> FB["? Fallback\n재발견 판정"]
+    T -- No --> OBS_L{"좌측 장애물\n< 0.25m?"}
+    OBS_L -- Yes --> OBS_R{"우측도\n장애물?"}
+    OBS_R -- Yes --> W
+    OBS_R -- No --> SWITCH_CW["[ CW 방향 전환 ]"]
+    SWITCH_CW --> DET
 
-    FB --> SEQ_FOUND["→ Sequence\n재발견 성공"]
-    SEQ_FOUND --> C1(("ReID 매칭 성공?"))
-    SEQ_FOUND --> A4["[ sm.trigger: owner_found\n→ BT 종료 ]"]
+    OBS_L -- No --> OBS_R2{"우측 장애물\n< 0.25m?\n(CW 중일 때)"}
+    OBS_R2 -- Yes --> OBS_L2{"좌측도\n장애물?"}
+    OBS_L2 -- Yes --> W
+    OBS_L2 -- No --> SWITCH_CCW["[ CCW 방향 전환 ]"]
+    SWITCH_CCW --> DET
+    OBS_R2 -- No --> DET
 
-    FB --> A5["[ RUNNING 유지\n다음 스텝 진행 ]"]
-
-    REPEAT -- 8스텝 완료 후 미발견 --> A6["[ sm.trigger: search_failed ]"]
+    DET{"주인 감지됨?\nget_latest()"}
+    DET -- Yes --> F["[ sm.trigger: owner_found ]"]
+    DET -- No --> ROOT
 ```
 
 **설계 포인트**
-- 회전 각도와 스텝 수는 구현 시 확정.
-- 재발견 즉시 루프를 중단하고 SM에 이벤트를 전달한다.
+- 스텝/각도 없이 시간 기반으로 단순화. `SEARCH_TIMEOUT = 30.0`초.
+- 회전하면서 동시에 감지 확인 (정지-감지 반복 없음).
+- RPLiDAR 좌/우 호(45°~135°, 225°~315°) 기준으로 장애물 체크.
+- 장애물 감지 시 반대 방향으로 전환. 양측 모두 막히면 즉시 WAITING.
 
 ---
 
@@ -210,7 +216,7 @@ flowchart TD
 |---|---|---|
 | TRACKING BT | `owner_lost` | TRACKING → SEARCHING |
 | SEARCHING BT | `owner_found` | SEARCHING → TRACKING |
-| SEARCHING BT | `search_failed` | SEARCHING → WAITING |
+| SEARCHING BT | `to_waiting` | SEARCHING → WAITING (타임아웃 또는 양측 장애물) |
 | WAITING BT | (없음 — SM 이벤트로만 종료) | — |
 | GUIDING BT | `arrived` | GUIDING → TRACKING |
 | GUIDING BT | `nav_failed` | GUIDING → TRACKING (앱 "안내 실패" 알림) |
