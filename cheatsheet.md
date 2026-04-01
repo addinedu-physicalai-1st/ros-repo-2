@@ -53,7 +53,7 @@ ros2 launch pinky_navigation gz_nav2_view.launch.xml
 ros2 launch pinky_bringup bringup_robot.launch.xml
 
 # 저장한 정적 맵(yaml)을 로드해 localization + navigation(Nav2) 스택을 실행합니다.
-ros2 launch pinky_navigation bringup_launch.xml map:=<저장한 맵이름.yaml>
+ros2 launch pinky_navigation bringup_launch.xml map:=src/pinky_pro/pinky_navigation/map/shop.yaml
 
 # [PC]
 # RViz를 실행해 로봇 위치, 코스트맵, 계획 경로를 시각화하고 목표를 줄 수 있습니다.
@@ -73,7 +73,7 @@ ros2 topic echo /clicked_point
 # 이후 rviz의 publish point 이용, rviz 상 좌표 클릭
 ```
 
-### 로봇의 현제 좌표를 얻는 법
+### 로봇의 현재 좌표를 얻는 법
 
 ```bash 
 ros2 topic echo /amcl_pose
@@ -84,3 +84,13 @@ ros2 topic echo /amcl_pose
 1. waypoint 클릭
 2. nav2 goal 을 이용해서 waypoint 추가
 3. start waypoint following
+
+## Pinky 와이파이 접속 설정 안될때
+
+```bash
+nmcli device wifi list
+
+# 원하는 와이파이가 안 뜰 경우
+sudo nmcli device wifi rescan 
+nmcli device wifi list
+```
