@@ -1,7 +1,6 @@
 # 시나리오 11: 배터리 알람
 
 **SM 전환:** `ANY → ALARM(BATTERY_LOW) → WAITING`
-**모드:** PERSON/ARUCO 공통
 
 ---
 
@@ -17,14 +16,14 @@
 |:---:|---|
 | [ ] | 배터리 레벨 모니터링 (`BATTERY_THRESHOLD=20%` 이하 감지) — `_battery_alarm_fired` 플래그로 중복 트리거 방지 |
 | [ ] | `sm.trigger('battery_low')` → ALARM 전환 |
-| [ ] | `on_enter_ALARM`: `camera_mode = "NONE"`, `bt_runner.stop()` |
+| [ ] | `on_enter_ALARM`: `bt_runner.stop()` |
 | [ ] | `on_enter_ALARM`: `current_alarm = "BATTERY_LOW"` 저장 |
 | [ ] | `on_enter_ALARM`: `/cmd_vel` 정지, LED 빨강 점멸 |
 | [ ] | `/robot_<id>/alarm` topic publish `{"event": "BATTERY_LOW", "user_id": "..."}` (키 `event` 통일) |
 | [ ] | control_service: ALARM_LOG 생성 (event_type="BATTERY_LOW") |
-| [ ] | admin_app: 알람 패널 표시 + [해제] 버튼 (채널 D 직접 참조) |
+| [ ] | admin_ui: 알람 패널 표시 + [해제] 버튼 (채널 B TCP 수신) |
 | [ ] | 브라우저: 배터리 알람 UI + 4자리 PIN 입력창 표시 |
-| [ ] | 알람 해제 경로 ①: admin_app [해제] → `control_service.dismiss_alarm()` 직접 호출 |
+| [ ] | 알람 해제 경로 ①: admin_ui [해제] → TCP 명령 → control_service: `{"cmd": "dismiss_alarm", "robot_id": ...}` |
 | [ ] | 알람 해제 경로 ②: 브라우저 PIN 입력 → `POST /alarm/dismiss` → control_service |
 | [ ] | `current_alarm != "THEFT"` → `sm.trigger('dismiss_to_waiting')` |
 | [ ] | WAITING 복귀 후 세션 유지 확인 (SESSION is_active=True) |
@@ -50,7 +49,6 @@
     → sm.trigger('battery_low') → ALARM
     ↓
 on_enter_ALARM
-    → camera_mode = "NONE"
     → bt_runner.stop()
     → current_alarm = "BATTERY_LOW"
     → 로봇 정지
@@ -60,12 +58,12 @@ on_enter_ALARM
     ↓
 control_service
     → ALARM_LOG 생성 (event_type="BATTERY_LOW")
-    → admin_app 직접 참조로 알람 이벤트 전달 (채널 D)
+    → admin_ui TCP push (채널 B): {"type": "alarm", "robot_id": ..., "event_type": "BATTERY_LOW", "occurred_at": ...}
     → customer_web push: {"type": "alarm", "event": "BATTERY_LOW"}
 
 ────── 알람 해제 경로 ① (관제) ──────
-admin_app [해제] 버튼
-    → control_service.dismiss_alarm(robot_id) 직접 호출 (채널 D)
+admin_ui [해제] 버튼
+    → TCP → control_service: {"cmd": "dismiss_alarm", "robot_id": <id>}
     → /robot_<id>/cmd: {"cmd": "dismiss_alarm"}
 
 ────── 알람 해제 경로 ② (현장 PIN) ──────
@@ -106,7 +104,7 @@ on_enter_WAITING
 | 상황 | 결과 |
 |---|---|
 | 배터리 부족 감지 | ALARM 진입, 로봇 정지 |
-| admin_app 알람 수신 | 알람 패널에 BATTERY_LOW 표시 |
+| admin_ui 알람 수신 | 알람 패널에 BATTERY_LOW 표시 |
 | [해제] 클릭 | **WAITING 복귀** (세션 유지, IDLE 가지 않음) |
 
 > THEFT와의 차이: BATTERY_LOW 해제 → `dismiss_to_waiting` (세션 유지)
@@ -133,8 +131,8 @@ sqlite3 src/control_center/control_service/data/control.db \
 # 해제 후 WAITING 확인
 ros2 topic echo /robot_54/status   # mode: "WAITING"
 
-# 세션 유지 확인 (Pi DB)
-sqlite3 src/shoppinkki/shoppinkki_core/data/pi.db \
+# 세션 유지 확인 (중앙 DB)
+sqlite3 src/control_center/control_service/data/control.db \
   "SELECT is_active FROM session ORDER BY created_at DESC LIMIT 1;"
 # → is_active = 1 (유지됨)
 ```

@@ -1,7 +1,6 @@
 # 시나리오 05: 대기
 
 **SM 전환:** `WAITING` (대기 중 통행자 회피, 사용자 명령 대기)
-**모드:** PERSON/ARUCO 공통
 **관련 패키지:** shoppinkki_core, shoppinkki_nav
 
 ---
@@ -16,14 +15,13 @@
 
 | 완료 | 기능 |
 |:---:|---|
-| [ ] | `on_enter_WAITING`: `camera_mode = "NONE"` 설정 |
 | [ ] | `on_enter_WAITING`: `WAITING_TIMEOUT(=300s)` 타이머 시작 |
 | [ ] | `on_enter_WAITING`: BTWaiting 시작 |
 | [ ] | BTWaiting: `/scan` 전방 `FRONT_OBSTACLE_DIST(=0.5m)` 이내 감지 시 좌우(45°~135°/우:-135°~-45°) 여유 비교 |
 | [ ] | BTWaiting: 더 여유 있는 쪽으로 angular_z 회전 (lateral 이동 불가 — differential drive) |
 | [ ] | BTWaiting: 항상 RUNNING 반환 (SM 이벤트로만 종료) |
 | [ ] | [물건 추가] 명령 (`{"cmd": "mode", "value": "ITEM_ADDING"}`) → `sm.trigger('to_item_adding')` → ITEM_ADDING |
-| [ ] | [보내주기] + Pi DB 빈 장바구니 → `sm.trigger('to_returning')` → RETURNING |
+| [ ] | [보내주기] + 빈 장바구니(`GET /cart/<session_id>`) → `sm.trigger('to_returning')` → RETURNING |
 | [ ] | [보내주기] + 장바구니에 물건 있음 → `send_event('returning_blocked')` → 브라우저 알림 |
 | [ ] | `WAITING_TIMEOUT(=300s)` 경과 → `sm.trigger('timeout')` → ALARM |
 | [ ] | `on_exit_WAITING`: 타이머 즉시 취소 |
@@ -33,7 +31,7 @@
 
 ## 전제조건
 
-- SM = WAITING (SEARCHING 타임아웃 or 양측 장애물로 진입)
+- SM = WAITING (SEARCHING 타임아웃 또는 양측 장애물로 진입)
 - BTWaiting 시작, 5분 타임아웃 타이머 시작
 
 ---
@@ -42,7 +40,6 @@
 
 ```
 on_enter_WAITING
-    → camera_mode = "NONE"
     → threading.Timer(300, lambda: sm.trigger('timeout')).start()
     → bt_runner.start(BTWaiting)
 
@@ -59,7 +56,7 @@ BTWaiting.update() @ 30Hz
     → "물건 추가" 버튼 → {"cmd": "mode", "value": "ITEM_ADDING"}
         → sm.trigger('to_item_adding') → ITEM_ADDING
           ※ WAITING → ITEM_ADDING 전환이 state_machine.md에 추가됨 (기존 누락)
-    → "보내주기" 버튼 → cmd: mode=RETURNING → Pi DB CART_ITEM 확인
+    → "보내주기" 버튼 → cmd: mode=RETURNING → REST GET /cart/<session_id> 확인
         비어있음 → sm.trigger('to_returning') → RETURNING
         있음     → send_event('returning_blocked') → 브라우저 알림
 
@@ -93,8 +90,8 @@ ros2 topic echo /cmd_vel
 # 5분 타임아웃 (테스트용 단축): config.py에서 WAITING_TIMEOUT=10으로 임시 변경 후 확인
 
 # 장바구니 상태 확인
-sqlite3 src/shoppinkki/shoppinkki_core/data/pi.db \
-  "SELECT * FROM cart_item WHERE session_id=(SELECT session_id FROM session WHERE active=1);"
+sqlite3 src/control_center/control_service/data/control.db \
+  "SELECT * FROM cart_item WHERE cart_id=(SELECT cart_id FROM cart WHERE session_id=(SELECT session_id FROM session WHERE is_active=1 ORDER BY created_at DESC LIMIT 1));"
 ```
 
 ---

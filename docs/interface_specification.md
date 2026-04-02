@@ -10,25 +10,12 @@
 
 ```
 shoppinkki_core (main_node)
-    ├── OwnerDetectorInterface  ← shoppinkki_perception 구현 (OwnerDetector 또는 ArucoTracker)
-    ├── QRScannerInterface      ← shoppinkki_perception 구현
-    ├── PoseScannerInterface    ← shoppinkki_perception 구현 (PERSON 모드 전용)
-    ├── NavBTInterface          ← shoppinkki_nav 구현 (BTWaiting / BTGuiding / BTReturning)
-    ├── BoundaryMonitorInterface ← shoppinkki_nav 구현 (ARUCO 모드 전용)
-    └── RobotPublisherInterface ← shoppinkki_core 내부 구현
+    ├── DollDetectorInterface    ← shoppinkki_perception 구현 (커스텀 YOLO 인형 감지)
+    ├── QRScannerInterface       ← shoppinkki_perception 구현
+    ├── NavBTInterface           ← shoppinkki_nav 구현 (BTWaiting / BTGuiding / BTReturning)
+    ├── BoundaryMonitorInterface ← shoppinkki_nav 구현
+    └── RobotPublisherInterface  ← shoppinkki_core 내부 구현
 ```
-
-### 데모 모드별 사용 범위
-
-| 인터페이스 | PERSON 모드 | ARUCO 모드 |
-|---|---|---|
-| `OwnerDetectorInterface` | `OwnerDetector` (YOLO+ReID) | `ArucoTracker` (ArUco 마커) |
-| `QRScannerInterface` | ✅ | ✅ |
-| `PoseScannerInterface` | ✅ | ❌ |
-| `NavBTInterface` — BTWaiting | ✅ | ✅ |
-| `NavBTInterface` — BTGuiding / BTReturning | ❌ | ✅ |
-| `BoundaryMonitorInterface` | ❌ | ✅ |
-| `RobotPublisherInterface` | ✅ | ✅ |
 
 ---
 
@@ -43,9 +30,9 @@ from dataclasses import dataclass
 @dataclass
 class Detection:
     cx: float           # bbox 중심 x (픽셀)
-    area: float         # bbox 넓이 (px²) — PERSON 모드 거리 추정용
-    distance: float     # 실제 Z 거리 (m) — ARUCO 모드 거리 추정용
-    confidence: float   # ReID 유사도 (0~1)
+    area: float         # bbox 넓이 (px²) — 거리 추정용 (P-Control 선속도)
+    confidence: float   # YOLO 감지 신뢰도 (0~1)
+    reid_score: float   # ReID + 색상 유사도 (0~1) — 주인 인형 매칭 점수
 
 @dataclass
 class CartItem:
@@ -56,16 +43,23 @@ class CartItem:
 
 # ── shoppinkki_perception 구현 ───────────────────────────────────
 
-class OwnerDetectorInterface(Protocol):
-    def run(self, frame, camera_mode: str) -> None: ...
-    # camera_mode: "YOLO" | "ARUCO" | "QR" | "POSE_SCAN" | "ARUCO_SCAN" | "NONE"
-    # 해당 모드가 아니면 즉시 return (CPU 낭비 없음)
+class DollDetectorInterface(Protocol):
+    def register(self, frame) -> bool: ...
+    # REGISTERING 단계: 현재 프레임에서 인형을 YOLO로 감지하고
+    # ReID 특징 벡터 + 색상 히스토그램을 주인 인형 템플릿으로 저장.
+    # 등록 성공(인형 감지됨) 시 True, 미감지 시 False.
+
+    def run(self, frame) -> None: ...
+    # TRACKING 단계: YOLO로 인형 클래스 감지 후 ReID + 색상 매칭으로
+    # 주인 인형을 식별. 결과(Detection 또는 None)를 내부 버퍼에 저장.
 
     def get_latest(self) -> Optional[Detection]: ...
-    # 가장 최근 프레임의 감지 결과. 미감지시 None
+    # 가장 최근 프레임의 주인 인형 감지 결과.
+    # 미감지 또는 ReID 매칭 임계값 미달 시 None.
 
-    def register_target(self) -> None: ...
-    # ARUCO 모드 전용. 마커 ID 1회 등록 (blocking). REGISTERING 상태에서 별도 스레드 호출
+    def is_ready(self) -> bool: ...
+    # REGISTERING 완료 조건 — register() 성공 후 True.
+    # SM이 REGISTERING → TRACKING 전환 판단에 사용.
 
 
 class QRScannerInterface(Protocol):
@@ -74,13 +68,6 @@ class QRScannerInterface(Protocol):
     # on_timeout() — 마지막 스캔으로부터 30초 무활동시 호출
 
     def stop(self) -> None: ...
-
-
-class PoseScannerInterface(Protocol):
-    def scan(self, session_id: str, on_direction_done: callable) -> list[dict]: ...
-    # front → right → back → left 순서 촬영
-    # on_direction_done(direction: str) — 각 방향 완료시 호출 (부저 신호음용)
-    # 반환: [{session_id, direction, hsv_top_json, hsv_bottom_json}, ...]
 
 
 # ── shoppinkki_nav 구현 ──────────────────────────────────────────
@@ -127,14 +114,15 @@ class RobotPublisherInterface(Protocol):
 
     def terminate_session(self) -> None: ...
     # 1. CART_ITEM 전체 삭제 (REST API 경유)
-    # 2. POSE_DATA 전체 삭제 (REST API 경유)
-    # 3. SESSION.is_active = False (REST API 경유)
+    # 2. SESSION.is_active = False (REST API 경유)
     # 호출 직후 publish_status(mode="IDLE") 발행으로 control_service에 즉시 통보
 ```
 
 ---
 
-## 2. 통신 메시지 정의
+## 2. 통신 채널 정의
+
+> 채널 A~H 기준: `docs/system_architecture.md`
 
 ### 채널 A — Customer UI ↔ customer_web (WebSocket)
 
@@ -151,15 +139,14 @@ class RobotPublisherInterface(Protocol):
 | web → 앱 | `{"type": "nav_failed"}` |
 | web → 앱 | `{"type": "alarm", "event": "PAYMENT_ERROR"}` |
 | web → 앱 | `{"type": "payment_done"}` |
-| web → 앱 | `{"type": "registering", "mode": "ARUCO"}` — ARUCO 등록 대기 중 스피너 표시용 |
-| web → 앱 | `{"type": "pose_scan_progress", "direction": "front"\|"right"\|"back"\|"left"}` — PERSON 포즈 스캔 진행 상태 |
-| web → 앱 | `{"type": "registration_done"}` — 등록 완료, UI 전환 신호 |
+| web → 앱 | `{"type": "registering"}` — 인형 감지 대기 중 스피너 표시용 |
+| web → 앱 | `{"type": "registration_done"}` — 등록 완료(인형 첫 감지 확인), UI 전환 신호 |
 
 ---
 
 ### 채널 B — Admin UI ↔ control_service (TCP)
 
-> **변경:** 기존 동일 프로세스 직접 참조(채널 D) → **별도 기기에서 TCP로 연결**하는 독립 클라이언트
+> 별도 기기(또는 별도 프로세스)에서 TCP로 control_service에 연결하는 독립 클라이언트.
 
 | 방향 | 메시지 | 설명 |
 |---|---|---|
@@ -194,9 +181,9 @@ class RobotPublisherInterface(Protocol):
 
 ---
 
-### 채널 D — customer_web ↔ LLM (TCP/REST HTTP, 포트 8000)
+### 채널 D — customer_web ↔ LLM (REST HTTP, 포트 8000)
 
-> **변경:** 기존 control_service → LLM (단방향) → **customer_web이 LLM과 직접 통신**
+> customer_web이 LLM Docker 서비스를 직접 호출. 자연어 상품 검색 전용.
 
 | 메서드 | 경로 | 요청 | 응답 | 설명 |
 |---|---|---|---|---|
@@ -207,18 +194,20 @@ class RobotPublisherInterface(Protocol):
 ### 채널 E — control_service ↔ Control DB (TCP)
 
 > Control DB가 독립 서비스로 분리. control_service가 TCP로 접근.
-> SESSION / CART / CART_ITEM / POSE_DATA 포함 전체 테이블 관리.
+> SESSION / CART / CART_ITEM 포함 전체 테이블 관리.
 
 ---
 
 ### 채널 F — control_service ↔ YOLO (TCP + UDP 하이브리드)
 
-> **변경:** 기존 Pi → YOLO TCP → **control_service가 영상을 UDP로 수신 후 YOLO에 전달**
+> Pi에서 UDP로 수신한 원시 영상을 control_service가 YOLO로 전달. 인식 결과는 TCP로 반환.
 
 | 방향 | 프로토콜 | 데이터 | 설명 |
 |---|---|---|---|
 | control → YOLO | **UDP** | 원시 영상 프레임 | 고용량 영상 → 지연 최소화를 위해 UDP |
-| YOLO → control | **TCP** | `{"cx": 320, "cy": 240, "confidence": 0.92}` | 인식 결과 좌표 → 유실 불허이므로 TCP |
+| YOLO → control | **TCP** | `{"cx": 320, "area": 12000, "confidence": 0.92}` | 인식 결과 → 유실 불허이므로 TCP |
+
+> **YOLO 모델:** 인형 전용 custom-trained YOLOv8. `services/ai_server/yolo/models/` 에 위치.
 
 ---
 
@@ -242,8 +231,6 @@ class RobotPublisherInterface(Protocol):
 
 ### 채널 H — control_service ↔ pinky_pro packages (ROS 2 + UDP)
 
-> **변경:** 주행 명령은 ROS 2로, 원시 카메라·센서 데이터는 UDP로 서버에 직접 스트리밍
-
 | 방향 | 프로토콜 | 데이터 | 설명 |
 |---|---|---|---|
 | control → pinky | ROS 2 DDS | `/cmd_vel` (`geometry_msgs/Twist`) | 모터 속도 명령 |
@@ -261,13 +248,11 @@ BTGuiding / BTReturning 및 Pi가 Control DB를 조회하는 내부 REST API.
 | GET | `/zone/<zone_id>/waypoint` | `{"x": 1.2, "y": 0.8, "theta": 0.0}` | zone_id의 Nav2 목표 좌표 조회 |
 | GET | `/boundary` | `{"shop_boundary": {...}, "payment_zone": {...}}` | BOUNDARY_CONFIG 전체 조회 |
 | GET | `/find_product?query=<str>` | `{"zone_id": 3, "zone_name": "음료 코너"}` | 상품명 검색 |
-| GET | `/queue/assign?robot_id=<id>` | `{"zone_id": 140}` | 대기열 position 배정. zone 140(1번) 또는 141(2번) 반환 |
+| GET | `/queue/assign?robot_id=<id>` | `{"zone_id": 140}` | 대기열 position 배정. zone 140(1번) / 141(2번) / 142(3번) 반환 |
 | GET | `/events?robot_id=<id>&limit=<n>` | `[{"log_id":1, "event_type":"SESSION_START", ...}]` | EVENT_LOG 조회 |
-| POST | `/session` | `{"session_id": "..."}` | 세션 생성 (Pi DB 제거 후 Control DB에 직접 저장) |
+| POST | `/session` | `{"session_id": "..."}` | 세션 생성 |
 | GET | `/session/<session_id>` | `{"is_active": true, "expires_at": "..."}` | 세션 유효성 조회 |
 | PATCH | `/session/<session_id>` | `{"ok": true}` | 세션 종료 (`is_active=false`) |
 | POST | `/cart/<session_id>/item` | `{"item_id": 5}` | CART_ITEM 추가 |
 | DELETE | `/cart/<session_id>/item/<item_id>` | `{"ok": true}` | CART_ITEM 삭제 |
 | DELETE | `/cart/<session_id>/items` | `{"ok": true}` | CART_ITEM 전체 삭제 |
-| POST | `/pose/<session_id>` | `{"ok": true}` | POSE_DATA 저장 |
-| DELETE | `/pose/<session_id>` | `{"ok": true}` | POSE_DATA 전체 삭제 |

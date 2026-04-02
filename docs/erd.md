@@ -7,7 +7,8 @@
 
 ## 저장 위치 구분
 
-> **변경 사항:** Pi 5 로컬 DB 제거. SESSION / POSE_DATA / CART / CART_ITEM 모두 중앙 서버 DB로 통합.
+> **변경 사항:** Pi 5 로컬 DB 제거. SESSION / CART / CART_ITEM 모두 중앙 서버 DB로 통합.
+> POSE_DATA 제거 — 커스텀 YOLO 인형 추적으로 전환하여 포즈 스캔 불필요.
 
 | 엔티티 | 저장 위치 | 근거 |
 |---|---|---|
@@ -16,11 +17,10 @@
 | ZONE | 중앙 서버 DB | SR-80 — 상품/특수 구역 Waypoint |
 | PRODUCT | 중앙 서버 DB | SR-81 — 상품명→구역 매핑, 물건 찾기 질의 대상 |
 | BOUNDARY_CONFIG | 중앙 서버 DB | SR-82, SR-83 — 도난/결제 구역 좌표 |
-| ROBOT | 중앙 서버 DB | SR-61 — Pi 5가 ROS DDS (채널 C, `/robot_<id>/status`)로 상태 보고 |
+| ROBOT | 중앙 서버 DB | SR-61 — Pi 5가 ROS DDS (채널 G, `/robot_<id>/status`)로 상태 보고 |
 | ALARM_LOG | 중앙 서버 DB | SR-63 — 이벤트 발생 시 즉시 전송 |
 | EVENT_LOG | 중앙 서버 DB | scenario_17 — 운용 이벤트 타임라인 |
 | SESSION | 중앙 서버 DB | Pi 로컬 DB 제거 → Control Service REST API로 관리 |
-| POSE_DATA | 중앙 서버 DB | Pi 로컬 DB 제거 → Control Service REST API로 관리 |
 | CART | 중앙 서버 DB | Pi 로컬 DB 제거 → Control Service REST API로 관리 |
 | CART_ITEM | 중앙 서버 DB | Pi 로컬 DB 제거 → Control Service REST API로 관리 |
 
@@ -106,14 +106,6 @@ erDiagram
         bool is_active
     }
 
-    POSE_DATA {
-        int pose_id PK
-        string session_id FK
-        string direction
-        string hsv_top_json
-        string hsv_bottom_json
-    }
-
     CART {
         int cart_id PK
         string session_id FK
@@ -136,7 +128,6 @@ erDiagram
     USER ||--o{ SESSION : "starts"
     ROBOT ||--o{ SESSION : "assigned"
     SESSION ||--|| CART : "has"
-    SESSION ||--o{ POSE_DATA : "captures"
     CART ||--o{ CART_ITEM : "contains"
 ```
 
@@ -202,7 +193,7 @@ erDiagram
 | y_max | FLOAT | y 최댓값 |
 
 #### ROBOT
-각 Pi 5 로봇의 식별 정보 및 실시간 상태. Pi 5가 **ROS DDS (채널 C, `/robot_<id>/status`)** 로 1~2Hz 주기 갱신 (SR-61).
+각 Pi 5 로봇의 식별 정보 및 실시간 상태. Pi 5가 **ROS DDS (채널 G, `/robot_<id>/status`)** 로 1~2Hz 주기 갱신 (SR-61).
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -212,7 +203,7 @@ erDiagram
 | pos_x | FLOAT | AMCL 기반 현재 위치 x |
 | pos_y | FLOAT | AMCL 기반 현재 위치 y |
 | battery_level | INT | 배터리 잔량 (%, 0~100) |
-| last_seen | DATETIME | 마지막 `/robot_<id>/status` 수신 시각 (ROS DDS, 채널 C) |
+| last_seen | DATETIME | 마지막 `/robot_<id>/status` 수신 시각 (ROS DDS, 채널 G) |
 | active_user_id | STRING | 현재 활성 세션 user_id. NULL이면 빈 카트 (SR-19 중복 체크용) |
 
 #### ALARM_LOG
@@ -227,7 +218,7 @@ erDiagram
 | occurred_at | DATETIME | 이벤트 발생 시각 |
 | resolved_at | DATETIME | 처리 완료 시각 (null = 미처리) |
 
-> **표기 통일:** event_type은 채널 C 명세 기준 `BATTERY_LOW`로 통일 (이전 `BATTERY` 표기 수정).
+> **표기 통일:** event_type은 채널 G 명세 기준 `BATTERY_LOW`로 통일.
 
 #### EVENT_LOG
 로봇 운용 중 발생하는 주요 이벤트 타임라인. 알람 외 세션·모드·시스템 이벤트를 포함 (scenario_17).
@@ -258,17 +249,6 @@ erDiagram
 > **유효 세션 판단 정책:** `is_active = true AND expires_at > now()` 를 동시에 만족해야 한다.
 > - `expires_at` 초과 → 자동 만료 (타임아웃). `is_active`가 true여도 무효.
 > - `is_active = false` → 명시적 종료. `expires_at`이 미래여도 무효.
-
-#### POSE_DATA
-포즈 스캔 결과. 전면/우측/후면/좌측 4방향 HSV 특징 저장. 세션 종료 시 전체 삭제 (SR-13, SR-17).
-
-| 컬럼 | 타입 | 설명 |
-|---|---|---|
-| pose_id | INT | PK |
-| session_id | STRING | FK → SESSION |
-| direction | STRING | `front` / `right` / `back` / `left` |
-| hsv_top_json | STRING | 상체 HSV 히스토그램 (16×16 bins, JSON) |
-| hsv_bottom_json | STRING | 하체 HSV 히스토그램 (16×16 bins, JSON) |
 
 #### CART
 세션당 하나의 장바구니. 세션과 1:1 관계 (UR-12, UR-13).

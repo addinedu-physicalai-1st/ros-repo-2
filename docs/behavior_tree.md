@@ -31,13 +31,19 @@ BT는 **주행·네비게이션 로직이 있는 상태**에만 적용합니다.
 
 | 상태 | BT 적용 | 이유 |
 |---|---|---|
+| `BATTERY_CHECK` | 없음 | 정지 상태. 배터리 수준 확인만 수행 |
+| `CHARGING` | 없음 | 충전 중 정지 상태 |
 | `IDLE` | 없음 | 정지 상태. LCD QR 표시만 수행 |
+| `REGISTERING` | 없음 | 정지 상태. 인형 등록 대기 |
 | `TRACKING` | BT 1 | P-Control 추종 + 장애물 회피 |
 | `SEARCHING` | BT 2 | 제자리 회전 탐색 |
 | `WAITING` | BT 3 | 통행자 회피 이동 |
 | `ITEM_ADDING` | 없음 | 정지 상태. QR 스캔만 수행 (주행 없음) |
 | `GUIDING` | BT 4 | Nav2 Waypoint 이동 |
-| `RETURNING` | BT 5 | Nav2 귀환 이동 |
+| `CHECK_OUT` | 없음 | 정지 상태. 결제 처리 중 UI 이벤트 대기 |
+| `RETURNING` | BT 5 | QueueManager 배정 후 Nav2로 대기열 위치 이동 |
+| `TOWARD_STANDBY_1/2/3` | BT 5 | 배정된 대기열 위치로 Nav2 이동 (queue_advance 수신 후) |
+| `STANDBY_1/2/3` | 없음 | 대기열 위치 도착. 사용자 수령 또는 queue_advance 대기 |
 | `ALARM` | 없음 | 이동 정지. 직원 호출 대기만 수행 |
 
 ---
@@ -55,7 +61,7 @@ BT는 **주행·네비게이션 로직이 있는 상태**에만 적용합니다.
 
 ## BT 1: TRACKING
 
-**목적:** 주인을 인식하고 P-Control로 추종. RPLiDAR 장애물 회피를 병렬 적용.
+**목적:** 커스텀 YOLO로 인형 클래스 감지 후 ReID+색상 매칭으로 주인 인형 식별, P-Control로 추종. RPLiDAR 장애물 회피를 병렬 적용.
 **연관 SR:** SR-21, SR-22, SR-30, SR-31
 
 ```mermaid
@@ -64,14 +70,14 @@ flowchart TD
 
     ROOT --> PAR["∥ Parallel\n모두 SUCCESS여야 계속"]
 
-    PAR --> SEQ_TRACK["→ Sequence\n주인 추종"]
+    PAR --> SEQ_TRACK["→ Sequence\n인형 추종"]
     PAR --> SEQ_OBS["→ Sequence\n장애물 회피"]
 
     SEQ_TRACK --> A1["[ 카메라 프레임 취득 ]"]
-    A1 --> A2["[ YOLOv8n 추론 ]"]
-    A2 --> FB["? Fallback\n주인 식별"]
+    A1 --> A2["[ YOLO 감지 + ReID/색상 매칭\ndoll_detector.run(frame)\n인형 클래스 감지 → 주인 인형 ReID+색상 매칭 ]"]
+    A2 --> FB["? Fallback\n주인 인형 식별"]
 
-    FB --> C1(("ReID 매칭 성공?"))
+    FB --> C1(("doll_detector.get_latest() != None?\n(ReID 매칭 성공?)"))
     FB --> SEQ_LOST["→ Sequence\n미발견 처리"]
 
     SEQ_LOST --> A3["[ 미발견 카운터 +1 ]"]
@@ -79,7 +85,7 @@ flowchart TD
     C2 -- FAILURE --> A4["[ /cmd_vel 정지\nsm.trigger: owner_lost ]"]
 
     FB --> A5["[ 미발견 카운터 = 0 ]"]
-    A5 --> A6["[ P-Control 산출\n선속도·각속도 ]"]
+    A5 --> A6["[ P-Control 산출\n선속도(bbox 면적) · 각속도(bbox 중심x) ]"]
     A6 --> A7["[ /cmd_vel 퍼블리시 ]"]
 
     SEQ_OBS --> A8["[ RPLiDAR 스캔 취득 ]"]
@@ -89,6 +95,8 @@ flowchart TD
 ```
 
 **설계 포인트**
+- `doll_detector.run(frame)` 내부 파이프라인: ① YOLO로 프레임 내 "인형" 클래스 모두 감지 → ② 각 bbox에 대해 ReID 특징 벡터 + 색상 히스토그램을 등록 템플릿과 비교 → ③ 임계값 이상 최고 유사도 후보를 주인 인형으로 선택.
+- `get_latest()`는 매칭된 주인 인형의 `Detection`(cx, area, confidence, reid_score)을 반환. 매칭 실패 시 None.
 - 미발견 카운터로 일시적 가림(occlusion)에 내성을 확보한다. N은 구현 시 확정.
 - 장애물 회피는 P-Control 출력을 후처리로 보정하며, `/cmd_vel` 는 단일 퍼블리셔에서만 출력한다.
 
@@ -119,7 +127,7 @@ flowchart TD
     SWITCH_CCW --> DET
     OBS_R2 -- No --> DET
 
-    DET{"주인 감지됨?\nget_latest()"}
+    DET{"인형 감지됨?\ndoll_detector.get_latest()"}
     DET -- Yes --> F["[ sm.trigger: owner_found ]"]
     DET -- No --> ROOT
 ```
@@ -182,31 +190,39 @@ flowchart TD
 **설계 포인트**
 - SM은 앱으로부터 zone_id를 받아 GUIDING으로 진입한다. Waypoint 조회는 BT가 zone_id로 수행한다.
 - Waypoint 조회 실패와 Nav2 실패 모두 `nav_failed`로 처리한다 → TRACKING 복귀 + 앱 알림.
-- 구역 이탈 감지(ALARM 전환)는 BT가 아닌 SM의 `/pinky/pose` 구독 콜백에서 처리한다.
+- 구역 이탈 감지(ALARM 전환)는 BT가 아닌 SM의 `/amcl_pose` 구독 콜백에서 처리한다.
 
 ---
 
-## BT 5: RETURNING
+## BT 5: RETURNING / TOWARD_STANDBY
 
-**목적:** 카트 출구(ID 140) Waypoint로 Nav2 복귀. 도착 후 세션 종료 및 IDLE 전환.
+**목적:** RETURNING — QueueManager에서 배정된 대기열 위치(zone 140/141/142)로 Nav2 이동. 도착 후 STANDBY 대기 진입.
+TOWARD_STANDBY — queue_advance 수신 후 앞 대기열 위치로 Nav2 재이동.
 **연관 SR:** SR-35, SR-84, SR-17
 
 ```mermaid
 flowchart TD
-    ROOT["→ Sequence\n귀환 진입"]
+    ROOT["→ Sequence\n귀환/대기열 이동"]
 
-    ROOT --> A1["[ 중앙 서버 API 질의\n카트 출구 ID 140 Waypoint 좌표 ]"]
-    A1 --> A2["[ Nav2 Goal 전송 ]"]
-    A2 --> C1(("Nav2 성공?"))
+    ROOT --> A1["[ 중앙 서버 /queue/assign 호출\n배정 zone_id 수신 (140 | 141 | 142) ]"]
+    A1 --> C0(("zone_id 유효?"))
+    C0 -- FAILURE --> A_ERR0["[ sm.trigger: nav_failed → ALARM ]"]
+
+    C0 -- SUCCESS --> A_SM["[ sm.trigger: to_toward_standby_X\n(배정 zone에 따라 1 | 2 | 3) ]"]
+    A_SM --> A2["[ zone_id Waypoint 조회\n중앙 서버 /zone/<id>/waypoint ]"]
+    A2 --> A3["[ Nav2 Goal 전송 ]"]
+    A3 --> C1(("Nav2 성공?"))
     C1 -- FAILURE --> A_ERR["[ sm.trigger: nav_failed → ALARM ]"]
 
-    C1 -- SUCCESS --> A3["[ Pi 5 세션 종료\n(POSE_DATA 삭제, SESSION 만료) ]"]
-    A3 --> A4["[ 중앙 서버에 세션 종료 이벤트 전송 ]"]
-    A4 --> A5["[ sm.trigger: session_ended ]"]
+    C1 -- SUCCESS --> A4["[ sm.trigger: standby_arrived\n→ STANDBY_X ]"]
 ```
 
 **설계 포인트**
-- 구역 이탈 감지는 SM의 `/pinky/pose` 구독 콜백에서 처리한다 (BT와 독립).
+- RETURNING 진입 시 `/queue/assign?robot_id=<id>` 를 호출하여 배정된 zone_id(140/141/142)를 받는다.
+- zone_id에 따라 `to_toward_standby_1/2/3` 트리거로 SM 전환 후 해당 zone으로 Nav2 이동.
+- 도착 시 `standby_arrived` 트리거 → STANDBY_X 진입. 세션 종료는 STANDBY_1 → IDLE 전환 시(사용자 카트 수령) 수행.
+- TOWARD_STANDBY 상태(queue_advance 후)에서도 동일 BT 재사용: 배정 대신 SM이 직접 목표 zone 전달.
+- 구역 이탈 감지는 SM의 `/amcl_pose` 구독 콜백에서 처리한다 (BT와 독립).
 
 ---
 
@@ -220,5 +236,6 @@ flowchart TD
 | WAITING BT | (없음 — SM 이벤트로만 종료) | — |
 | GUIDING BT | `arrived` | GUIDING → TRACKING |
 | GUIDING BT | `nav_failed` | GUIDING → TRACKING (앱 "안내 실패" 알림) |
-| RETURNING BT | `session_ended` | RETURNING → IDLE |
-| RETURNING BT | `nav_failed` | RETURNING → ALARM (직원 개입 필요) |
+| RETURNING BT | `to_toward_standby_1/2/3` | RETURNING → TOWARD_STANDBY_X (QueueManager 배정) |
+| RETURNING BT | `standby_arrived` | TOWARD_STANDBY_X → STANDBY_X (대기열 위치 도착) |
+| RETURNING BT | `nav_failed` | RETURNING / TOWARD_STANDBY_X → ALARM (직원 개입 필요) |

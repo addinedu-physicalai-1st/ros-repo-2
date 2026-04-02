@@ -1,7 +1,6 @@
 # 시나리오 04: 주인 탐색
 
 **SM 전환:** `TRACKING → SEARCHING → (TRACKING | WAITING)`
-**모드:** PERSON/ARUCO 공통
 **관련 패키지:** shoppinkki_core
 
 ---
@@ -42,7 +41,7 @@
 BTTracking: miss_count >= 30 → FAILURE → sm.trigger('owner_lost')
     ↓
 SM: TRACKING → SEARCHING
-    → on_enter_SEARCHING: BTSearching 시작 (camera_mode 유지)
+    → on_enter_SEARCHING: BTSearching 시작
     ↓
 BTSearching.initialise()
     → _start_time = time.time()
@@ -110,7 +109,7 @@ ros2 topic echo /robot_54/status
 | `SIDE_ANGLE_RANGE` | π/4 (45°) | 측면 장애물 감지 각도 범위. 좌측: π/2 ± 45°, 우측: -π/2 ± 45° |
 
 > **설계 결정 — CCW 고정 시작:** 마지막 주인 소실 방향을 기억해 그쪽으로 먼저 도는 것이 이론적으로 효율적이나,
-> PERSON 모드는 소실 프레임 기준 방향 추론이 어렵고 데모 환경(소형 맵)에서 탐색 거리가 짧으므로 CCW 고정 단순 구현이 적합.
+> 인형 감지 소실 프레임 기준 방향 추론이 어렵고 데모 환경(소형 맵)에서 탐색 거리가 짧으므로 CCW 고정 단순 구현이 적합.
 > 추후 개선 시 BTTracking에서 마지막 `detection.cx` 방향을 저장해 전달하는 방식으로 확장 가능.
 
 ## UI 검토

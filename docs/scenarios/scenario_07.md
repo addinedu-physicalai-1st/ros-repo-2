@@ -1,8 +1,6 @@
 # 시나리오 07: 물건 찾기 & 안내
 
 **SM 전환:** `TRACKING → GUIDING → TRACKING`
-**모드:** ARUCO 전용 (PERSON 모드는 Nav2 없음)
-
 ---
 
 ## 개요
@@ -22,7 +20,7 @@
 | [ ] | 검색 결과 브라우저 표시 + [안내받기] 버튼 활성화 (자동 navigate_to 전송 아님) |
 | [ ] | 사용자 [안내받기] 클릭 → `navigate_to` 명령 전송 |
 | [ ] | `sm.trigger('to_guiding', zone_id=N)` → GUIDING 진입 |
-| [ ] | `on_enter_GUIDING`: `bt_runner.stop()` + `camera_mode = "NONE"` + BTGuiding 시작 |
+| [ ] | `on_enter_GUIDING`: `bt_runner.stop()` + BTGuiding 시작 |
 | [ ] | BTGuiding: `GET /zone/<id>/waypoint` Waypoint 조회 (REST API, control_service 제공) |
 | [ ] | BTGuiding: Waypoint 조회 실패(404) → FAILURE → TRACKING 복귀 + 브라우저 알림 |
 | [ ] | BTGuiding: Nav2 Goal 전송 |
@@ -35,7 +33,7 @@
 
 ## 전제조건
 
-- SM = TRACKING (ARUCO 모드)
+- SM = TRACKING
 - 사용자가 브라우저 cart.html에서 [물건 찾기] 버튼 + 상품명 입력 또는 STT
 
 ---
@@ -68,7 +66,6 @@ shoppinkki_core: on_cmd navigate_to
     → sm.trigger('to_guiding', zone_id=3) → GUIDING
     ↓
 on_enter_GUIDING
-    → camera_mode = "NONE"
     → bt_runner.stop()   ← 기존 BTTracking 중단
     → bt_runner.start(BTGuiding, zone_id=3)
 
@@ -154,7 +151,7 @@ GET /zone/<zone_id>/waypoint
 | 구역 미발견 | "해당 상품을 찾을 수 없습니다" 토스트 (GUIDING 진입 없음) |
 
 > **STT 주의:** `webkitSpeechRecognition`은 HTTPS 또는 localhost 환경에서만 동작.
-> 데모 환경이 `http://192.168.x.xxx:5000`이면 STT 비활성화됨.
+> 데모 환경이 `http://192.168.x.xxx:8501`이면 STT 비활성화됨.
 > 텍스트 입력을 기본으로 하고 STT는 선택 기능으로 처리할 것.
 
 ## 검증 방법

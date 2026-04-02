@@ -1,15 +1,14 @@
 # 시나리오 17: 관제 — 이벤트 로깅
 
 **SM 전환:** 없음 (로깅 전용)
-**모드:** PERSON/ARUCO 공통
-**관련 패키지:** control_service, admin_app
+**관련 패키지:** control_service, admin_ui
 
 ---
 
 ## 개요
 
 관제 서버는 로봇 운용 중 발생하는 주요 이벤트를 중앙 DB의 `EVENT_LOG` 테이블에 기록한다.
-admin_app은 실시간 이벤트 로그 패널을 통해 최근 이벤트를 표시하고, 이벤트 타입별 필터링을 제공한다.
+admin_ui은 실시간 이벤트 로그 패널을 통해 최근 이벤트를 표시하고, 이벤트 타입별 필터링을 제공한다.
 알람 이벤트는 기존 `ALARM_LOG`와 중복 기록하지 않으며, `ALARM_LOG`를 `EVENT_LOG` 뷰로 조회한다.
 
 ---
@@ -27,9 +26,9 @@ admin_app은 실시간 이벤트 로그 패널을 통해 최근 이벤트를 표
 | [ ] | MODE_CHANGE 이벤트: 주요 SM 전환(TRACKING, SEARCHING, WAITING, ALARM 등) 기록 |
 | [ ] | OFFLINE / ONLINE 이벤트: 오프라인 감지 및 재연결 기록 (scenario_16) |
 | [ ] | QUEUE_ADVANCE 이벤트: 대기열 전진 기록 (scenario_18 연계) |
-| [ ] | admin_app: 이벤트 로그 패널 (최신 50건 자동 스크롤) |
-| [ ] | admin_app: 이벤트 타입별 필터 버튼 (ALARM / SESSION / QUEUE / ALL) |
-| [ ] | admin_app: 이벤트 패널 `channel D` Signal로 실시간 갱신 |
+| [ ] | admin_ui: 이벤트 로그 패널 (최신 50건 자동 스크롤) |
+| [ ] | admin_ui: 이벤트 타입별 필터 버튼 (ALARM / SESSION / QUEUE / ALL) |
+| [ ] | admin_ui: 이벤트 패널 채널 B TCP 수신으로 실시간 갱신 |
 | [ ] | control_service: REST `GET /events?robot_id=<id>&limit=50` 엔드포인트 |
 
 ---
@@ -40,7 +39,7 @@ admin_app은 실시간 이벤트 로그 패널을 통해 최근 이벤트를 표
 |---|---|---|
 | `SESSION_START` | login 성공 → start_session 발행 | `{"user_id": "hong123"}` |
 | `SESSION_END` | RETURNING → IDLE (세션 정상 종료) | `{"user_id": "hong123", "items": 3}` |
-| `FORCE_TERMINATE` | admin_app [강제 종료] | `{"user_id": "hong123", "state": "TRACKING"}` |
+| `FORCE_TERMINATE` | admin_ui [강제 종료] | `{"user_id": "hong123", "state": "TRACKING"}` |
 | `ALARM_RAISED` | /robot_<id>/alarm 수신 | `{"event": "THEFT"}` (ALARM_LOG와 연계) |
 | `ALARM_DISMISSED` | dismiss_alarm 처리 | `{"event": "THEFT", "by": "admin"}` |
 | `PAYMENT_SUCCESS` | 결제 성공 | `{"amount": 4500}` |
@@ -80,10 +79,10 @@ control_service: 이벤트 발생 감지
 control_service: log_event(robot_id, user_id, event_type, detail)
     → EVENT_LOG INSERT
     ↓
-admin_app: on_event(event_dict) 직접 호출 (채널 D)
-    → event_panel_signal.emit(event_dict)  ← Qt Signal
+admin_ui: TCP 수신 (채널 B): {"type": "event", ...}
+    → event_panel_signal.emit(event_dict)  ← Qt Signal (내부 thread 처리)
     ↓
-admin_app: 이벤트 패널에 새 행 추가
+admin_ui: 이벤트 패널에 새 행 추가
     → 최신 이벤트가 상단 (역순 정렬)
     → 이벤트 타입별 색상 구분
 ```
@@ -114,11 +113,12 @@ class ControlServiceNode(rclpy.node.Node):
                 VALUES (?, ?, ?, ?, ?)
             """, (robot_id, user_id, event_type, detail_json, now))
 
-        if self.admin_app:
-            self.admin_app.on_event({
-                'robot_id': robot_id, 'user_id': user_id,
-                'event_type': event_type, 'detail': detail, 'occurred_at': now
-            })
+        # 채널 B TCP push → admin_ui
+        self._tcp_push_admin({
+            'type': 'event',
+            'robot_id': robot_id, 'user_id': user_id,
+            'event_type': event_type, 'detail': detail, 'occurred_at': now
+        })
 
     # --- 기존 핸들러에 log_event 삽입 ---
 
@@ -161,10 +161,10 @@ class ControlServiceNode(rclpy.node.Node):
         return [dict(r) for r in rows]
 ```
 
-### admin_app: 이벤트 로그 패널
+### admin_ui: 이벤트 로그 패널
 
 ```python
-# admin_app/main_window.py
+# admin_ui/main_window.py
 from PyQt6.QtWidgets import QListWidget, QListWidgetItem, QPushButton, QHBoxLayout
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QColor
@@ -186,14 +186,16 @@ EVENT_COLORS = {
 class AdminMainWindow(QMainWindow):
     event_signal = pyqtSignal(dict)  # (event_dict,)
 
-    def __init__(self, control_service):
+    def __init__(self):
         super().__init__()
         self.event_signal.connect(self._add_event_row)
         self._event_filter = 'ALL'  # 현재 필터
 
-    def on_event(self, event: dict):
-        # 모든 스레드 → Qt 메인 스레드
-        self.event_signal.emit(event)
+    def _on_tcp_message(self, msg: dict):
+        """채널 B TCP 수신 메시지 라우팅"""
+        if msg.get('type') == 'event':
+            # TCP 수신 스레드 → Qt 메인 스레드
+            self.event_signal.emit(msg)
 
     def _add_event_row(self, event: dict):
         etype = event['event_type']
@@ -235,7 +237,7 @@ class AdminMainWindow(QMainWindow):
 
 ## 기대 결과
 
-| 이벤트 | EVENT_LOG 확인 | admin_app 패널 |
+| 이벤트 | EVENT_LOG 확인 | admin_ui 패널 |
 |---|---|---|
 | 로그인 성공 | SESSION_START 행 추가 | 녹색 행 상단 표시 |
 | 세션 정상 종료 | SESSION_END 행 추가 | 파란 행 상단 표시 |

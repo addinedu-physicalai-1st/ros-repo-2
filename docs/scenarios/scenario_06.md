@@ -1,7 +1,6 @@
 # 시나리오 06: 물건 추가
 
 **SM 전환:** `WAITING/TRACKING → ITEM_ADDING → TRACKING`
-**모드:** PERSON/ARUCO 공통
 
 ---
 
@@ -23,7 +22,7 @@
 | [ ] | QR 스캔: `<상품명>:<가격>` 형식 파싱 |
 | [ ] | 스캔 성공: `_scanned_products`에 추가 (중복 방지) |
 | [ ] | 스캔 성공: 30초 타이머 리셋 (연속 스캔 시 초기화) |
-| [ ] | 스캔 성공: Pi DB `add_cart_item()` → `/robot_<id>/cart` topic publish |
+| [ ] | 스캔 성공: REST `POST /cart/<session_id>/items` → `/robot_<id>/cart` topic publish |
 | [ ] | 스캔 성공: `send_event('item_added')` → 브라우저 장바구니 UI 갱신 |
 | [ ] | 동일 제품 재스캔 → 무시 (set 중복 방지) |
 | [ ] | 잘못된 QR 형식 → 무시하고 계속 스캔 |
@@ -56,8 +55,8 @@ shoppinkki_core: sm.trigger('to_item_adding')
 on_enter_ITEM_ADDING
     → bt_runner.stop()             ← TRACKING이든 WAITING이든 기존 BT 반드시 중단
     → camera_mode = "QR"
-    → _scanned_products = {item.product_name for item in db.get_cart_items()}
-      ← set()이 아닌 DB 기반 초기화 (세션 내 통합 중복 방지)
+    → _scanned_products = {item['product_name'] for item in rest_get(f'/cart/{session_id}/items')}
+      ← set()이 아닌 REST API 기반 초기화 (세션 내 통합 중복 방지)
     → qr_scanner.start(on_scanned=_on_qr_scanned, on_timeout=_on_qr_timeout)
         → 30초 타이머 시작
 
@@ -70,7 +69,7 @@ on_enter_ITEM_ADDING
               _on_qr_scanned("콜라", 1500) 호출
     ↓
 _on_qr_scanned(name, price)
-    → db.add_cart_item(name, price)
+    → REST POST /cart/<session_id>/items {"product_name": name, "price": price}
     → /robot_<id>/cart topic publish
     → publisher.send_event('item_added', {name, price})
     → SM 유지 (ITEM_ADDING 지속, 연속 스캔 가능)
@@ -105,8 +104,8 @@ _on_qr_timeout()
 
 ```bash
 # 장바구니 추가 확인
-sqlite3 src/shoppinkki/shoppinkki_core/data/pi.db \
-  "SELECT * FROM cart_item ORDER BY created_at DESC LIMIT 5;"
+sqlite3 src/control_center/control_service/data/control.db \
+  "SELECT * FROM cart_item ORDER BY scanned_at DESC LIMIT 5;"
 
 # /cart topic 발행 확인
 ros2 topic echo /robot_54/cart

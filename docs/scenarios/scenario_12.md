@@ -1,7 +1,6 @@
 # 시나리오 12: 중복 사용 차단
 
 **SM 전환:** 없음 (IDLE 유지)
-**모드:** PERSON/ARUCO 공통
 **관련 요구사항:** UR-21b, SR-19
 
 ---
@@ -109,7 +108,7 @@ sqlite3 src/control_center/control_service/data/control.db \
   "SELECT robot_id, active_user_id FROM robot;"
 
 # 중복 로그인 시도 (curl)
-curl -X POST http://localhost:5000/login \
+curl -X POST http://localhost:8501/login \
   -d "robot_id=54&user_id=B&password=test"
 # → "already_in_use" 오류 메시지 확인
 

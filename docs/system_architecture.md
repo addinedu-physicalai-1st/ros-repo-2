@@ -6,16 +6,16 @@
 
 ## 데모 모드
 
-> 로봇이 작아 실제 맵에서 사람을 인식하기 어렵기 때문에 데모를 두 가지로 나눈다.
+> 로봇이 작아 실제 맵에서 사람을 직접 인식하기 어렵기 때문에, **특정 인형을 대상으로 커스텀 학습된 YOLOv8 모델**로 추종한다.
 
-| | Demo 1 — PERSON | Demo 2 — ARUCO |
-|---|---|---|
-| **로봇 위치** | 책상 위 (카메라가 사람 높이) | 마트 바닥 |
-| **추종 방식** | YOLO + ReID | ArUco 마커 인형 |
-| **포즈 스캔** | ✅ | ❌ |
-| **Nav2 / AMCL / 맵** | ❌ (P-Control만) | ✅ |
-| **결제 구역 / 경계 감시** | ❌ | ✅ |
-| **설정값** | `TRACKING_MODE = "PERSON"` | `TRACKING_MODE = "ARUCO"` |
+| 항목 | 내용 |
+|---|---|
+| **로봇 위치** | 마트 바닥 (실제 맵 위에서 주행) |
+| **추종 대상** | 전용 인형 (custom-trained YOLOv8) |
+| **추종 방식** | 커스텀 YOLO 감지 결과 → P-Control (bbox 중심·크기 기반) |
+| **ReID / 색상 매칭** | ✅ REGISTERING 시 인형 ReID 특징 벡터 + 색상 히스토그램 등록. TRACKING 시 YOLO 감지 후 ReID+색상으로 주인 인형 식별 |
+| **Nav2 / AMCL / 맵** | ✅ (GUIDING / RETURNING / WAITING 회피에 사용) |
+| **결제 구역 / 경계 감시** | ✅ (BoundaryMonitor via AMCL pose) |
 
 ---
 
@@ -30,7 +30,7 @@
 | 컴포넌트 | 실행 위치 | 역할 |
 |---|---|---|
 | `shoppinkki_core` | Pi 5 | SM + BT 통합 노드. HW 제어(LED, LCD, 부저) |
-| `shoppinkki_perception` | Pi 5 | YOLO+ReID / ArUco 추종 / QR 스캔 / 포즈 스캔 |
+| `shoppinkki_perception` | Pi 5 | 커스텀 YOLO 인형 감지 / QR 스캔 |
 | `shoppinkki_nav` | Pi 5 | BTWaiting / BTGuiding / BTReturning / BoundaryMonitor |
 | `pinky_pro packages` | Pi 5 | 모터 드라이버, 오도메트리, TF, LiDAR, 카메라 원시 데이터 |
 | `Nav2 스택` | Pi 5 | AMCL 위치 추정, 경로 계획, `/scan` `/amcl_pose` 발행 |
