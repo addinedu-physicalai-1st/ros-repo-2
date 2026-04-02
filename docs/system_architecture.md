@@ -21,37 +21,7 @@
 
 ## 전체 구성
 
-```mermaid
-graph TD
-    subgraph UI["UI"]
-        browser["Customer UI\n(스마트폰 브라우저)"]
-        admin_ui["Admin UI\n(관제 대시보드 — 별도 기기)"]
-    end
-
-    subgraph Server["서버 PC"]
-        customer_web["customer_web\n(Flask + SocketIO, 포트 8501)"]
-        control["control_service\n(ROS2 노드 + TCP:8080 + REST:8080)"]
-        control_db["Control DB\n(SQLite — 모든 테이블 통합)"]
-        subgraph Docker["ai_server (Docker Compose)"]
-            yolo["yolo\n(TCP+UDP:5005)"]
-            llm["llm\n(REST:8000)"]
-        end
-    end
-
-    subgraph Equip["장비 — Cart Module (Pinky Pro × N)"]
-        core["shoppinkki packages\n(SM + BT + HW)"]
-        pinky["pinky_pro packages\n(모터 + 센서 드라이버)"]
-    end
-
-    browser      <-->|"WebSocket (채널 A)"| customer_web
-    admin_ui     <-->|"TCP (채널 B)"| control
-    customer_web <-->|"TCP (채널 C)"| control
-    customer_web <-->|"TCP/REST (채널 D)"| llm
-    control      <-->|"TCP (채널 E)"| control_db
-    control      <-->|"TCP + UDP (채널 F)"| yolo
-    control      <-->|"ROS 2 DDS (채널 G)"| core
-    control      <-->|"ROS 2 + UDP (채널 H)"| pinky
-```
+![System Architecture](./SA.png)
 
 ---
 
