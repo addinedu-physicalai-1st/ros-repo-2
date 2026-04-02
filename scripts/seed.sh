@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env zsh
 # ShopPinkki — control_service 시드 스크립트 선택 실행기
 # 실행 위치: ros_ws 루트 어디서든 가능
 
