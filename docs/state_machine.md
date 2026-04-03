@@ -39,7 +39,7 @@ stateDiagram-v2
 
     ITEM_ADDING --> TRACKING : 완료 버튼 / 30초 무활동 / 취소
 
-    GUIDING --> TRACKING : 목적지 도착
+    GUIDING --> WAITING : 목적지 도착 (앱 도착 팝업 표시)
     GUIDING --> TRACKING : 안내 실패
     GUIDING --> TRACKING : 사용자 취소
     GUIDING --> ALARM : 구역 이탈
@@ -119,7 +119,7 @@ stateDiagram-v2
 | `WAITING` | `ALARM` | 장시간 대기 타임아웃 | 대기 시작 후 `WAITING_TIMEOUT` 초 경과 |
 | `ITEM_ADDING` | `TRACKING` | 완료 (`sm.trigger('item_done')`) | 앱 "완료" 버튼 → `/robot_<id>/cmd`: `{"cmd": "confirm_item"}` |
 | `ITEM_ADDING` | `TRACKING` | 무활동 타임아웃 / 취소 (`sm.trigger('item_cancelled')`) | 마지막 스캔 후 30초 경과 또는 앱 "취소" |
-| `GUIDING` | `TRACKING` | 목적지 도착 (`sm.trigger('arrived')` — BT) | Nav2 Goal 성공. 앱 "도착" 알림 전송 |
+| `GUIDING` | `WAITING` | 목적지 도착 (`sm.trigger('arrived')` — BT) | Nav2 Goal 성공. 앱에 도착 팝업 표시 → 사용자 팝업 닫기 전까지 WAITING 유지 |
 | `GUIDING` | `TRACKING` | 안내 실패 (`sm.trigger('nav_failed')` — BT) | Nav2 Goal 실패. 앱 "안내 실패" 알림 |
 | `GUIDING` | `TRACKING` | 사용자 취소 (`sm.trigger('to_tracking')`) | 앱 "취소" → Nav2 goal 취소 후 추종 복귀 |
 | `GUIDING` | `ALARM` | 구역 이탈 | AMCL pose가 shop_boundary 초과 |

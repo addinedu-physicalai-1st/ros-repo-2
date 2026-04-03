@@ -132,7 +132,7 @@ class RobotPublisherInterface(Protocol):
 | 앱 → web | `{"cmd": "find_product", "product": "콜라"}` |
 | 앱 → web | `{"cmd": "navigate_to", "zone_id": 6}` |
 | 앱 → web | `{"cmd": "delete_item", "item_id": 3}` |
-| web → 앱 | `{"type": "status", "mode": "TRACKING", "pos_x": 1.2, "pos_y": 0.8, "battery": 72, "my_robot": {...}, "other_robots": [...]}` |
+| web → 앱 | `{"type": "status", "my_robot": {"robot_id": 54, "mode": "TRACKING", "pos_x": 1.2, "pos_y": 0.8, "battery": 72}, "other_robots": [{"robot_id": 18, "pos_x": 0.5, "pos_y": 0.3}]}` — 1~2Hz push. 맵 오버레이 마커 갱신에 사용. `other_robots`는 위치만 포함 (상태 불필요) |
 | web → 앱 | `{"type": "cart", "items": [{"id": 1, "name": "콜라", "price": 1500}]}` |
 | web → 앱 | `{"type": "find_product_result", "zone_id": 6, "zone_name": "음료"}` |
 | web → 앱 | `{"type": "arrived", "zone_name": "음료"}` |
@@ -174,7 +174,7 @@ class RobotPublisherInterface(Protocol):
 | web → control | `{"cmd": "delete_item", "robot_id": 54, "item_id": 3}` |
 | web → control | `{"cmd": "process_payment", "robot_id": 54}` — 가상 결제 요청 |
 | web → control | `{"cmd": "dismiss_alarm", "robot_id": 54, "pin": "1234"}` — 현장 PIN으로 알람 해제 |
-| control → web | `{"type": "status", "my_robot": {...}, "other_robots": [...]}` — 1~2Hz push |
+| control → web | `{"type": "status", "my_robot": {"robot_id": 54, "mode": "TRACKING", "pos_x": 1.2, "pos_y": 0.8, "battery": 72}, "other_robots": [{"robot_id": 18, "pos_x": 0.5, "pos_y": 0.3}]}` — 1~2Hz push. `other_robots`는 위치만 포함 (상태 불필요) |
 | control → web | `{"type": "cart", "robot_id": 54, "items": [...]}` |
 | control → web | `{"type": "alarm", "robot_id": 54, "event": "THEFT"}` |
 | control → web | `{"type": "arrived", "robot_id": 54, "zone_name": "음료"}` |

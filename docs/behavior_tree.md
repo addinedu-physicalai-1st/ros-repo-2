@@ -183,13 +183,14 @@ flowchart TD
     A2 --> C2(("Nav2 성공?"))
     C2 -- FAILURE --> A_ERR2["[ 웹앱 '안내 실패' 알림 전송\nsm.trigger: nav_failed → TRACKING 복귀 ]"]
 
-    C2 -- SUCCESS --> A3["[ 웹앱 푸시 알림\n'목적지 도착' ]"]
-    A3 --> A4["[ sm.trigger: arrived ]"]
+    C2 -- SUCCESS --> A3["[ 웹앱 도착 팝업 전송\n'arrived' 이벤트 → 앱 팝업 표시 ]"]
+    A3 --> A4["[ sm.trigger: arrived\n→ WAITING (팝업 닫기 전 대기) ]"]
 ```
 
 **설계 포인트**
 - SM은 앱으로부터 zone_id를 받아 GUIDING으로 진입한다. Waypoint 조회는 BT가 zone_id로 수행한다.
 - Waypoint 조회 실패와 Nav2 실패 모두 `nav_failed`로 처리한다 → TRACKING 복귀 + 앱 알림.
+- Nav2 성공 시 앱에 `arrived` 이벤트를 전송하고 `sm.trigger('arrived')` → **WAITING** 전환. 사용자가 도착 팝업의 [닫기]를 누르면 앱이 `{"cmd": "mode", "value": "TRACKING"}` 전송 → WAITING → TRACKING.
 - 구역 이탈 감지(ALARM 전환)는 BT가 아닌 SM의 `/amcl_pose` 구독 콜백에서 처리한다.
 
 ---
@@ -257,7 +258,7 @@ def _set_keepout_filter(self, enable: bool) -> None:
 | SEARCHING BT | `owner_found` | SEARCHING → TRACKING |
 | SEARCHING BT | `to_waiting` | SEARCHING → WAITING (타임아웃 또는 양측 장애물) |
 | WAITING BT | (없음 — SM 이벤트로만 종료) | — |
-| GUIDING BT | `arrived` | GUIDING → TRACKING |
+| GUIDING BT | `arrived` | GUIDING → WAITING (앱 도착 팝업 표시, 닫기 시 TRACKING) |
 | GUIDING BT | `nav_failed` | GUIDING → TRACKING (앱 "안내 실패" 알림) |
 | RETURNING BT | `to_toward_standby_1/2/3` | RETURNING → TOWARD_STANDBY_X (QueueManager 배정) |
 | RETURNING BT | `standby_arrived` | TOWARD_STANDBY_X → STANDBY_X (대기열 위치 도착) |
