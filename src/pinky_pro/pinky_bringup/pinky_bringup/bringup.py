@@ -27,11 +27,8 @@ DYNAMIXEL_IDS = [1, 2] # [왼쪽 바퀴 ID, 오른쪽 바퀴 ID]
 JOINT_NAME_WHEEL_L = "left_wheel_joint"
 JOINT_NAME_WHEEL_R = "right_wheel_joint"
 
-WHEEL_RAD = 0.028
 PULSE_PER_ROT = 4096 
-WHEEL_BASE = 0.0961
 RPM2RAD = 2 * math.pi / 60
-CIRCUMFERENCE = 2 * math.pi * WHEEL_RAD
 
 BATTERY_VOLTAGE_TOPIC = "battery/voltage"
 LOW_BATTERY_THRESHOLD = 6.8
@@ -42,6 +39,17 @@ class Pinky(Node):
         self.is_initialized = False
 
         self.get_logger().info('Initializing Pinky Bringup Node with Dynamixel...')
+
+        self.declare_parameter('wheel_radius', 0.027)
+        self.declare_parameter('wheel_separation', 0.0961)
+        
+        self.wheel_radius = self.get_parameter('wheel_radius').get_parameter_value().double_value
+        self.wheel_separation = self.get_parameter('wheel_separation').get_parameter_value().double_value
+
+        self.get_logger().info(f'Wheel radius: {self.wheel_radius}')
+        self.get_logger().info(f'Wheel separation: {self.wheel_separation}')
+
+        self.circumference = 2 * math.pi * self.wheel_radius
         self.driver = DynamixelDriver(SERIAL_PORT_NAME, BAUDRATE, DYNAMIXEL_IDS)
 
         self.get_logger().info("1. Opening serial port...")
@@ -97,11 +105,11 @@ class Pinky(Node):
         linear_x = msg.linear.x
         angular_z = msg.angular.z
 
-        v_l = linear_x - (angular_z * WHEEL_BASE / 2.0)
-        v_r = linear_x + (angular_z * WHEEL_BASE / 2.0)
+        v_l = linear_x - (angular_z * self.wheel_separation / 2.0)
+        v_r = linear_x + (angular_z * self.wheel_separation / 2.0)
 
-        wheel_rads_l = v_l / WHEEL_RAD
-        wheel_rads_r = v_r / WHEEL_RAD
+        wheel_rads_l = v_l / self.wheel_radius
+        wheel_rads_r = v_r / self.wheel_radius
 
         rpm_l = wheel_rads_l * 60.0 / (2 * math.pi)
         rpm_r = -wheel_rads_r * 60.0 / (2 * math.pi)
@@ -133,11 +141,11 @@ class Pinky(Node):
         self.last_encoder_l = encoder_l
         self.last_encoder_r = encoder_r
 
-        dist_l = (delta_l / PULSE_PER_ROT) * CIRCUMFERENCE
-        dist_r = (delta_r / PULSE_PER_ROT) * CIRCUMFERENCE
+        dist_l = (delta_l / PULSE_PER_ROT) * self.circumference
+        dist_r = (delta_r / PULSE_PER_ROT) * self.circumference
 
         delta_distance = (dist_r + dist_l) / 2.0
-        delta_theta = (dist_r - dist_l) / WHEEL_BASE
+        delta_theta = (dist_r - dist_l) / self.wheel_separation
         
         self.theta += delta_theta
         self.x += delta_distance * math.cos(self.theta)
