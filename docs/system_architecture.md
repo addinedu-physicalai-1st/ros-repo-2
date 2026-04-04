@@ -57,6 +57,7 @@
 | `AI Server` | 서버 PC (Docker) | YOLOv8 추론 서버 (TCP :5005) + LLM 자연어 검색 서버 (REST :8000) |
 | `Control Device` | Control Center (서버 PC) | ROS2 노드 + TCP 서버 (:8080) + REST API. 로봇 명령·상태 관리. Control DB 전담 |
 | `Control DB` | Control Center (서버 PC) | MySQL. SESSION / CART / ROBOT / ALARM_LOG 등 전체 테이블 중앙 통합 |
+| `Open-RMF Fleet Adapter` | 서버 PC | RMF Traffic Schedule + Fleet Adapter. 다중 로봇 경로 충돌 자동 협상. Control Device 위에 레이어로 삽입 — Pi 코드 변경 없음 |
 
 ### EQUIP 레이어
 
@@ -80,7 +81,7 @@
 | D | Customer Web ↔ AI Server (LLM) | REST HTTP (:8000) | 양방향 | 자연어 상품 검색을 customer_web이 직접 처리 |
 | E | Control Device ↔ Control DB | TCP | 양방향 | DB가 Control Center 내 독립 서비스로 분리 |
 | F | Control Device ↔ AI Server (YOLO) | TCP + UDP 하이브리드 | 양방향 | 영상(무거움) → UDP / 인식 결과(좌표) → TCP |
-| G | Control Device ↔ shoppinkki packages | ROS 2 DDS (`ROS_DOMAIN_ID=14`) | 양방향 | 비즈니스 로직 명령·상태 발행/구독 |
+| G | Control Device ↔ shoppinkki packages | ROS 2 DDS (`ROS_DOMAIN_ID=14`) | 양방향 | 비즈니스 로직 명령·상태 발행/구독. Open-RMF 사용 시 `navigate_to`는 RMF FleetAdapter가 Control Device REST API를 경유해 전달하며, `task_dispatcher ↔ RMF Traffic Schedule ↔ FleetAdapter` 구간은 RMF 내부 DDS 통신 (채널 G 범위 외) |
 | H | Control Device ↔ pinky_pro packages | ROS 2 + UDP | 양방향 | 주행 명령 → ROS / 원시 카메라·센서 데이터 → UDP |
 
 > 각 채널의 메시지 포맷 상세: [`docs/interface_specification.md`](interface_specification.md)

@@ -76,6 +76,12 @@
 | [SC-81](SC-81.md) | admin_goto — 위치 호출 | `IDLE` → Nav2 이동 | LOW |
 | [SC-82](SC-82.md) | 로봇 오프라인 감지 | → `OFFLINE` | MEDIUM |
 
+## Open-RMF
+
+| ID | 제목 | 상태 전환 | 우선순위 |
+|---|---|---|---|
+| [SC-90](SC-90.md) | 다중 로봇 경로 충돌 → RMF 자동 협상 | 두 로봇 `GUIDING` 동시 (SM 전환 없음) | MEDIUM |
+
 ---
 
 ## 실행 권장 순서
@@ -88,6 +94,7 @@ SC-01 → SC-10 → SC-11 → SC-20 → SC-21 → SC-22
 → SC-70 → SC-71
 → SC-02 → SC-03 → SC-04 → SC-23
 → SC-80 → SC-81 → SC-82
+→ SC-90
 ```
 
 > HIGH 우선순위 시나리오만 먼저 통과시킨 후 MEDIUM/LOW 진행.

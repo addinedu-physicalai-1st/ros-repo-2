@@ -5,3 +5,4 @@
 **/log/
 **/__pycache__/
 pyrightconfig.json
+.DS_Store

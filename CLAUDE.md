@@ -36,6 +36,12 @@ pip install ultralytics              # YOLO (ai_server)
 pip install mysql-connector-python   # control_service DB 접속
 ```
 
+**Open-RMF 의존 패키지 (shoppinkki_rmf 빌드 시):**
+```bash
+sudo apt install ros-jazzy-rmf-fleet-adapter ros-jazzy-rmf-traffic ros-jazzy-rmf-task
+pip install rmf-adapter              # Python binding
+```
+
 ## Testing & Linting
 
 ```bash
@@ -88,6 +94,13 @@ python services/customer_web/app.py      # → http://localhost:8501
 cd services/ai_server && docker compose up
 ```
 
+### Open-RMF Fleet Adapter 실행
+```bash
+# [On PC — RMF traffic scheduler + fleet adapter]
+ros2 launch shoppinkki_rmf rmf_fleet.launch.py
+```
+> RMF를 사용하면 `navigate_to` 명령이 `task_dispatcher` → RMF → `FleetAdapter` → `control_service` 경로로 전달됨. Pi 코드 변경 없음.
+
 ### DB 관리
 ```bash
 # 중앙 서버 DB 시딩 (대화형: reset / replace / 기본 선택)
@@ -128,7 +141,8 @@ ros_ws/
 │   │   └── shoppinkki_perception/   ← YOLO bbox 수신 + ReID/QR 스캔
 │   └── control_center/     ← 서버 PC 실행 ROS2 패키지
 │       ├── control_service/         ← ROS2 노드 + TCP(8080) + REST API + 중앙 MySQL DB
-│       └── admin_ui/                ← TCP 관제 클라이언트 (별도 기기 또는 프로세스)
+│       ├── admin_ui/                ← TCP 관제 클라이언트 (별도 기기 또는 프로세스)
+│       └── shoppinkki_rmf/          ← Open-RMF Fleet Adapter (서버 PC 실행)
 ├── services/
 │   ├── customer_web/        ← Flask + SocketIO 고객 웹앱 (포트 8501)
 │   └── ai_server/           ← Docker: 커스텀 YOLO(TCP:5005) + LLM(REST:8000)
@@ -160,6 +174,7 @@ ros_ws/
 **`src/control_center/`** provides server-side logic (서버 PC 실행):
 - `control_service` — ROS2 노드 + TCP 서버(8080) + REST API(8080) + 중앙 MySQL DB. Pi ↔ customer_web 중계. 충전소 슬롯 배정(`/zone/parking/available`) 포함
 - `admin_ui` — TCP 클라이언트 관제 앱. control_service 채널 B(TCP)로 연결. 별도 기기 또는 프로세스로 실행. **카메라 디버그 패널**: `GET /camera/<robot_id>` MJPEG 스트림 + bbox 오버레이로 추종 동작 시각화
+- `shoppinkki_rmf` — Open-RMF Fleet Adapter. RMF Traffic Negotiation으로 다중 로봇 경로 충돌 자동 조정. Pi 코드 변경 없이 `control_service` 위에 레이어로 삽입. 구성: `fleet_adapter.py`, `robot_command_handle.py`, `task_dispatcher.py`, `status_bridge.py`, `maps/shop.building`
 
 **`services/`** provides non-ROS services:
 - `customer_web` — Flask + SocketIO 고객 웹앱 (**포트 8501**). 스마트폰 브라우저용. LLM 직접 호출(채널 D)
@@ -270,9 +285,8 @@ ros_ws/
 |---|---|---|
 | 110 | 입구 | 로봇 초기 진입 구역 |
 | 120 | 출구 | TRACKING 차단 기준 |
-| 130 | 카트 충전소 | 귀환 목적지 (RETURNING / LOCKED) |
-| 140 | 충전소 주차 슬롯 1 | 병렬 주차. 북쪽(theta=90°) 방향 |
-| 141 | 충전소 주차 슬롯 2 | 병렬 주차. 북쪽(theta=90°) 방향 |
+| 140 | 충전소 주차 슬롯 1 (P1) | 귀환 목적지. 북쪽(theta=90°) 방향 |
+| 141 | 충전소 주차 슬롯 2 (P2) | 귀환 목적지. 북쪽(theta=90°) 방향 |
 | 150 | 결제 구역 | BoundaryMonitor TRACKING_CHECKOUT 트리거 |
 
 ## Key Parameters (`config.py`)
@@ -315,5 +329,6 @@ ros_ws/
 | `docs/map.md` | 미니어처 마트 맵 레이아웃, 구역 ID, Keepout Filter 설명 |
 | `docs/customer_ui.md` | Customer UI 화면 구성, 기능 목록, 유저 플로우 |
 | `docs/admin_ui.md` | Admin UI 화면 구성, 기능 목록, TCP 메시지 요약, 유저 플로우. 카메라 디버그 패널(MJPEG + bbox 오버레이) 포함 |
+| `docs/scaffold_plan.md` | 구현 폴더 구조 계획. 컴포넌트별 파일 목록 + 구현 순서 (8단계, Open-RMF 포함) |
 | `docs/scenarios/index.md` | 시나리오 목록 (SC-01~SC-82, 총 26개) — 상태 전환 단위 테스트 |
 | `cheatsheet.md` | SLAM and navigation command reference |
