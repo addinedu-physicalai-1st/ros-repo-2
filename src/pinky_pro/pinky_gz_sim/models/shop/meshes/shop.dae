@@ -215,6 +215,23 @@
         </technique>
       </profile_COMMON>
     </effect>
+    <effect id="Material_p2-effect">
+      <profile_COMMON>
+        <technique sid="common">
+          <lambert>
+            <emission>
+              <color sid="emission">0 0 0 1</color>
+            </emission>
+            <diffuse>
+              <color sid="diffuse">0.8 0.1 0.1 1</color>
+            </diffuse>
+            <index_of_refraction>
+              <float sid="ior">1.5</float>
+            </index_of_refraction>
+          </lambert>
+        </technique>
+      </profile_COMMON>
+    </effect>
   </library_effects>
   <library_images/>
   <library_materials>
@@ -247,6 +264,9 @@
     </material>
     <material id="Material_020-material" name="Material.020">
       <instance_effect url="#Material_020-effect"/>
+    </material>
+    <material id="Material_p2-material" name="Material.p2">
+      <instance_effect url="#Material_p2-effect"/>
     </material>
     <material id="Material_009-material" name="Material.009">
       <instance_effect url="#Material_009-effect"/>
@@ -551,9 +571,9 @@
     <geometry id="pinky_wait-mesh" name="pinky_wait">
       <mesh>
         <source id="pinky_wait-mesh-positions">
-          <float_array id="pinky_wait-mesh-positions-array" count="15">67.34828 22.06247 0.0109905 67.34828 1.160518 0.0109905 67.34828 22.06247 0.0109905 150.9561 22.06247 0.0109905 150.9561 1.160518 0.0109905</float_array>
+          <float_array id="pinky_wait-mesh-positions-array" count="18">67.34828 1.160518 0.0109905 95.27828 1.160518 0.0109905 95.27828 22.11052 0.0109905 67.34828 22.11052 0.0109905 123.2083 1.160518 0.0109905 123.2083 22.11052 0.0109905</float_array>
           <technique_common>
-            <accessor source="#pinky_wait-mesh-positions-array" count="5" stride="3">
+            <accessor source="#pinky_wait-mesh-positions-array" count="6" stride="3">
               <param name="X" type="float"/>
               <param name="Y" type="float"/>
               <param name="Z" type="float"/>
@@ -561,9 +581,9 @@
           </technique_common>
         </source>
         <source id="pinky_wait-mesh-normals">
-          <float_array id="pinky_wait-mesh-normals-array" count="6">0 0 1 0 0 1</float_array>
+          <float_array id="pinky_wait-mesh-normals-array" count="3">0 0 1</float_array>
           <technique_common>
-            <accessor source="#pinky_wait-mesh-normals-array" count="2" stride="3">
+            <accessor source="#pinky_wait-mesh-normals-array" count="1" stride="3">
               <param name="X" type="float"/>
               <param name="Y" type="float"/>
               <param name="Z" type="float"/>
@@ -573,14 +593,15 @@
         <vertices id="pinky_wait-mesh-vertices">
           <input semantic="POSITION" source="#pinky_wait-mesh-positions"/>
         </vertices>
-        <lines count="2">
-          <input semantic="VERTEX" source="#pinky_wait-mesh-vertices" offset="0"/>
-          <p>1 0 0 2</p>
-        </lines>
         <triangles material="Material_020-material" count="2">
           <input semantic="VERTEX" source="#pinky_wait-mesh-vertices" offset="0"/>
           <input semantic="NORMAL" source="#pinky_wait-mesh-normals" offset="1"/>
-          <p>3 0 1 0 4 0 3 1 2 1 1 1</p>
+          <p>0 0 1 0 2 0 0 0 2 0 3 0</p>
+        </triangles>
+        <triangles material="Material_p2-material" count="2">
+          <input semantic="VERTEX" source="#pinky_wait-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#pinky_wait-mesh-normals" offset="1"/>
+          <p>1 0 4 0 5 0 1 0 5 0 2 0</p>
         </triangles>
       </mesh>
     </geometry>
@@ -1007,6 +1028,7 @@
           <bind_material>
             <technique_common>
               <instance_material symbol="Material_020-material" target="#Material_020-material"/>
+              <instance_material symbol="Material_p2-material" target="#Material_p2-material"/>
             </technique_common>
           </bind_material>
         </instance_geometry>

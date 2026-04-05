@@ -39,6 +39,16 @@
         <div class="spinner"></div>
         <p style="font-size: 13px; color: var(--text-muted);">감지 중...</p>
       </div>
+      <div style="margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--border);">
+        <button
+          class="btn btn-outline btn-full"
+          style="font-size: 13px; opacity: 0.75;"
+          onclick="socket.emit('enter_simulation', {}); this.disabled=true; this.textContent='전환 중...';"
+        >시뮬레이션 모드</button>
+        <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px; text-align: center;">
+          추종 없이 쇼핑 기능만 사용합니다
+        </p>
+      </div>
     </div>
   </div>
 
@@ -46,6 +56,12 @@
        3-C. 메인 쇼핑 패널 (mode=TRACKING / TRACKING_CHECKOUT / WAITING)
   ───────────────────────────────────────────────────────────── -->
   <div id="panel-shopping" class="panel">
+    <!-- 추종 비활성화 안내 (follow_disabled일 때만 표시) -->
+    <div id="follow-disabled-banner" class="card" style="display:none; background:var(--warning-bg, #fff7ed); border:1px solid var(--warning, #f59e0b); padding:10px 14px;">
+      <p style="margin:0; font-size:13px; color:var(--warning-text, #92400e); text-align:center;">
+        시뮬레이션 모드 — 추종 기능이 꺼져 있습니다
+      </p>
+    </div>
     <!-- 액션 버튼 -->
     <div class="card" style="padding-bottom: 12px;">
       <div class="btn-group">
@@ -148,6 +164,17 @@
   <div class="overlay-box">
     <div class="overlay-title">📷 상품 담기</div>
     <div class="qr-instruction">상품 QR 코드를 스캔하세요</div>
+    <!-- 시뮬레이션 모드: 웹 카메라 뷰파인더 -->
+    <div id="qr-camera-wrap" style="display:none; position:relative; margin-bottom:12px;">
+      <video id="qr-video" autoplay playsinline muted
+        style="width:100%; border-radius:8px; background:#000;"></video>
+      <canvas id="qr-canvas" style="display:none;"></canvas>
+      <div id="qr-scan-result"
+        style="display:none; position:absolute; bottom:8px; left:8px; right:8px;
+               background:rgba(0,0,0,0.75); color:#4ade80; padding:6px 10px;
+               border-radius:6px; font-size:13px; text-align:center;">
+      </div>
+    </div>
     <div class="qr-timeout-bar">
       <div id="qr-progress" class="qr-timeout-progress" style="width:100%;"></div>
     </div>
@@ -225,6 +252,8 @@
 
 <!-- ── 스크립트 ─────────────────────────────────────────────── -->
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"
         crossorigin="anonymous"></script>
 <script src="/static/js/cart.js"></script>
 <script src="/static/js/map.js"></script>

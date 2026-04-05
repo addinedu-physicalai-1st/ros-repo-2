@@ -233,27 +233,11 @@ def get_zone(zone_id: int) -> Optional[Dict]:
         return cur.fetchone()
 
 
-def get_parking_available() -> Dict:
-    """Return an available parking slot (140 or 141); default 140 if both taken."""
+def get_parking_slots() -> List[Dict]:
+    """Return ZONE rows for parking slots 140, 141."""
     with _cursor() as cur:
-        # Find robots currently near P1 / P2
-        cur.execute(
-            "SELECT z.zone_id FROM ZONE z "
-            "LEFT JOIN ROBOT r ON ("
-            "  ABS(r.pos_x - z.waypoint_x) < 0.15 AND "
-            "  ABS(r.pos_y - z.waypoint_y) < 0.15 AND "
-            "  r.current_mode NOT IN ('OFFLINE', 'HALTED')"
-            ") "
-            "WHERE z.zone_id IN (140, 141) AND r.robot_id IS NULL "
-            "ORDER BY z.zone_id LIMIT 1"
-        )
-        row = cur.fetchone()
-        if row:
-            cur.execute('SELECT * FROM ZONE WHERE zone_id = %s', (row['zone_id'],))
-            return cur.fetchone()
-        # Both occupied — return P1 as fallback
-        cur.execute('SELECT * FROM ZONE WHERE zone_id = 140')
-        return cur.fetchone()
+        cur.execute('SELECT * FROM ZONE WHERE zone_id IN (140, 141) ORDER BY zone_id')
+        return cur.fetchall()
 
 
 # ──────────────────────────────────────────────

@@ -59,6 +59,7 @@ class BTRunner:
         self._active_state: Optional[str] = None
         self._on_arrived = on_arrived
         self._on_nav_failed = on_nav_failed
+        self.follow_disabled: bool = False
 
     # ──────────────────────────────────────────
     # State change hook (called by SM callbacks)
@@ -73,6 +74,11 @@ class BTRunner:
             self._active_state = None
 
         # Start new BT if applicable
+        # follow_disabled: TRACKING/TRACKING_CHECKOUT 상태에서 BT1 시작 안 함
+        if self.follow_disabled and new_state in ('TRACKING', 'TRACKING_CHECKOUT'):
+            logger.info('BTRunner: follow_disabled — BT1 skipped for state=%s', new_state)
+            return
+
         new_bt = self._bts.get(new_state)
         if new_bt is not None:
             new_bt.start()

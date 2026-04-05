@@ -8,7 +8,7 @@
     <arg name="params_file" default="$(find-pkg-share pinky_navigation)/params/nav2_params.yaml"/>
     <arg name="autostart" default="True"/>
     <arg name="container_name" default="nav2_container"/>
-    <arg name="use_composition" default="True"/>
+    <arg name="use_composition" default="False"/>
     <arg name="use_respawn" default="False"/>
     <arg name="log_level" default="info"/>
     <arg name="lifecycle_nodes_local" default="['map_server', 'amcl']"/>
@@ -27,8 +27,6 @@
             <param name='autostart' value="$(var autostart)"/>
             <param name='use_sim_time' value="$(var use_sim_time)"/>
             
-            <remap from="/tf" to="tf"/>
-            <remap from="/tf_static" to="tf_static"/>
         </node>
 
         <include file="$(find-pkg-share pinky_navigation)/launch/localization_launch.xml">

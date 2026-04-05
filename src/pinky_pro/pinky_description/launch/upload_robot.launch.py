@@ -39,7 +39,7 @@ def generate_launch_description():
                     ' cam_tilt_deg:=', LaunchConfiguration('cam_tilt_deg')
                 ]),
             'frame_prefix': [namespace],
-        }]
+        }],
     )
 
     jsp_node = Node(

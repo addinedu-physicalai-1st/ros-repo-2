@@ -34,8 +34,10 @@ class RobotState:
     mode: str = 'OFFLINE'
     pos_x: float = 0.0
     pos_y: float = 0.0
+    yaw: float = 0.0
     battery: float = 100.0
     is_locked_return: bool = False
+    follow_disabled: bool = False
     last_seen: datetime = field(default_factory=datetime.utcnow)
     active_user_id: Optional[str] = None
     bbox: Optional[Dict] = None          # latest detection bbox from AI server
@@ -64,9 +66,10 @@ class RobotManager:
         self._cleanup_thread: Optional[threading.Thread] = None
 
         # Inject after construction
-        self.publish_cmd:   Optional[Callable[[str, dict], None]] = None
-        self.push_to_admin: Optional[Callable[[dict], None]] = None
-        self.push_to_web:   Optional[Callable[[str, dict], None]] = None
+        self.publish_cmd:      Optional[Callable[[str, dict], None]] = None
+        self.publish_init_pose: Optional[Callable[[str], None]] = None
+        self.push_to_admin:    Optional[Callable[[dict], None]] = None
+        self.push_to_web:      Optional[Callable[[str, dict], None]] = None
 
     # ──────────────────────────────────────────
     # Lifecycle
@@ -107,20 +110,18 @@ class RobotManager:
             state.mode = payload.get('mode', state.mode)
             state.pos_x = float(payload.get('pos_x', state.pos_x))
             state.pos_y = float(payload.get('pos_y', state.pos_y))
+            state.yaw = float(payload.get('yaw', state.yaw))
             state.battery = float(payload.get('battery', state.battery))
             state.is_locked_return = bool(payload.get('is_locked_return', False))
+            state.follow_disabled = bool(payload.get('follow_disabled', False))
             state.last_seen = datetime.utcnow()
 
-        # Persist to DB
-        db.update_robot(
-            robot_id,
-            current_mode=state.mode,
-            pos_x=state.pos_x,
-            pos_y=state.pos_y,
-            battery_level=int(state.battery),
-            is_locked_return=int(state.is_locked_return),
-            last_seen=state.last_seen,
-        )
+        # DB 갱신은 모드 변경 시에만 (위치/배터리는 메모리 캐시로 충분)
+        if prev_mode != state.mode:
+            db.update_robot(
+                robot_id,
+                current_mode=state.mode,
+            )
 
         # Push status update to admin and web
         self._push_status(robot_id, state)
@@ -171,6 +172,24 @@ class RobotManager:
                     return
             self._relay_to_pi(robot_id, payload)
 
+        elif cmd == 'init_pose':
+            # Only allowed in CHARGING or IDLE state
+            with self._lock:
+                state = self._get_or_create(robot_id)
+                if state.mode not in ('CHARGING', 'IDLE'):
+                    self._push_admin({
+                        'type': 'init_pose_rejected',
+                        'robot_id': robot_id,
+                        'reason': f'Robot is in {state.mode}, not CHARGING/IDLE',
+                    })
+                    return
+            if self.publish_init_pose:
+                self.publish_init_pose(robot_id)
+                logger.info('init_pose published for robot=%s', robot_id)
+            else:
+                logger.warning('publish_init_pose not wired; init_pose dropped for robot=%s',
+                               robot_id)
+
         elif cmd in ('mode', 'resume_tracking', 'force_terminate',
                      'staff_resolved', 'navigate_to', 'start_session'):
             self._relay_to_pi(robot_id, payload)
@@ -188,8 +207,10 @@ class RobotManager:
 
         if cmd == 'process_payment':
             self._handle_process_payment(robot_id, payload)
+        elif cmd == 'qr_scan':
+            self._handle_qr_scan(robot_id, payload)
         elif cmd in ('navigate_to', 'mode', 'resume_tracking',
-                     'delete_item', 'start_session'):
+                     'delete_item', 'start_session', 'enter_simulation'):
             self._relay_to_pi(robot_id, payload)
         else:
             logger.warning('Unknown web cmd=%s', cmd)
@@ -212,6 +233,46 @@ class RobotManager:
         self._push_web(robot_id, {'type': 'payment_success'})
         logger.info('Payment processed for robot=%s', robot_id)
 
+    def _handle_qr_scan(self, robot_id: str, payload: dict) -> None:
+        """시뮬레이션 모드: 웹 카메라 QR 스캔 → 장바구니 추가.
+
+        QR 데이터 형식: JSON {"product_name": "...", "price": N}
+        """
+        qr_data = payload.get('qr_data', '')
+        session = db.get_active_session_by_robot(robot_id)
+        if not session:
+            logger.warning('qr_scan: no active session for robot=%s', robot_id)
+            return
+        cart = db.get_cart_by_session(session['session_id'])
+        if not cart:
+            logger.warning('qr_scan: no cart for session=%s', session['session_id'])
+            return
+
+        # QR 데이터 파싱
+        try:
+            item = json.loads(qr_data)
+            product_name = item.get('product_name', item.get('name', ''))
+            price = int(item.get('price', 0))
+        except (json.JSONDecodeError, ValueError):
+            # JSON이 아니면 텍스트 자체를 상품명으로 사용
+            product_name = qr_data.strip()
+            price = 0
+
+        if not product_name:
+            logger.warning('qr_scan: empty product_name from QR data=%s', qr_data[:100])
+            return
+
+        item_id = db.add_cart_item(cart['cart_id'], product_name, price)
+        logger.info('qr_scan: added item=%d (%s, %d원) for robot=%s',
+                     item_id, product_name, price, robot_id)
+
+        # 장바구니 갱신 push
+        items = db.get_cart_items(cart['cart_id'])
+        self._push_web(robot_id, {
+            'type': 'cart',
+            'items': [dict(r) for r in items] if items else [],
+        })
+
     # ──────────────────────────────────────────
     # Bbox update (from camera_stream / AI server)
     # ──────────────────────────────────────────
@@ -232,6 +293,24 @@ class RobotManager:
     def get_all_states(self) -> Dict[str, RobotState]:
         with self._lock:
             return dict(self._states)
+
+    def get_available_parking(self) -> dict:
+        """메모리 캐시 기반 빈 충전소 슬롯 조회."""
+        slots = db.get_parking_slots()  # ZONE 140, 141 정보
+        with self._lock:
+            for slot in slots:
+                occupied = False
+                for state in self._states.values():
+                    if state.mode in ('OFFLINE', 'HALTED'):
+                        continue
+                    if (abs(state.pos_x - slot['waypoint_x']) < 0.15 and
+                            abs(state.pos_y - slot['waypoint_y']) < 0.15):
+                        occupied = True
+                        break
+                if not occupied:
+                    return slot
+        # 둘 다 점유 시 P1 반환
+        return slots[0] if slots else {}
 
     # ──────────────────────────────────────────
     # Cleanup thread
@@ -278,8 +357,10 @@ class RobotManager:
             'mode': state.mode,
             'pos_x': state.pos_x,
             'pos_y': state.pos_y,
+            'yaw': state.yaw,
             'battery': state.battery,
             'is_locked_return': state.is_locked_return,
+            'follow_disabled': state.follow_disabled,
             'bbox': state.bbox,
         }
         self._push_admin(msg)

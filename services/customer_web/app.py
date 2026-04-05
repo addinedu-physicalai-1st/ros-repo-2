@@ -4,13 +4,17 @@ Flask + Flask-SocketIO 진입점. 포트 8501.
 
 환경 변수:
     PORT                  : 서버 포트 (기본 8501)
-    ROBOT_ID              : 로봇 ID (기본 '54')
+    ROBOT_IDS             : 지원 로봇 ID 목록 (기본 '54,18', 쉼표 구분)
     CONTROL_SERVICE_HOST  : control_service 호스트 (기본 '127.0.0.1')
     CONTROL_SERVICE_PORT  : control_service TCP 포트 (기본 8080)
     CONTROL_SERVICE_HTTP_PORT : control_service REST 포트 (기본 8081)
     LLM_HOST              : LLM 서버 호스트 (기본 '127.0.0.1')
     LLM_PORT              : LLM 서버 포트 (기본 8000)
     SECRET_KEY            : Flask 세션 키 (기본 'shoppinkki-secret')
+
+접속 방법:
+    http://localhost:8501/?robot_id=54
+    http://localhost:8501/?robot_id=18
 """
 
 import logging
@@ -21,7 +25,7 @@ import eventlet
 eventlet.monkey_patch()  # noqa: E402 — 반드시 최상단에서 패치
 
 import requests
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, get_flashed_messages, redirect, render_template, request, session, url_for
 from flask_socketio import SocketIO
 
 from control_client import ControlClient
@@ -36,7 +40,9 @@ logger = logging.getLogger(__name__)
 
 # ── 환경 변수 ──────────────────────────────────────────────────
 PORT = int(os.environ.get("PORT", 8501))
-ROBOT_ID = os.environ.get("ROBOT_ID", "54")
+KNOWN_ROBOT_IDS: list[str] = [
+    r.strip() for r in os.environ.get("ROBOT_IDS", "54,18").split(",") if r.strip()
+]
 CONTROL_HOST = os.environ.get("CONTROL_SERVICE_HOST", "127.0.0.1")
 CONTROL_PORT = int(os.environ.get("CONTROL_SERVICE_PORT", 8080))
 CONTROL_HTTP_PORT = int(os.environ.get("CONTROL_SERVICE_HTTP_PORT", 8081))
@@ -83,36 +89,64 @@ socketio = SocketIO(
     engineio_logger=False,
 )
 
-# ── control_client 초기화 ──────────────────────────────────────
-control_client = ControlClient(
-    host=CONTROL_HOST,
-    port=CONTROL_PORT,
-    robot_id=ROBOT_ID,
-    socketio_instance=socketio,
-)
-control_client.connect()
+# ── control_client 초기화 (로봇별 1개) ──────────────────────────
+control_clients: dict[str, ControlClient] = {}
+for _rid in KNOWN_ROBOT_IDS:
+    _cc = ControlClient(
+        host=CONTROL_HOST,
+        port=CONTROL_PORT,
+        robot_id=_rid,
+        socketio_instance=socketio,
+    )
+    _cc.connect()
+    control_clients[_rid] = _cc
+    logger.info("ControlClient 등록: robot_id=%s", _rid)
 
 # ── SocketIO 핸들러 등록 ───────────────────────────────────────
 socket_handlers.register_handlers(
     socketio=socketio,
-    control_client=control_client,
+    control_clients=control_clients,
     llm_cfg={"host": LLM_HOST, "port": LLM_PORT},
-    robot_id=ROBOT_ID,
 )
 
 
-# ── 헬퍼: control_service REST 호출 ───────────────────────────
+# ── 헬퍼 ──────────────────────────────────────────────────────
 
 def _ctrl_rest(method: str, path: str, **kwargs):
-    """control_service REST API 호출 헬퍼. 실패 시 None 반환."""
+    """control_service REST API 호출 헬퍼.
+    2xx → JSON 반환.
+    4xx → JSON 반환 (에러 필드 포함, 호출부에서 처리).
+    5xx / 네트워크 오류 → None 반환.
+    """
     url = f"http://{CONTROL_HOST}:{CONTROL_HTTP_PORT}{path}"
     try:
         resp = requests.request(method, url, timeout=5, **kwargs)
-        resp.raise_for_status()
+        if resp.status_code >= 500:
+            logger.warning("REST 서버 오류 [%s %s]: %s", method, path, resp.status_code)
+            return None
         return resp.json()
     except Exception as e:
         logger.warning("REST 호출 실패 [%s %s]: %s", method, path, e)
         return None
+
+
+def _require_robot_id(robot_id: str | None) -> str:
+    """robot_id 유효성 검사. 유효하지 않으면 abort(). 유효하면 robot_id 반환."""
+    if not robot_id:
+        abort(400, description="robot_id 파라미터가 필요합니다.")
+    if robot_id not in KNOWN_ROBOT_IDS:
+        abort(404, description=f"알 수 없는 로봇 ID: {robot_id}")
+    return robot_id
+
+
+@app.errorhandler(400)
+def handle_400(e):
+    return render_template("error.html", message=str(e.description)), 400
+
+
+@app.errorhandler(404)
+def handle_404(e):
+    return render_template("error.html", message=str(e.description)), 404
 
 
 # ── 라우트 ────────────────────────────────────────────────────
@@ -121,26 +155,39 @@ def _ctrl_rest(method: str, path: str, **kwargs):
 def index():
     """
     세션 확인 후 적절한 페이지로 리다이렉트.
-    - 활성 세션 있음 → /main
+    - robot_id 없거나 유효하지 않음 → error.html (400/404)
+    - 세션 있고 robot_id 불일치 → error.html (400)
+    - 세션 있고 robot_id 일치 + 활성 → /main
+    - 세션 없거나 만료 → /login?robot_id=...
     - 로봇 사용 중 → /blocked
-    - 없음 → /login
     """
-    robot_id = request.args.get("robot_id", ROBOT_ID)
+    robot_id = _require_robot_id(request.args.get("robot_id", "").strip())
+
     session_id = session.get("session_id")
 
-    # 기존 세션 유효성 확인
     if session_id:
+        # 세션의 robot_id와 쿼리파라미터 일치 여부 확인
+        session_robot_id = session.get("robot_id", "")
+        if session_robot_id != robot_id:
+            session.clear()
+            abort(400, description=(
+                f"세션 로봇(#{session_robot_id})과 "
+                f"요청 로봇(#{robot_id})이 다릅니다. "
+                f"올바른 URL로 접속해 주세요."
+            ))
+
+        # 세션 활성 여부 확인
         data = _ctrl_rest("GET", f"/session/{session_id}")
         if data and data.get("is_active"):
             return redirect(url_for("main"))
         # 만료된 세션 초기화
         session.clear()
 
-    # 로봇 사용 중 여부 확인 — GET /robots 에서 해당 로봇 찾기
+    # 로봇 사용 중 여부 확인
     robots = _ctrl_rest("GET", "/robots")
     if robots:
-        robot = next((r for r in robots if str(r.get("robot_id")) == str(robot_id)), None)
-        if robot and robot.get("active_user_id"):
+        robot_state = robots.get(str(robot_id))
+        if robot_state and robot_state.get("mode") not in ("CHARGING", "OFFLINE", None):
             return redirect(url_for("blocked"))
 
     return redirect(url_for("login", robot_id=robot_id))
@@ -148,45 +195,58 @@ def index():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    robot_id = request.args.get("robot_id", ROBOT_ID)
-    error = None
-
     if request.method == "POST":
-        robot_id = request.form.get("robot_id", ROBOT_ID)
+        robot_id = _require_robot_id(request.form.get("robot_id", "").strip())
+
         user_id = request.form.get("user_id", "").strip()
         password = request.form.get("password", "")
 
         if not user_id or not password:
-            error = "아이디와 비밀번호를 입력해주세요."
+            flash("아이디와 비밀번호를 입력해주세요.")
         else:
-            # control_service REST POST /session 으로 로그인
             data = _ctrl_rest(
                 "POST",
                 "/session",
                 json={"robot_id": robot_id, "user_id": user_id, "password": password},
             )
             if data is None:
-                error = "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."
-            elif data.get("error") == "robot_busy":
+                flash("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.")
+            elif data.get("error") in ("robot already in session",):
                 return redirect(url_for("blocked"))
+            elif data.get("error") == "user already has active session":
+                flash("이미 다른 로봇에서 세션이 활성화되어 있습니다.")
+            elif data.get("error") in ("user not found", "robot_id and user_id required"):
+                flash("잘못된 아이디 또는 비밀번호입니다.")
             elif data.get("error"):
-                error = "잘못된 아이디 또는 비밀번호입니다."
+                flash(f"로그인 실패: {data.get('error')}")
             else:
                 session["robot_id"] = robot_id
                 session["user_id"] = user_id
                 session["session_id"] = data.get("session_id")
                 return redirect(url_for("main"))
 
+        # 실패 시 GET /login?robot_id=... 으로 리다이렉트 (PRG 패턴)
+        return redirect(url_for("login", robot_id=robot_id))
+
+    # GET
+    robot_id = _require_robot_id(request.args.get("robot_id", "").strip())
+
+    messages = get_flashed_messages()
+    error = messages[0] if messages else None
     return render_template("login.html", robot_id=robot_id, error=error)
 
 
 @app.route("/main")
 def main():
     if "session_id" not in session:
-        return redirect(url_for("login"))
+        abort(400, description="세션이 만료되었습니다. 다시 접속해 주세요.")
+    robot_id = session.get("robot_id", "").strip()
+    if not robot_id or robot_id not in KNOWN_ROBOT_IDS:
+        session.clear()
+        abort(400, description="세션이 만료되었습니다. 다시 접속해 주세요.")
     return render_template(
         "main.html",
-        robot_id=session.get("robot_id", ROBOT_ID),
+        robot_id=robot_id,
         user_id=session.get("user_id", ""),
         map_resolution=MAP_RESOLUTION,
         map_origin_x=MAP_ORIGIN_X,
@@ -204,12 +264,20 @@ def logout():
     session_id = session.get("session_id")
     if session_id:
         _ctrl_rest("PATCH", f"/session/{session_id}", json={"is_active": False})
+    robot_id = session.get("robot_id", "")
     session.clear()
+    if robot_id:
+        return redirect(url_for("login", robot_id=robot_id))
     return redirect(url_for("login"))
 
 
 # ── 진입점 ────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    logger.info("ShopPinkki Customer Web 시작 (포트 %d, 로봇 %s)", PORT, ROBOT_ID)
+    logger.info("ShopPinkki Customer Web 시작 (포트 %d, 로봇: %s)", PORT, KNOWN_ROBOT_IDS)
+    print(f"\n  접속 URL:")
+    for rid in KNOWN_ROBOT_IDS:
+        print(f"    http://localhost:{PORT}/?robot_id={rid}")
+    print(f"  테스트 아이디 / 비밀번호: test01 / 1234  (또는 test02 / 1234)")
+    print()
     socketio.run(app, host="0.0.0.0", port=PORT, debug=False)

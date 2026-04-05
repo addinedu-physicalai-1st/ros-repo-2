@@ -29,6 +29,7 @@
     [강제 종료] → force_terminate  (CHARGING·OFFLINE·HALTED·LOCKED 제외)
     [이동 명령] → admin_goto       (IDLE만, 맵 클릭 후 활성화)
     [잠금 해제] → staff_resolved   (is_locked_return=True 또는 HALTED)
+    [위치 초기화] → init_pose      (CHARGING·IDLE만, Gazebo/AMCL 초기 위치 설정)
 
 시그널:
     command_requested = pyqtSignal(str, dict)  # robot_id, payload
@@ -67,6 +68,8 @@ _FORCE_TERMINATE_DISABLED = {'CHARGING', 'OFFLINE', 'HALTED', 'LOCKED'}
 _WAITING_MODES = {'TRACKING', 'TRACKING_CHECKOUT', 'SEARCHING'}
 _RESUME_MODES = {'WAITING', 'SEARCHING'}
 _RETURNING_MODES = {'TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'SEARCHING'}
+# 위치 초기화 가능 모드 (시뮬/실물 AMCL 초기 위치 설정)
+_INIT_POSE_MODES = {'CHARGING', 'IDLE'}
 
 
 class RobotCard(QFrame):
@@ -165,6 +168,16 @@ class RobotCard(QFrame):
             cmd_layout.addWidget(btn)
         layout.addLayout(cmd_layout)
 
+        # 위치 초기화 버튼 행
+        init_layout = QHBoxLayout()
+        self._btn_init_pose = QPushButton('위치 초기화')
+        self._btn_init_pose.setToolTip('AMCL 초기 위치 설정 (CHARGING·IDLE 상태에서만 활성화)')
+        self._btn_init_pose.setStyleSheet('color: #2980b9;')
+        self._btn_init_pose.clicked.connect(self._on_init_pose)
+        init_layout.addStretch()
+        init_layout.addWidget(self._btn_init_pose)
+        layout.addLayout(init_layout)
+
         self._update_button_states()
 
     def update_state(self, state: dict):
@@ -178,8 +191,10 @@ class RobotCard(QFrame):
         is_locked_return = state.get('is_locked_return', False)
 
         # 모드 뱃지
+        follow_disabled = state.get('follow_disabled', False)
         color = MODE_COLORS.get(mode, '#aaaaaa')
-        self._lbl_mode.setText(mode)
+        mode_text = f'SIM | {mode}' if follow_disabled else mode
+        self._lbl_mode.setText(mode_text)
         self._lbl_mode.setStyleSheet(
             f'border-radius: 4px; padding: 2px 6px; font-weight: bold; '
             f'color: white; background-color: {color};'
@@ -243,6 +258,8 @@ class RobotCard(QFrame):
         self._btn_staff_resolved.setEnabled(
             mode == 'HALTED' or is_locked_return
         )
+        # init_pose: CHARGING 또는 IDLE (시뮬 Gazebo / 실물 AMCL 초기화용)
+        self._btn_init_pose.setEnabled(mode in _INIT_POSE_MODES)
 
     def _send_cmd(self, payload: dict):
         self.command_requested.emit(self._robot_id, payload)
@@ -289,6 +306,17 @@ class RobotCard(QFrame):
         )
         if reply == QMessageBox.StandardButton.Yes:
             self._send_cmd({'cmd': 'staff_resolved', 'robot_id': self._robot_id})
+
+    def _on_init_pose(self):
+        reply = QMessageBox.question(
+            self,
+            '위치 초기화 확인',
+            f'Robot #{self._robot_id} AMCL 초기 위치를 설정하시겠습니까?\n'
+            f'(맵 상 기본 출발 위치로 초기화)',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._send_cmd({'cmd': 'init_pose', 'robot_id': self._robot_id})
 
     @property
     def robot_id(self) -> str:

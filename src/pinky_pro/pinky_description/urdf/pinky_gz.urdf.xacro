@@ -20,7 +20,7 @@
                 <child_frame_id>${namespace}base_footprint</child_frame_id>
                 <odom_publisher_frequency>30</odom_publisher_frequency>
 
-                <tf_topic>/tf</tf_topic>
+                <tf_topic>${namespace}tf</tf_topic>
             </plugin>
 
             <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
@@ -34,7 +34,7 @@
             </plugin>
         </gazebo>
 
-        <gazebo reference="${namespace}l_wheel">
+        <gazebo reference="l_wheel">
             <self_collide>0</self_collide>
             <mu1>200</mu1>
             <mu2>200</mu2>
@@ -43,7 +43,7 @@
             <!-- <minDepth>0.001</minDepth> -->
         </gazebo>
 
-        <gazebo reference="${namespace}r_wheel">
+        <gazebo reference="r_wheel">
             <self_collide>0</self_collide>
             <mu1>200</mu1>
             <mu2>200</mu2>
@@ -52,7 +52,7 @@
             <!-- <minDepth>0.001</minDepth> -->
         </gazebo>
 
-        <gazebo reference="${namespace}caster_wheel">
+        <gazebo reference="caster_wheel">
             <self_collide>0</self_collide>
             <mu1>0.1</mu1>
             <mu2>0.1</mu2>
@@ -61,12 +61,12 @@
             <!-- <minDepth>0.001</minDepth> -->
         </gazebo>
 
-        <gazebo reference="${namespace}robot_lamp_mount_fixed_joint">
+        <gazebo reference="robot_lamp_mount_fixed_joint">
             <disableFixedJointLumping>true</disableFixedJointLumping>
         </gazebo>
 
-        <gazebo reference="${namespace}rplidar_link">
-            <sensor name='${namespace}gpu_lidar' type='gpu_lidar'>
+        <gazebo reference="rplidar_link">
+            <sensor name='gpu_lidar' type='gpu_lidar'>
                 <topic>${namespace}scan</topic>
                 <update_rate>10</update_rate>
                 <gz_frame_id>${namespace}rplidar_link</gz_frame_id>
@@ -100,8 +100,8 @@
             </sensor>
         </gazebo>
 
-        <gazebo reference="${namespace}front_camera_link">
-            <sensor name="${namespace}camera" type="camera">
+        <gazebo reference="front_camera_link">
+            <sensor name="camera" type="camera">
                 <camera>
                     <horizontal_fov>1.1519</horizontal_fov>
                     <image>
@@ -121,8 +121,8 @@
             </sensor>
         </gazebo>
 
-        <gazebo reference="${namespace}imu_link">
-            <sensor name="${namespace}imu" type="imu">
+        <gazebo reference="imu_link">
+            <sensor name="imu" type="imu">
                 <always_on>1</always_on>
                 <update_rate>100</update_rate>
                 <visualize>true</visualize>

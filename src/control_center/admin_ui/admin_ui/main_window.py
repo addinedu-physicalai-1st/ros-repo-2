@@ -102,6 +102,7 @@ class MainWindow(QMainWindow):
         self._offline_timer.timeout.connect(self._check_offline)
         self._offline_timer.start()
 
+
     # ------------------------------------------------------------------
     # UI 구성
     # ------------------------------------------------------------------

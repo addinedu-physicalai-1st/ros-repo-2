@@ -17,6 +17,8 @@ _SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 _ROS_WS="$(dirname "$_SCRIPTS_DIR")"
 
 # ── 1. conda env 탐색 ─────────────────────────────────────────────────────────
+# ROS 가 apt 로 설치되었든 conda(RoboStack) 로 설치되었든,
+# conda env 가 존재하면 activate 하여 pip 패키지를 사용할 수 있도록 한다.
 CONDA_BIN=""
 CMAKE_EXTRA_PATH=""
 _CONDA_ENV_DIR=""
@@ -26,7 +28,7 @@ if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/bin" ]; then
     _CONDA_ENV_DIR="$CONDA_PREFIX"
 fi
 
-# 없으면 공통 설치 경로 스캔
+# 없으면 공통 설치 경로 스캔 (setup.zsh 유무와 무관하게 env 존재만 확인)
 if [ -z "$_CONDA_ENV_DIR" ]; then
     for _base in \
         "$HOME/miniconda3" "$HOME/miniforge3" "$HOME/mambaforge" \
@@ -35,7 +37,7 @@ if [ -z "$_CONDA_ENV_DIR" ]; then
     do
         for _name in jazzy ros2 ros; do
             _p="$_base/envs/$_name"
-            if [ -d "$_p/bin" ] && { [ -f "$_p/setup.zsh" ] || [ -f "$_p/setup.bash" ]; }; then
+            if [ -d "$_p/bin" ]; then
                 _CONDA_ENV_DIR="$_p"
                 break 2
             fi
@@ -102,7 +104,29 @@ do
     [ -n "$_f" ] && [ -f "$_f" ] && { TMUX_SETUP_FILE="$_f"; break; }
 done
 
-# 현재 스크립트 환경 설정
+# 현재 스크립트 환경 설정: conda activate + ROS setup source
+# conda activate (현재 셸에서도 실행하여 python3 등이 conda env 를 가리키도록)
+if [ -n "$_CONDA_ENV_DIR" ]; then
+    _conda_env_name="$(basename "$_CONDA_ENV_DIR")"
+    _conda_exe=""
+    for _d in "$(dirname "$(dirname "$_CONDA_ENV_DIR")")/condabin" \
+              "$(dirname "$(dirname "$_CONDA_ENV_DIR")")/bin"; do
+        if [ -x "$_d/conda" ]; then
+            _conda_exe="$_d/conda"
+            break
+        fi
+    done
+    if [ -n "$_conda_exe" ]; then
+        # conda 함수 로드 후 activate (bash/zsh 자동 감지)
+        if [ -n "$BASH_VERSION" ]; then
+            eval "$("$_conda_exe" shell.bash hook)"
+        else
+            eval "$("$_conda_exe" shell.zsh hook)"
+        fi
+        conda activate "$_conda_env_name" 2>/dev/null || true
+    fi
+fi
+
 if [ -z "$ROS_SETUP_FILE" ]; then
     echo "[_ros_env] ⚠️  ROS 2 환경을 찾을 수 없습니다." >&2
     echo "           conda(RoboStack) 또는 apt 로 ROS 2 Jazzy 를 설치하세요." >&2
@@ -136,14 +160,33 @@ fi
 
 # ── 4. tmux send-keys 용 원라인 SRC 생성 ──────────────────────────────────────
 # TMUX_SETUP_FILE(.zsh) 을 사용 — tmux 창은 zsh 로 실행되므로
-_PATH_PREPEND=""
-[ -n "$CMAKE_EXTRA_PATH" ] && _PATH_PREPEND="$CMAKE_EXTRA_PATH:"
-[ -n "$CONDA_BIN" ]        && _PATH_PREPEND="${_PATH_PREPEND}${CONDA_BIN}:"
+
+# conda activate 명령 구성 (conda init 없이도 동작하도록 conda 실행파일 경로 사용)
+_CONDA_ACTIVATE=""
+if [ -n "$_CONDA_ENV_DIR" ]; then
+    _conda_env_name="$(basename "$_CONDA_ENV_DIR")"
+    # conda 실행파일 경로 탐색
+    _conda_bin_path=""
+    for _d in "$(dirname "$(dirname "$_CONDA_ENV_DIR")")/condabin" \
+              "$(dirname "$(dirname "$_CONDA_ENV_DIR")")/bin"; do
+        if [ -x "$_d/conda" ]; then
+            _conda_bin_path="$_d/conda"
+            break
+        fi
+    done
+    if [ -n "$_conda_bin_path" ]; then
+        # eval "$(conda shell.zsh hook)" 로 conda 함수를 현재 셸에 로드 후 activate
+        _CONDA_ACTIVATE="eval \"\$($_conda_bin_path shell.zsh hook)\" && conda activate $_conda_env_name"
+    fi
+fi
 
 _tmux_src_file="${TMUX_SETUP_FILE:-$ROS_SETUP_FILE}"
 
-if [ -n "$_PATH_PREPEND" ] && [ -n "$_tmux_src_file" ]; then
-    TMUX_SRC="export PATH=${_PATH_PREPEND}\$PATH; source ${_tmux_src_file}"
+if [ -n "$_CONDA_ACTIVATE" ] && [ -n "$_tmux_src_file" ]; then
+    # setup.zsh 가 PATH 를 재배치할 수 있으므로, source 후 conda env bin 을 맨 앞에 복원
+    TMUX_SRC="$_CONDA_ACTIVATE; source ${_tmux_src_file}; export PATH=${CONDA_BIN}:\$PATH"
+elif [ -n "$_CONDA_ACTIVATE" ]; then
+    TMUX_SRC="$_CONDA_ACTIVATE"
 elif [ -n "$_tmux_src_file" ]; then
     TMUX_SRC="source ${_tmux_src_file}"
 else

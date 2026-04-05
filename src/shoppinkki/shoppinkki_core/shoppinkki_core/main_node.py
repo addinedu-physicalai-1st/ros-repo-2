@@ -18,8 +18,10 @@ import math
 import os
 
 import rclpy
+import tf2_ros
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from rclpy.node import Node
+from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 from std_msgs.msg import String
 
 # Nav2 action client (optional — graceful fallback if nav2_msgs not installed)
@@ -41,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 # Robot ID is read from the environment variable ROBOT_ID (default '54')
 ROBOT_ID = os.environ.get('ROBOT_ID', '54')
+
 
 
 class ShoppinkiMainNode(Node):
@@ -90,6 +93,7 @@ class ShoppinkiMainNode(Node):
             on_admin_goto=self._on_admin_goto,
             on_start_session=self._on_start_session,
             has_unpaid_items=self._has_unpaid_items,
+            on_enter_simulation=self._on_enter_simulation,
         )
 
         # ── ROS publishers ────────────────────
@@ -119,22 +123,36 @@ class ShoppinkiMainNode(Node):
         self.create_timer(0.1, self._bt_tick_callback)    # 10 Hz BT tick
         self.create_timer(1.0, self._status_pub_callback)  # 1 Hz status
 
-        # ── AMCL pose 구독 ────────────────────
-        # 멀티로봇: /robot_<id>/amcl_pose (Nav2가 namespace 아래 실행)
+        # ── TF 기반 위치 추적 ─────────────────
+        # AMCL amcl_pose 토픽은 TF 에러 시 발행되지 않을 수 있으므로
+        # TF lookup (map → base_footprint) 을 주 위치 소스로 사용.
+        self._tf_buffer = tf2_ros.Buffer()
+        self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self)
+        self._base_frame = f'robot_{ROBOT_ID}/base_footprint'
+
+        # AMCL amcl_pose 도 구독 (AMCL 수렴 후 더 정확한 위치 반영)
+        amcl_qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+            history=QoSHistoryPolicy.KEEP_LAST,
+        )
         amcl_topic = f'/robot_{ROBOT_ID}/amcl_pose'
         self.create_subscription(
             PoseWithCovarianceStamped,
             amcl_topic,
             self._amcl_callback,
-            10,
+            amcl_qos,
         )
-        self.get_logger().info(f'AMCL pose subscription: {amcl_topic}')
+        self.get_logger().info(f'TF + AMCL pose tracking: {amcl_topic}')
 
         # ── Internal state ────────────────────
         self._pos_x: float = 0.0
         self._pos_y: float = 0.0
+        self._yaw: float = 0.0
         self._battery: float = 100.0
         self._cart_items: list = []
+        self.follow_disabled: bool = False
 
         self.get_logger().info('ShopPinkki main node ready')
 
@@ -158,13 +176,33 @@ class ShoppinkiMainNode(Node):
             return
         self.bt_runner.tick()
 
+    def _update_pos_from_tf(self) -> None:
+        """TF에서 map → base_footprint 변환을 조회하여 위치·방향 갱신."""
+        try:
+            t = self._tf_buffer.lookup_transform(
+                'map', self._base_frame, rclpy.time.Time())
+            self._pos_x = t.transform.translation.x
+            self._pos_y = t.transform.translation.y
+            # quaternion → yaw
+            q = t.transform.rotation
+            siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+            cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+            self._yaw = math.atan2(siny_cosp, cosy_cosp)
+        except (tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException):
+            pass  # TF 미사용 환경(실물 부팅 초기 등)에서는 amcl_pose 로 갱신
+
     def _status_pub_callback(self) -> None:
+        self._update_pos_from_tf()
         payload = json.dumps({
             'mode': self.sm.current_state,
             'pos_x': self._pos_x,
             'pos_y': self._pos_y,
+            'yaw': self._yaw,
             'battery': self._battery,
             'is_locked_return': self.sm.is_locked_return,
+            'follow_disabled': self.follow_disabled,
         })
         msg = String()
         msg.data = payload
@@ -196,6 +234,8 @@ class ShoppinkiMainNode(Node):
     def _on_session_end(self) -> None:
         self.get_logger().info('Session ended for robot %s', ROBOT_ID)
         self._cart_items = []
+        self.follow_disabled = False
+        self.bt_runner.follow_disabled = False
 
     # ──────────────────────────────────────────
     # CmdHandler callbacks
@@ -215,6 +255,20 @@ class ShoppinkiMainNode(Node):
     def _on_delete_item(self, item_id: int) -> None:
         self.get_logger().info('delete_item: id=%d', item_id)
         self._cart_items = [i for i in self._cart_items if i.get('id') != item_id]
+
+    def _on_enter_simulation(self) -> None:
+        """시뮬레이션 모드 진입: IDLE → TRACKING 전환 + 추종 비활성화."""
+        if self.sm.state != 'IDLE':
+            self.get_logger().debug(
+                'enter_simulation: IDLE 아님 (state=%s), 무시', self.sm.state
+            )
+            return
+        self.get_logger().info(
+            'enter_simulation: IDLE → TRACKING (추종 비활성화)'
+        )
+        self.follow_disabled = True
+        self.bt_runner.follow_disabled = True
+        self.sm.enter_tracking()
 
     def _on_admin_goto(self, x: float, y: float, theta: float) -> None:
         self.get_logger().info('admin_goto: (%.2f, %.2f, %.2f)', x, y, theta)

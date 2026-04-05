@@ -32,7 +32,7 @@ amcl:
     save_pose_rate: 0.5
     sigma_hit: 0.2
     tf_broadcast: true
-    transform_tolerance: 1.0
+    transform_tolerance: 5.0
     update_min_a: 0.1
     update_min_d: 0.15
     z_hit: 0.5
@@ -42,8 +42,8 @@ amcl:
     scan_topic: /robot_54/scan
     set_initial_pose: true
     initial_pose:
-      x: 0.20
-      y: 0.20
+      x: 0.939
+      y: 0.100
       yaw: 1.5707963
 
 bt_navigator:

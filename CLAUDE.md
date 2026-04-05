@@ -80,18 +80,61 @@ ros2 launch pinky_navigation nav2_view.launch.xml
 ```
 
 ### ShopPinkki 전체 스택 실행
+
+> 상세 사용법 → `scripts/index.md`
+
+#### 시뮬레이션 (실물 없을 때)
+
+터미널 3개를 열고 순서대로 실행:
+
 ```bash
-# [On Pinky]
-ros2 launch pinky_bringup bringup_robot.launch.xml
-ros2 launch shoppinkki_nav navigation.launch.py
-ros2 run shoppinkki_core main_node
+# 터미널 A — 서버 (control_service + AI Docker)
+bash scripts/run_server.sh
 
-# [On PC — 통합 실행 (tmux)]
-~/ros_ws/scripts/run_server.sh
+# 터미널 B — UI (admin_ui + customer_web)
+bash scripts/run_ui.sh
 
-# [On PC — 개별 실행]
-python services/customer_web/app.py      # → http://localhost:8501
-cd services/ai_server && docker compose up
+# 터미널 C — Gazebo 시뮬 (Nav2 x2 + shoppinkki_core x2)
+bash scripts/run_sim.sh
+```
+
+Gazebo 로딩 완료(~60초) 후:
+1. **admin_ui** 각 로봇 카드 → **[위치 초기화]** 버튼 클릭 (AMCL 초기 위치 설정)
+2. **customer_web** `http://localhost:8501/?robot_id=54` 로그인 → CHARGING → IDLE 전환
+
+customer_web 접속: `http://localhost:8501/?robot_id=54` 또는 `?robot_id=18`
+
+> customer_web IDLE 패널의 **[시뮬레이션 모드]** 버튼으로 추종 없이 쇼핑 테스트 가능.
+
+#### 실물 로봇
+
+```bash
+# [노트북] 터미널 A — 서버
+bash scripts/run_server.sh
+
+# [노트북] 터미널 B — UI
+bash scripts/run_ui.sh
+
+# [Pi 5] SSH 접속 후 (각 Pi에서)
+bash scripts/run_robot.sh 54   # 로봇 54번
+bash scripts/run_robot.sh 18   # 로봇 18번
+```
+
+#### 스크립트별 tmux 세션
+
+| 스크립트 | 세션 | 창 구성 |
+|---|---|---|
+| `run_server.sh` | `sp_server` | control / ai / shell |
+| `run_ui.sh` | `sp_ui` | admin / customer |
+| `run_sim.sh` | `sp_sim` | gz / core54 / core18 / init / shell |
+| `run_robot.sh` | `sp_robot` | bringup / nav / core / shell |
+
+세션 재접속: `tmux attach -t sp_server` (또는 sp_ui / sp_sim / sp_robot)
+
+#### AI 서버 없이 실행 (`--no-ai`)
+
+```bash
+bash scripts/run_server.sh --no-ai   # YOLO/LLM Docker 제외
 ```
 
 ### Open-RMF Fleet Adapter 실행
@@ -104,10 +147,10 @@ ros2 launch shoppinkki_rmf rmf_fleet.launch.py
 ### DB 관리
 ```bash
 # 중앙 서버 DB 시딩 (대화형: reset / replace / 기본 선택)
-~/ros_ws/scripts/seed.sh
+bash scripts/seed.sh
 ```
 
-### Simulation (Gazebo)
+### Simulation (Gazebo) — 맵 빌딩 / 단독 Nav2 확인
 ```bash
 # Map building in sim
 ros2 launch pinky_gz_sim launch_sim_shop.launch.xml
@@ -148,10 +191,11 @@ ros_ws/
 │   └── ai_server/           ← Docker: 커스텀 YOLO(TCP:5005) + LLM(REST:8000)
 └── scripts/
     ├── seed.sh              ← 중앙 DB 시딩 대화형 스크립트
-    ├── run_server.sh        ← tmux 통합 실행기
-    ├── run_admin.sh
-    ├── run_customer_web.sh
-    └── run_ai.sh
+    ├── run_server.sh        ← tmux 통합 실행기 (control_service + AI)
+    ├── run_ui.sh            ← tmux 통합 실행기 (admin_ui + customer_web)
+    ├── run_sim.sh           ← tmux 통합 실행기 (Gazebo + shoppinkki_core)
+    ├── run_robot.sh         ← tmux 통합 실행기 (Pi 5 실물 로봇)
+    └── run_ai.sh            ← AI 서버 Docker 단독 실행
 ```
 
 **`src/pinky_pro/`** provides foundational drivers:

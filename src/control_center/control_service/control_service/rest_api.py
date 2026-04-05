@@ -64,7 +64,7 @@ def create_app(robot_manager: 'RobotManager',
 
     @app.get('/zone/parking/available')
     def parking_available():
-        zone = db.get_parking_available()
+        zone = robot_manager.get_available_parking()
         if not zone:
             return jsonify({'error': 'no parking available'}), 404
         return jsonify(_zone_dict(zone))
@@ -120,6 +120,15 @@ def create_app(robot_manager: 'RobotManager',
         session_id = db.create_session(robot_id, user_id)
         db.update_robot(robot_id, active_user_id=user_id)
         db.log_event(robot_id, 'SESSION_START', user_id)
+
+        # CHARGING → IDLE 전환: Pi에 start_session cmd 전달
+        if robot_manager.publish_cmd:
+            robot_manager.publish_cmd(robot_id, {
+                'cmd': 'start_session',
+                'user_id': user_id,
+            })
+        else:
+            logger.warning('publish_cmd not wired; start_session dropped for robot=%s', robot_id)
 
         cart = db.get_cart_by_session(session_id)
         return jsonify({

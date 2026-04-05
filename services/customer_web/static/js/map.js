@@ -5,9 +5,9 @@
  *   resolution : 미터/픽셀 (예: 0.05)
  *   origin     : [x, y, theta] 맵 원점 (미터)
  *
- * 좌표 변환:
- *   px_x = (pos_x - origin_x) / resolution
- *   px_y = img_height - (pos_y - origin_y) / resolution   // Y축 반전
+ * 좌표 변환 (맵 PNG 90도 CCW 회전 후):
+ *   px = canvas_width  - (pos_y - origin_y) / resolution
+ *   py = canvas_height - (pos_x - origin_x) / resolution
  *
  * 핀치 줌 지원 (모바일).
  */
@@ -25,6 +25,7 @@ const MapRenderer = (() => {
 
   let canvas, ctx;
   let mapImage = null;
+  let mapImageRotated = null;  // 90도 CW 회전된 오프스크린 이미지
   let myRobotId = null;
 
   // 최신 로봇 위치 캐시
@@ -43,11 +44,21 @@ const MapRenderer = (() => {
     ctx = canvas.getContext("2d");
     myRobotId = String(robotId);
 
-    // 맵 이미지 로드
+    // 맵 이미지 로드 (90도 CW 회전해서 가로 표시)
     mapImage = new Image();
     mapImage.onload = () => {
-      canvas.width  = mapImage.naturalWidth;
-      canvas.height = mapImage.naturalHeight;
+      // 오프스크린 캔버스에 90도 CCW 회전 후 저장
+      const off = document.createElement("canvas");
+      off.width  = mapImage.naturalHeight;  // CCW 회전 후: 가로 = 원본 세로
+      off.height = mapImage.naturalWidth;   // CCW 회전 후: 세로 = 원본 가로
+      const offCtx = off.getContext("2d");
+      offCtx.translate(0, off.height);
+      offCtx.rotate(-Math.PI / 2);          // 90도 CCW
+      offCtx.drawImage(mapImage, 0, 0);
+      mapImageRotated = off;
+
+      canvas.width  = off.width;
+      canvas.height = off.height;
       render();
     };
     mapImage.onerror = () => {
@@ -103,9 +114,9 @@ const MapRenderer = (() => {
     ctx.scale(scale, scale);
     ctx.translate(-cx, -cy);
 
-    // 맵 이미지
-    if (mapImage && mapImage.complete) {
-      ctx.drawImage(mapImage, 0, 0);
+    // 맵 이미지 (90도 CW 회전된 오프스크린 이미지 사용)
+    if (mapImageRotated) {
+      ctx.drawImage(mapImageRotated, 0, 0);
     }
 
     // 다른 로봇 (회색, 40% 불투명)
@@ -146,9 +157,12 @@ const MapRenderer = (() => {
 
   // ── 좌표 변환 ────────────────────────────────────────────────
 
+  // ── 좌표 변환 (90도 CCW 회전 적용) ─────────────────────────────
+  // 회전 후: px = canvas.width  - (y - oy) / res
+  //          py = canvas.height - (x - ox) / res
   function worldToCanvas(wx, wy) {
-    const px = (wx - MAP_CONFIG.originX) / MAP_CONFIG.resolution;
-    const py = canvas.height - (wy - MAP_CONFIG.originY) / MAP_CONFIG.resolution;
+    const px = canvas.width  - (wy - MAP_CONFIG.originY) / MAP_CONFIG.resolution;
+    const py = canvas.height - (wx - MAP_CONFIG.originX) / MAP_CONFIG.resolution;
     return [px, py];
   }
 

@@ -183,6 +183,7 @@ class TCPServer:
                 'pos_y': state.pos_y,
                 'battery': state.battery,
                 'is_locked_return': state.is_locked_return,
+                'follow_disabled': state.follow_disabled,
                 'bbox': state.bbox,
             }
             client.send(json.dumps(msg) + '\n')

@@ -19,8 +19,8 @@ INSERT INTO ZONE (zone_id, zone_name, zone_type, waypoint_x, waypoint_y, waypoin
 (100, '화장실',   'special', 0.0, 0.0, 0.0),
 (110, '입구',     'special', 0.0, 0.0, 0.0),
 (120, '출구',     'special', 0.0, 0.0, 0.0),
-(140, '충전소 P1','special', 0.0, 0.0, 1.5708),
-(141, '충전소 P2','special', 0.0, 0.0, 1.5708),
+(140, '충전소 P1','special', 0.699, 0.100, 1.5708),
+(141, '충전소 P2','special', 0.939, 0.100, 1.5708),
 (150, '결제 구역','special', 0.0, 0.0, 0.0)
 ON DUPLICATE KEY UPDATE zone_name=VALUES(zone_name);
 
@@ -53,9 +53,9 @@ ON DUPLICATE KEY UPDATE description=VALUES(description);
 -- ──────────────────────────────────────────────
 
 INSERT INTO ROBOT (robot_id, ip_address, current_mode) VALUES
-('54', '192.168.102.54', 'OFFLINE'),
-('18', '192.168.102.18', 'OFFLINE')
-ON DUPLICATE KEY UPDATE ip_address=VALUES(ip_address);
+('54', '192.168.102.54', 'CHARGING'),
+('18', '192.168.102.18', 'CHARGING')
+ON DUPLICATE KEY UPDATE ip_address=VALUES(ip_address), current_mode='CHARGING';
 
 -- ──────────────────────────────────────────────
 -- USER / CARD (테스트 계정, password = 'test1234' bcrypt)

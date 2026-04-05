@@ -25,6 +25,8 @@ const socket = io();
 
 // 현재 로봇 모드 캐시
 let currentMode = "IDLE";
+// 추종 비활성화 여부
+let followDisabled = false;
 // 도착한 구역명 캐시
 let arrivedZoneName = "";
 
@@ -47,7 +49,8 @@ socket.on("control_connected", (data) => {
 // status — 1~2Hz push
 socket.on("status", (data) => {
   updateStatusBar(data);
-  updatePanelVisibility(data.my_robot?.mode);
+  updatePanelVisibility(data.my_robot?.mode ?? data.mode);
+  updateFollowDisabledBanner(data.my_robot?.follow_disabled ?? data.follow_disabled);
   if (typeof MapRenderer !== "undefined") {
     MapRenderer.updateFromStatus(data);
   }
@@ -153,12 +156,19 @@ function updatePanelVisibility(mode) {
   // [대기하기] / [따라가기] 버튼 전환
   const btnWait   = document.getElementById("btn-wait");
   const btnFollow = document.getElementById("btn-follow");
-  if (btnWait)   btnWait.style.display   = (mode === "TRACKING" || mode === "TRACKING_CHECKOUT") ? "" : "none";
+  const showWait = !followDisabled && (mode === "TRACKING" || mode === "TRACKING_CHECKOUT");
+  if (btnWait)   btnWait.style.display   = showWait ? "" : "none";
   if (btnFollow) btnFollow.style.display = (mode === "WAITING") ? "" : "none";
 }
 
 function showTrackingPanel() {
   updatePanelVisibility("TRACKING");
+}
+
+function updateFollowDisabledBanner(disabled) {
+  followDisabled = !!disabled;
+  const banner = document.getElementById("follow-disabled-banner");
+  if (banner) banner.style.display = followDisabled ? "" : "none";
 }
 
 // ── 결제 팝업 ──────────────────────────────────────────────────
@@ -250,19 +260,112 @@ function showFindProductResult(data) {
 
 let qrTimeoutId = null;
 const QR_TIMEOUT_SEC = 30;
+let _qrStream = null;      // MediaStream (시뮬레이션 모드)
+let _qrAnimId = null;       // requestAnimationFrame ID
+let _qrLastScanned = "";    // 중복 스캔 방지
 
 function openQrPanel() {
   const overlay = document.getElementById("qr-overlay");
   if (overlay) overlay.classList.remove("hidden");
   _resetQrTimeout();
+  _qrLastScanned = "";
+
+  // 웹앱 카메라로 QR 스캔
+  _startQrCamera();
 }
 
 function closeQrPanel() {
   const overlay = document.getElementById("qr-overlay");
   if (overlay) overlay.classList.add("hidden");
   if (qrTimeoutId) { clearTimeout(qrTimeoutId); qrTimeoutId = null; }
+  _stopQrCamera();
   // 담기 완료 → 추종 재개
   socket.emit("resume_tracking", {});
+}
+
+function _startQrCamera() {
+  const wrap = document.getElementById("qr-camera-wrap");
+  const video = document.getElementById("qr-video");
+  if (!wrap || !video) return;
+  wrap.style.display = "";
+
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
+  }).then((stream) => {
+    _qrStream = stream;
+    video.srcObject = stream;
+    video.play();
+    _qrScanLoop();
+  }).catch((err) => {
+    console.warn("[QR] 카메라 접근 실패:", err);
+    showToast("카메라를 사용할 수 없습니다");
+    wrap.style.display = "none";
+  });
+}
+
+function _stopQrCamera() {
+  if (_qrAnimId) { cancelAnimationFrame(_qrAnimId); _qrAnimId = null; }
+  if (_qrStream) {
+    _qrStream.getTracks().forEach((t) => t.stop());
+    _qrStream = null;
+  }
+  const video = document.getElementById("qr-video");
+  if (video) video.srcObject = null;
+  const wrap = document.getElementById("qr-camera-wrap");
+  if (wrap) wrap.style.display = "none";
+  const resultEl = document.getElementById("qr-scan-result");
+  if (resultEl) resultEl.style.display = "none";
+}
+
+function _qrScanLoop() {
+  if (!_qrStream) return;
+  const video = document.getElementById("qr-video");
+  const canvas = document.getElementById("qr-canvas");
+  if (!video || !canvas || typeof jsQR === "undefined") return;
+
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+  function tick() {
+    if (!_qrStream) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: "dontInvert" });
+      if (code && code.data && code.data !== _qrLastScanned) {
+        _qrLastScanned = code.data;
+        _onQrDecoded(code.data);
+      }
+    }
+    _qrAnimId = requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+function _onQrDecoded(data) {
+  // QR 데이터 전송 + 피드백 표시
+  const resultEl = document.getElementById("qr-scan-result");
+  try {
+    const parsed = JSON.parse(data);
+    const name = parsed.product_name || parsed.name || data;
+    if (resultEl) {
+      resultEl.textContent = "✓ " + name;
+      resultEl.style.display = "";
+      setTimeout(() => { resultEl.style.display = "none"; }, 1500);
+    }
+  } catch {
+    if (resultEl) {
+      resultEl.textContent = "✓ 스캔 완료";
+      resultEl.style.display = "";
+      setTimeout(() => { resultEl.style.display = "none"; }, 1500);
+    }
+  }
+  socket.emit("qr_scan", { data: data });
+  // 타임아웃 리셋 (활동 감지)
+  _resetQrTimeout();
+  // 1.5초 후 다시 스캔 허용
+  setTimeout(() => { _qrLastScanned = ""; }, 1500);
 }
 
 function _resetQrTimeout() {
@@ -380,6 +483,9 @@ function _setActive(el, active) {
 }
 
 function _modeLabel(mode) {
+  if (followDisabled && (mode === "TRACKING" || mode === "TRACKING_CHECKOUT")) {
+    return mode === "TRACKING_CHECKOUT" ? "시뮬레이션 (결제완료)" : "시뮬레이션 모드";
+  }
   const labels = {
     IDLE:               "등록 대기",
     TRACKING:           "추종 중",

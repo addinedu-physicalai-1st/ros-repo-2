@@ -12,41 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""MapWidget — shop_map.png 위에 로봇 위치 실시간 표시.
+"""MapWidget -- shop_map.png 위에 로봇 위치 실시간 표시.
 
-좌표 변환:
-    px = int((x - origin_x) / resolution)
-    py = int(img_height - (y - origin_y) / resolution)  # Y축 반전
+맵 이미지를 90도 CCW 회전하여 가로(landscape)로 표시.
 
-로봇 아이콘:
-    온라인: 색상 원형 (robot_id별 색상)
-    is_locked_return=True: 빨간 점멸 테두리
-    HALTED: 흰색 점멸 테두리
-    OFFLINE: x 표시, 마지막 위치 유지
+좌표 변환 (90도 CCW 회전 적용):
+    Qt rotate(-90) 변환 후 픽셀 매핑:
+        px = img_w - (y - origin_y) / resolution * scale
+        py = img_h - (x - origin_x) / resolution * scale
 
-맵 클릭:
-    클릭 좌표를 월드 좌표로 변환
-    → map_clicked(x, y) pyqtSignal 발행
-    → 파란 십자 마커 표시
+    img_w = 원본 PNG height (회전 후 가로)
+    img_h = 원본 PNG width  (회전 후 세로)
 
-맵 이미지:
-    assets/shop_map.png 로드 시도.
-    없으면 회색 배경 + "맵 이미지 없음" 텍스트 표시.
-    shop.yaml: resolution=0.01, origin=(-0.293, -1.660)
+shop.yaml: resolution=0.01, origin=(-0.293, -1.660)
 """
 
+import math
 import os
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPen, QPixmap
+from PyQt6.QtCore import Qt, QPointF, QTimer, pyqtSignal
+from PyQt6.QtGui import (
+    QColor, QFont, QMouseEvent, QPainter, QPen, QPixmap, QPolygonF, QTransform,
+)
 from PyQt6.QtWidgets import QLabel
 
 MAP_RESOLUTION = 0.01    # m/px  (shop.yaml resolution=0.010)
 MAP_ORIGIN_X = -0.293    # m     (shop.yaml origin[0])
 MAP_ORIGIN_Y = -1.660    # m     (shop.yaml origin[1])
-MAP_SCALE = 4            # PNG를 원본 PGM의 4배로 저장했으므로 픽셀 변환에 곱함
+MAP_SCALE = 4            # PNG = PGM x4
 
-# robot_id별 색상 (최대 10대 지원)
+# robot_id별 색상
 ROBOT_COLORS = [
     QColor('#27ae60'),  # green
     QColor('#2980b9'),  # blue
@@ -61,6 +56,7 @@ ROBOT_COLORS = [
 ]
 
 ROBOT_ICON_RADIUS = 8
+ARROW_LENGTH_PX = 18
 BLINK_INTERVAL_MS = 500
 
 
@@ -72,10 +68,10 @@ class MapWidget(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._base_pixmap: QPixmap | None = None
-        self._robot_states: dict[str, dict] = {}  # robot_id → state dict
+        self._robot_states: dict[str, dict] = {}
         self._robot_color_map: dict[str, QColor] = {}
         self._color_index = 0
-        self._goto_marker: tuple[float, float] | None = None  # world (x, y)
+        self._goto_marker: tuple[float, float] | None = None
         self._blink_state = False
 
         self._blink_timer = QTimer(self)
@@ -90,9 +86,6 @@ class MapWidget(QLabel):
         self._load_map()
 
     def _load_map(self):
-        # 후보 경로 순서대로 탐색
-        # 1) colcon install 후 ament share 디렉터리
-        # 2) 소스 트리 직접 실행 (개발 편의)
         candidates = []
         try:
             from ament_index_python.packages import get_package_share_directory
@@ -109,8 +102,9 @@ class MapWidget(QLabel):
             if os.path.isfile(map_path):
                 pix = QPixmap(map_path)
                 if not pix.isNull():
-                    self._base_pixmap = pix
-                    self.setFixedSize(pix.size())
+                    # 90도 CCW 회전하여 가로 표시
+                    self._base_pixmap = pix.transformed(QTransform().rotate(-90))
+                    self.setFixedSize(self._base_pixmap.size())
                     return
 
     def _get_robot_color(self, robot_id: str) -> QColor:
@@ -121,38 +115,52 @@ class MapWidget(QLabel):
             self._color_index += 1
         return self._robot_color_map[robot_id]
 
+    # ──────────────────────────────────────────────
+    # 좌표 변환 (90도 CCW 회전 적용)
+    # ──────────────────────────────────────────────
+    #
+    # Qt rotate(-90) 픽셀 매핑:
+    #   원본 (col, row)  →  회전 (row,  W_orig - 1 - col)
+    #
+    # 원본 PNG 좌표:
+    #   col = (x - ox) / r * s
+    #   row = H_orig - (y - oy) / r * s
+    #
+    # 회전 후:
+    #   px = row = H_orig - (y - oy) / r * s   →  회전 이미지 width = H_orig
+    #   py = W_orig - 1 - col ≈ W_orig - (x - ox) / r * s
+    #
+    # 즉:
+    #   px = img_w - (y - oy) / r * s
+    #   py = img_h - (x - ox) / r * s
+
     def _world_to_pixel(self, x: float, y: float) -> tuple[int, int]:
-        """월드 좌표 → 픽셀 좌표 변환."""
-        if self._base_pixmap is not None:
-            img_h = self._base_pixmap.height()
-        else:
-            img_h = self.height()
-        px = int((x - MAP_ORIGIN_X) / MAP_RESOLUTION * MAP_SCALE)
-        py = int(img_h - (y - MAP_ORIGIN_Y) / MAP_RESOLUTION * MAP_SCALE)
+        """월드 좌표 → 회전된 맵 픽셀 좌표.
+
+        PNG 이미지가 PGM 대비 x축(col) 반전 상태이므로
+        py 에서 img_h 감산 없이 직접 매핑.
+        """
+        img_w = self._base_pixmap.width() if self._base_pixmap else self.width()
+        px = int(img_w - (y - MAP_ORIGIN_Y) / MAP_RESOLUTION * MAP_SCALE)
+        py = int((x - MAP_ORIGIN_X) / MAP_RESOLUTION * MAP_SCALE)
         return px, py
 
     def _pixel_to_world(self, px: int, py: int) -> tuple[float, float]:
-        """픽셀 좌표 → 월드 좌표 변환."""
-        if self._base_pixmap is not None:
-            img_h = self._base_pixmap.height()
-        else:
-            img_h = self.height()
-        x = px / MAP_SCALE * MAP_RESOLUTION + MAP_ORIGIN_X
-        y = (img_h - py) / MAP_SCALE * MAP_RESOLUTION + MAP_ORIGIN_Y
+        """회전된 맵 픽셀 좌표 → 월드 좌표."""
+        img_w = self._base_pixmap.width() if self._base_pixmap else self.width()
+        y = MAP_ORIGIN_Y + (img_w - px) / MAP_SCALE * MAP_RESOLUTION
+        x = MAP_ORIGIN_X + py / MAP_SCALE * MAP_RESOLUTION
         return x, y
 
     def update_robot(self, robot_id: str, state: dict):
-        """로봇 상태 업데이트 후 다시 그리기."""
         self._robot_states[robot_id] = state
         self.update()
 
     def set_goto_marker(self, x: float, y: float):
-        """admin_goto 클릭 마커 설정."""
         self._goto_marker = (x, y)
         self.update()
 
     def clear_goto_marker(self):
-        """마커 제거."""
         self._goto_marker = None
         self.update()
 
@@ -166,7 +174,6 @@ class MapWidget(QLabel):
 
     def _on_blink(self):
         self._blink_state = not self._blink_state
-        # 점멸이 필요한 로봇이 있으면 갱신
         needs_blink = any(
             s.get('mode') in ('LOCKED', 'HALTED') or s.get('is_locked_return')
             for s in self._robot_states.values()
@@ -174,11 +181,76 @@ class MapWidget(QLabel):
         if needs_blink:
             self.update()
 
+    def _draw_robot(self, painter: QPainter, robot_id: str, state: dict):
+        """로봇 아이콘 (원형 + 방향 화살표 + ID 레이블)."""
+        pos_x = state.get('pos_x', 0.0)
+        pos_y = state.get('pos_y', 0.0)
+        yaw = state.get('yaw', 0.0)
+        mode = state.get('mode', 'OFFLINE')
+        is_locked_return = state.get('is_locked_return', False)
+
+        px, py = self._world_to_pixel(pos_x, pos_y)
+        color = self._get_robot_color(robot_id)
+        r = ROBOT_ICON_RADIUS
+
+        if mode == 'OFFLINE':
+            painter.setPen(QPen(QColor('#aaaaaa'), 2))
+            painter.drawLine(px - r, py - r, px + r, py + r)
+            painter.drawLine(px + r, py - r, px - r, py + r)
+        else:
+            # 원형 아이콘
+            painter.setBrush(color)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(px - r, py - r, r * 2, r * 2)
+
+            # 방향 화살표 — 월드 좌표 기반으로 끝점 계산 후 픽셀 변환
+            arrow_m = ARROW_LENGTH_PX * MAP_RESOLUTION / MAP_SCALE  # 픽셀 → 미터
+            end_x = pos_x + arrow_m * math.cos(yaw)
+            end_y = pos_y + arrow_m * math.sin(yaw)
+            epx, epy = self._world_to_pixel(end_x, end_y)
+
+            painter.setPen(QPen(color.darker(130), 2))
+            painter.drawLine(px, py, epx, epy)
+
+            # 화살촉 (삼각형)
+            head_size = 5
+            dx, dy = float(epx - px), float(epy - py)
+            angle = math.atan2(dy, dx)
+            lx = epx - head_size * math.cos(angle - 0.5)
+            ly = epy - head_size * math.sin(angle - 0.5)
+            rx = epx - head_size * math.cos(angle + 0.5)
+            ry = epy - head_size * math.sin(angle + 0.5)
+
+            painter.setBrush(color.darker(130))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawPolygon(QPolygonF([
+                QPointF(epx, epy), QPointF(lx, ly), QPointF(rx, ry),
+            ]))
+
+            # 점멸 테두리
+            if is_locked_return and self._blink_state:
+                painter.setPen(QPen(QColor('#e74c3c'), 3))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(px - r - 3, py - r - 3, (r + 3) * 2, (r + 3) * 2)
+            elif mode == 'HALTED' and self._blink_state:
+                painter.setPen(QPen(QColor('#ffffff'), 3))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(px - r - 3, py - r - 3, (r + 3) * 2, (r + 3) * 2)
+
+            # robot_id 레이블 (원 위에 중앙 정렬)
+            painter.setPen(QColor('#ffffff'))
+            font = QFont()
+            font.setPointSize(9)
+            font.setBold(True)
+            painter.setFont(font)
+            fm = painter.fontMetrics()
+            text_w = fm.horizontalAdvance(robot_id)
+            painter.drawText(px - text_w // 2, py - r - 4, robot_id)
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # 배경
         if self._base_pixmap is not None:
             painter.drawPixmap(0, 0, self._base_pixmap)
         else:
@@ -191,52 +263,13 @@ class MapWidget(QLabel):
                 self.rect(), Qt.AlignmentFlag.AlignCenter, '맵 이미지 없음'
             )
 
-        # 로봇 아이콘
         for robot_id, state in self._robot_states.items():
-            pos_x = state.get('pos_x', 0.0)
-            pos_y = state.get('pos_y', 0.0)
-            mode = state.get('mode', 'OFFLINE')
-            is_locked_return = state.get('is_locked_return', False)
+            self._draw_robot(painter, robot_id, state)
 
-            px, py = self._world_to_pixel(pos_x, pos_y)
-            color = self._get_robot_color(robot_id)
-            r = ROBOT_ICON_RADIUS
-
-            if mode == 'OFFLINE':
-                # x 표시
-                painter.setPen(QPen(QColor('#aaaaaa'), 2))
-                painter.drawLine(px - r, py - r, px + r, py + r)
-                painter.drawLine(px + r, py - r, px - r, py + r)
-            else:
-                # 원형 아이콘
-                painter.setBrush(color)
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.drawEllipse(px - r, py - r, r * 2, r * 2)
-
-                # 점멸 테두리
-                if is_locked_return and self._blink_state:
-                    painter.setPen(QPen(QColor('#e74c3c'), 3))
-                    painter.setBrush(Qt.BrushStyle.NoBrush)
-                    painter.drawEllipse(px - r - 3, py - r - 3, (r + 3) * 2, (r + 3) * 2)
-                elif mode == 'HALTED' and self._blink_state:
-                    painter.setPen(QPen(QColor('#ffffff'), 3))
-                    painter.setBrush(Qt.BrushStyle.NoBrush)
-                    painter.drawEllipse(px - r - 3, py - r - 3, (r + 3) * 2, (r + 3) * 2)
-
-                # robot_id 레이블
-                painter.setPen(QColor('#ffffff'))
-                font = QFont()
-                font.setPointSize(8)
-                font.setBold(True)
-                painter.setFont(font)
-                painter.drawText(px - r, py - r - 2, robot_id)
-
-        # admin_goto 마커 (파란 십자)
         if self._goto_marker is not None:
             mx, my = self._goto_marker
             mpx, mpy = self._world_to_pixel(mx, my)
-            pen = QPen(QColor('#3498db'), 2)
-            painter.setPen(pen)
+            painter.setPen(QPen(QColor('#3498db'), 2))
             arm = 10
             painter.drawLine(mpx - arm, mpy, mpx + arm, mpy)
             painter.drawLine(mpx, mpy - arm, mpx, mpy + arm)

@@ -42,14 +42,14 @@ ROBOTS = [
         'id': '54',
         'ns': 'robot_54',
         'model': 'pinky_54',
-        'x': '0.20', 'y': '0.20', 'z': '0.0',
+        'x': '0.939', 'y': '0.100', 'z': '0.0',
         'yaw': '1.570796',
     },
     {
         'id': '18',
         'ns': 'robot_18',
         'model': 'pinky_18',
-        'x': '0.50', 'y': '0.20', 'z': '0.0',
+        'x': '0.699', 'y': '0.100', 'z': '0.0',
         'yaw': '1.570796',
     },
 ]
@@ -67,7 +67,7 @@ def make_robot_actions(robot: dict, delay: float) -> list:
             os.path.join(PINKY_DESC, 'launch', 'upload_robot.launch.py')
         ),
         launch_arguments={
-            'namespace': ns + '/',
+            'namespace': ns,
             'use_sim_time': 'True',
             'is_sim': 'True',
             'cam_tilt_deg': '0',
@@ -97,6 +97,27 @@ def make_robot_actions(robot: dict, delay: float) -> list:
         executable='parameter_bridge',
         name=f'bridge_{ns}',
         arguments=['--ros-args', '-p', f'config_file:={bridge_yaml}'],
+        parameters=[{'use_sim_time': True}],
+        output='screen',
+    )
+
+    # 3.5) map → <ns>/odom 초기 static TF (AMCL 부트스트랩용)
+    #      AMCL이 초기화되면 동적 TF로 자동 대체됨
+    map_to_odom = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name=f'map_odom_{ns}',
+        arguments=[
+            '--x', robot['x'],
+            '--y', robot['y'],
+            '--z', '0',
+            '--yaw', robot['yaw'],
+            '--pitch', '0',
+            '--roll', '0',
+            '--frame-id', 'map',
+            '--child-frame-id', f'{ns}/odom',
+        ],
+        parameters=[{'use_sim_time': True}],
         output='screen',
     )
 
@@ -115,7 +136,7 @@ def make_robot_actions(robot: dict, delay: float) -> list:
     )
 
     # delay 적용 (두 번째 로봇은 첫 번째 이후에 스폰)
-    actions = [upload, spawn, bridge, nav2]
+    actions = [upload, spawn, bridge, map_to_odom, nav2]
     if delay > 0:
         return [TimerAction(period=delay, actions=actions)]
     return actions
