@@ -39,6 +39,9 @@ levels:
       - [ 0.473, -0.601, {name: "가공식품2",   pickup_zone: true}]
       - [ 0.704, -0.928, {name: "음료1",       pickup_zone: true}]
       - [ 0.715, -1.197, {name: "음료2",       pickup_zone: true}]
+      - [ 0.300, -0.450, {name: "진열대1_좌측우회"}]
+      - [ 0.920, -0.440, {name: "진열대1_우측우회"}]
+      - [ 0.870, -1.050, {name: "진열대2_우측우회"}]
 
     lanes:
       # 외곽 루프 — 왼쪽 복도
@@ -104,20 +107,27 @@ levels:
       # 내부 수평 통로 — y≈-1.4
       - [4,  17, {is_bidirectional: false}]
       - [17, 4,  {is_bidirectional: false}]
-      # 내부 수직 통로 — x≈0.49
+      # 내부 수직 통로 — x≈0.49 (진열대1 좌측 우회: 18↔24↔21)
       - [6,  18, {is_bidirectional: false}]
       - [18, 6,  {is_bidirectional: false}]
-      - [18, 21, {is_bidirectional: false}]
-      - [21, 18, {is_bidirectional: false}]
-      # 내부 수직 통로 — x≈0.77
+      - [18, 24, {is_bidirectional: false}]
+      - [24, 18, {is_bidirectional: false}]
+      - [24, 21, {is_bidirectional: false}]
+      - [21, 24, {is_bidirectional: false}]
+      # 내부 수직 통로 — x≈0.77 (진열대1 우측 우회: 19↔25↔20)
       - [7,  19, {is_bidirectional: false}]
       - [19, 7,  {is_bidirectional: false}]
-      - [19, 20, {is_bidirectional: false}]
-      - [20, 19, {is_bidirectional: false}]
+      - [19, 25, {is_bidirectional: false}]
+      - [25, 19, {is_bidirectional: false}]
+      - [25, 20, {is_bidirectional: false}]
+      - [20, 25, {is_bidirectional: false}]
       - [20, 22, {is_bidirectional: false}]
       - [22, 20, {is_bidirectional: false}]
-      - [22, 23, {is_bidirectional: false}]
-      - [23, 22, {is_bidirectional: false}]
+      # 진열대2 우측 우회: 22↔26↔23
+      - [22, 26, {is_bidirectional: false}]
+      - [26, 22, {is_bidirectional: false}]
+      - [26, 23, {is_bidirectional: false}]
+      - [23, 26, {is_bidirectional: false}]
       # 음료2 → 화장실2
       - [23, 15, {is_bidirectional: false}]
       - [15, 23, {is_bidirectional: false}]
