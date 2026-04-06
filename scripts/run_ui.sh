@@ -14,7 +14,7 @@ SESSION="sp_ui"
 
 source "$SCRIPTS_DIR/_ros_env.sh"
 
-ROS_ENV="export ROS_DOMAIN_ID=14"
+ROS_ENV="$TMUX_ROS_ENV"
 
 # ── tmux 필수 ─────────────────────────────────────────────────────────────────
 if ! command -v tmux &>/dev/null; then

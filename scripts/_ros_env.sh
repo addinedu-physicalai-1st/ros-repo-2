@@ -23,6 +23,12 @@ fi
 _SCRIPTS_DIR="$(cd "$(dirname "$_ROS_ENV_SELF")" && pwd)"
 _ROS_WS="$(dirname "$_SCRIPTS_DIR")"
 
+# ── 공통 ROS 설정 ──────────────────────────────────────────────────────────────
+# 모든 tmux 실행 스크립트에서 단일 소스로 사용한다.
+# 외부에서 ROS_DOMAIN_ID 를 지정하면 그 값을 우선 사용한다.
+export ROS_DOMAIN_ID="14"
+TMUX_ROS_ENV="export ROS_DOMAIN_ID=${ROS_DOMAIN_ID}"
+
 # ── 1. conda env 탐색 ─────────────────────────────────────────────────────────
 # ROS 가 apt 로 설치되었든 conda(RoboStack) 로 설치되었든,
 # conda env 가 존재하면 activate 하여 pip 패키지를 사용할 수 있도록 한다.

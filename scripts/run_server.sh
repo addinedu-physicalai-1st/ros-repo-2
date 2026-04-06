@@ -19,7 +19,7 @@ done
 
 source "$SCRIPTS_DIR/_ros_env.sh"
 
-ROS_ENV="export ROS_DOMAIN_ID=14"
+ROS_ENV="$TMUX_ROS_ENV"
 
 # ── tmux 없을 때 안내 ──────────────────────────────────────────────────────────
 if ! command -v tmux &>/dev/null; then
