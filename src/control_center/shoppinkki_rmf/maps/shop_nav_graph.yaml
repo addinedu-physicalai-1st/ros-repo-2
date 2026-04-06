@@ -1,117 +1,190 @@
-# ShopPinkki RMF Nav Graph — 실측 좌표 기반 수동 작성
-#
-# 좌표 기준: shop.yaml (origin=[-0.183,-1.773], resolution=0.01, 149×195px)
-# 실측일: 2026-04-06
+# ShopPinkki RMF Nav Graph — 실측 좌표 기반
+# 좌표 기준: shop.yaml (origin=[-0.183,-1.773], resolution=0.01, 149x195px)
 #
 # 버텍스 인덱스:
-#  0=입구1        1=입구2        2=충전소P1     3=충전소P2
-#  4=출구2        5=출구1        6=가전제품1    7=가전제품2
-#  8=과자1        9=과자_해산물  10=해산물2     11=육류1
-#  12=육류2       13=채소1       14=채소_화장실 15=화장실2
-#  16=결제구역1   17=결제구역2   18=빵1         19=빵2
-#  20=가공식품1   21=가공식품2   22=음료1       23=음료2
+#  0=입구1  1=입구2  2=P1  3=P2  4=출구2  5=출구1
+#  6=가전제품1  7=가전제품2  8=과자1  9=과자_해산물
+#  10=해산물2  11=육류1  12=육류2  13=채소1  14=채소_화장실
+#  15=화장실2  16=결제구역1  17=결제구역2
+#  18=빵1  19=빵2  20=가공식품1  21=가공식품2  22=음료1  23=음료2
 
 levels:
   - name: "L1"
-
     vertices:
-      # ── 왼쪽 복도 (입구·충전소·출구) ───────────────
-      - x: -0.009  y: -0.031  name: "입구1"       params: {}                                                           # 0
-      - x: -0.003  y: -0.332  name: "입구2"       params: {}                                                           # 1
-      - x:  0.002  y: -0.518  name: "충전소P1"    params: {is_parking_spot: {type: bool, value: true}, is_charger: {type: bool, value: true}}  # 2
-      - x:  0.002  y: -0.789  name: "충전소P2"    params: {is_parking_spot: {type: bool, value: true}, is_charger: {type: bool, value: true}}  # 3
-      - x: -0.032  y: -1.402  name: "출구2"       params: {}                                                           # 4
-      - x: -0.056  y: -1.617  name: "출구1"       params: {}                                                           # 5
+      # 왼쪽 복도 (입구·충전소·출구)
+      - x: -0.009
+        y: -0.031
+        name: "입구1"
+        params: {}
+      - x: -0.003
+        y: -0.332
+        name: "입구2"
+        params: {}
+      - x: 0.002
+        y: -0.518
+        name: "P1"
+        params:
+          is_parking_spot: {type: bool, value: true}
+          is_charger: {type: bool, value: true}
+      - x: 0.002
+        y: -0.789
+        name: "P2"
+        params:
+          is_parking_spot: {type: bool, value: true}
+          is_charger: {type: bool, value: true}
+      - x: -0.032
+        y: -1.402
+        name: "출구2"
+        params: {}
+      - x: -0.056
+        y: -1.617
+        name: "출구1"
+        params: {}
 
-      # ── 위쪽 복도 (가전·과자) ──────────────────────
-      - x:  0.489  y: -0.007  name: "가전제품1"   params: {pickup_zone: {type: bool, value: true}}                     # 6
-      - x:  0.749  y: -0.006  name: "가전제품2"   params: {pickup_zone: {type: bool, value: true}}                     # 7
-      - x:  0.916  y: -0.004  name: "과자1"       params: {pickup_zone: {type: bool, value: true}}                     # 8
-      - x:  1.142  y: -0.003  name: "과자_해산물" params: {}                                                           # 9
+      # 위쪽 복도 (가전·과자)
+      - x: 0.489
+        y: -0.007
+        name: "가전제품1"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 0.749
+        y: -0.006
+        name: "가전제품2"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 0.916
+        y: -0.004
+        name: "과자1"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 1.142
+        y: -0.003
+        name: "과자_해산물"
+        params: {}
 
-      # ── 오른쪽 복도 (해산물·육류·채소) ────────────
-      - x:  1.145  y: -0.304  name: "해산물2"     params: {pickup_zone: {type: bool, value: true}}                     # 10
-      - x:  1.156  y: -0.608  name: "육류1"       params: {pickup_zone: {type: bool, value: true}}                     # 11
-      - x:  1.151  y: -0.899  name: "육류2"       params: {pickup_zone: {type: bool, value: true}}                     # 12
-      - x:  1.154  y: -1.224  name: "채소1"       params: {pickup_zone: {type: bool, value: true}}                     # 13
-      - x:  1.149  y: -1.573  name: "채소_화장실" params: {}                                                           # 14
+      # 오른쪽 복도 (해산물·육류·채소)
+      - x: 1.145
+        y: -0.304
+        name: "해산물2"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 1.156
+        y: -0.608
+        name: "육류1"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 1.151
+        y: -0.899
+        name: "육류2"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 1.154
+        y: -1.224
+        name: "채소1"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 1.149
+        y: -1.573
+        name: "채소_화장실"
+        params: {}
 
-      # ── 아래쪽 복도 (화장실·결제·출구) ───────────
-      - x:  0.812  y: -1.606  name: "화장실2"     params: {pickup_zone: {type: bool, value: true}}                     # 15
-      - x:  0.186  y: -1.614  name: "결제구역1"   params: {is_holding_point: {type: bool, value: true}}                # 16
-      - x:  0.183  y: -1.364  name: "결제구역2"   params: {is_holding_point: {type: bool, value: true}}                # 17
+      # 아래쪽 복도 (화장실·결제·출구)
+      - x: 0.812
+        y: -1.606
+        name: "화장실2"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 0.186
+        y: -1.614
+        name: "결제구역1"
+        params:
+          is_holding_point: {type: bool, value: true}
+      - x: 0.183
+        y: -1.364
+        name: "결제구역2"
+        params:
+          is_holding_point: {type: bool, value: true}
 
-      # ── 내부 통로 (빵·가공식품·음료) ──────────────
-      - x:  0.494  y: -0.300  name: "빵1"         params: {pickup_zone: {type: bool, value: true}}                     # 18
-      - x:  0.776  y: -0.275  name: "빵2"         params: {pickup_zone: {type: bool, value: true}}                     # 19
-      - x:  0.774  y: -0.606  name: "가공식품1"   params: {pickup_zone: {type: bool, value: true}}                     # 20
-      - x:  0.473  y: -0.601  name: "가공식품2"   params: {pickup_zone: {type: bool, value: true}}                     # 21
-      - x:  0.704  y: -0.928  name: "음료1"       params: {pickup_zone: {type: bool, value: true}}                     # 22
-      - x:  0.715  y: -1.197  name: "음료2"       params: {pickup_zone: {type: bool, value: true}}                     # 23
+      # 내부 통로 (빵·가공식품·음료)
+      - x: 0.494
+        y: -0.300
+        name: "빵1"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 0.776
+        y: -0.275
+        name: "빵2"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 0.774
+        y: -0.606
+        name: "가공식품1"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 0.473
+        y: -0.601
+        name: "가공식품2"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 0.704
+        y: -0.928
+        name: "음료1"
+        params:
+          pickup_zone: {type: bool, value: true}
+      - x: 0.715
+        y: -1.197
+        name: "음료2"
+        params:
+          pickup_zone: {type: bool, value: true}
 
     edges:
-      # ── 외곽 루프 ────────────────────────────────────────────────────────
-      # 왼쪽 복도 (입구 → 충전소 → 출구)
-      - {v1_idx:  0, v2_idx:  1, bidirectional: true, edge_rgb: {r: 0.2, g: 0.8, b: 0.2}}  # 입구1 ↔ 입구2
-      - {v1_idx:  1, v2_idx:  2, bidirectional: true, edge_rgb: {r: 0.2, g: 0.8, b: 0.2}}  # 입구2 ↔ 충전소P1
-      - {v1_idx:  2, v2_idx:  3, bidirectional: true, edge_rgb: {r: 0.2, g: 0.8, b: 0.2}}  # 충전소P1 ↔ 충전소P2
-      - {v1_idx:  3, v2_idx:  4, bidirectional: true, edge_rgb: {r: 0.2, g: 0.8, b: 0.2}}  # 충전소P2 ↔ 출구2
-      - {v1_idx:  4, v2_idx:  5, bidirectional: true, edge_rgb: {r: 0.2, g: 0.8, b: 0.2}}  # 출구2 ↔ 출구1
-
-      # 위쪽 복도 (입구 → 가전 → 과자)
-      - {v1_idx:  0, v2_idx:  6, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}  # 입구1 ↔ 가전제품1
-      - {v1_idx:  6, v2_idx:  7, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}  # 가전제품1 ↔ 가전제품2
-      - {v1_idx:  7, v2_idx:  8, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}  # 가전제품2 ↔ 과자1
-      - {v1_idx:  8, v2_idx:  9, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}  # 과자1 ↔ 과자_해산물
-
-      # 오른쪽 복도 (해산물 → 채소)
-      - {v1_idx:  9, v2_idx: 10, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}  # 과자_해산물 ↔ 해산물2
-      - {v1_idx: 10, v2_idx: 11, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}  # 해산물2 ↔ 육류1
-      - {v1_idx: 11, v2_idx: 12, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}  # 육류1 ↔ 육류2
-      - {v1_idx: 12, v2_idx: 13, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}  # 육류2 ↔ 채소1
-      - {v1_idx: 13, v2_idx: 14, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}  # 채소1 ↔ 채소_화장실
-
-      # 아래쪽 복도 (화장실 → 결제 → 출구)
-      - {v1_idx: 14, v2_idx: 15, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}  # 채소_화장실 ↔ 화장실2
-      - {v1_idx: 15, v2_idx: 16, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}  # 화장실2 ↔ 결제구역1
-      - {v1_idx: 16, v2_idx:  5, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}  # 결제구역1 ↔ 출구1
-
-      # ── 내부 수평 통로 (cross aisles) ─────────────────────────────────
-      # y≈-0.3: 입구2 ↔ 빵1 ↔ 빵2 ↔ 해산물2
-      - {v1_idx:  1, v2_idx: 18, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
+      # 외곽 루프 — 왼쪽 복도
+      - {v1_idx: 0,  v2_idx: 1,  bidirectional: true, edge_rgb: {r: 0.2, g: 0.8, b: 0.2}}
+      - {v1_idx: 1,  v2_idx: 2,  bidirectional: true, edge_rgb: {r: 0.2, g: 0.8, b: 0.2}}
+      - {v1_idx: 2,  v2_idx: 3,  bidirectional: true, edge_rgb: {r: 0.2, g: 0.8, b: 0.2}}
+      - {v1_idx: 3,  v2_idx: 4,  bidirectional: true, edge_rgb: {r: 0.2, g: 0.8, b: 0.2}}
+      - {v1_idx: 4,  v2_idx: 5,  bidirectional: true, edge_rgb: {r: 0.2, g: 0.8, b: 0.2}}
+      # 외곽 루프 — 위쪽 복도
+      - {v1_idx: 0,  v2_idx: 6,  bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}
+      - {v1_idx: 6,  v2_idx: 7,  bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}
+      - {v1_idx: 7,  v2_idx: 8,  bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}
+      - {v1_idx: 8,  v2_idx: 9,  bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}
+      # 외곽 루프 — 오른쪽 복도
+      - {v1_idx: 9,  v2_idx: 10, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}
+      - {v1_idx: 10, v2_idx: 11, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}
+      - {v1_idx: 11, v2_idx: 12, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}
+      - {v1_idx: 12, v2_idx: 13, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}
+      - {v1_idx: 13, v2_idx: 14, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}
+      # 외곽 루프 — 아래쪽 복도
+      - {v1_idx: 14, v2_idx: 15, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}
+      - {v1_idx: 15, v2_idx: 16, bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}
+      - {v1_idx: 16, v2_idx: 5,  bidirectional: true, edge_rgb: {r: 0.2, g: 0.2, b: 0.8}}
+      # 내부 수평 통로 — y≈-0.3
+      - {v1_idx: 1,  v2_idx: 18, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
       - {v1_idx: 18, v2_idx: 19, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
       - {v1_idx: 19, v2_idx: 10, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
-
-      # y≈-0.6: 충전소P1 ↔ 가공식품2 ↔ 가공식품1 ↔ 육류1
-      - {v1_idx:  2, v2_idx: 21, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
+      # 내부 수평 통로 — y≈-0.6
+      - {v1_idx: 2,  v2_idx: 21, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
       - {v1_idx: 21, v2_idx: 20, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
       - {v1_idx: 20, v2_idx: 11, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
-
-      # y≈-0.9: 충전소P2 ↔ 음료1 ↔ 육류2
-      - {v1_idx:  3, v2_idx: 22, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
+      # 내부 수평 통로 — y≈-0.9
+      - {v1_idx: 3,  v2_idx: 22, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
       - {v1_idx: 22, v2_idx: 12, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
-
-      # y≈-1.2: 음료2 ↔ 채소1
+      # 내부 수평 통로 — y≈-1.2
       - {v1_idx: 23, v2_idx: 13, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
-
-      # y≈-1.4: 출구2 ↔ 결제구역2
-      - {v1_idx:  4, v2_idx: 17, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
-
-      # ── 내부 수직 통로 (vertical aisles) ──────────────────────────────
-      # x≈0.49열: 가전제품1 ↔ 빵1 ↔ 가공식품2
-      - {v1_idx:  6, v2_idx: 18, bidirectional: true, edge_rgb: {r: 0.6, g: 0.6, b: 0.0}}
+      # 내부 수평 통로 — y≈-1.4
+      - {v1_idx: 4,  v2_idx: 17, bidirectional: true, edge_rgb: {r: 0.8, g: 0.4, b: 0.0}}
+      # 내부 수직 통로 — x≈0.49
+      - {v1_idx: 6,  v2_idx: 18, bidirectional: true, edge_rgb: {r: 0.6, g: 0.6, b: 0.0}}
       - {v1_idx: 18, v2_idx: 21, bidirectional: true, edge_rgb: {r: 0.6, g: 0.6, b: 0.0}}
-
-      # x≈0.77열: 가전제품2 ↔ 빵2 ↔ 가공식품1 ↔ 음료1 ↔ 음료2
-      - {v1_idx:  7, v2_idx: 19, bidirectional: true, edge_rgb: {r: 0.6, g: 0.6, b: 0.0}}
+      # 내부 수직 통로 — x≈0.77
+      - {v1_idx: 7,  v2_idx: 19, bidirectional: true, edge_rgb: {r: 0.6, g: 0.6, b: 0.0}}
       - {v1_idx: 19, v2_idx: 20, bidirectional: true, edge_rgb: {r: 0.6, g: 0.6, b: 0.0}}
       - {v1_idx: 20, v2_idx: 22, bidirectional: true, edge_rgb: {r: 0.6, g: 0.6, b: 0.0}}
       - {v1_idx: 22, v2_idx: 23, bidirectional: true, edge_rgb: {r: 0.6, g: 0.6, b: 0.0}}
-
-      # 음료2 → 화장실2 (내부 남쪽 연결)
+      # 음료2 → 화장실2
       - {v1_idx: 23, v2_idx: 15, bidirectional: true, edge_rgb: {r: 0.6, g: 0.6, b: 0.0}}
-
-      # ── 결제 구역 수직 연결 ───────────────────────────────────────────
-      - {v1_idx: 16, v2_idx: 17, bidirectional: true, edge_rgb: {r: 0.8, g: 0.0, b: 0.8}}  # 결제구역1 ↔ 결제구역2
+      # 결제구역 수직 연결
+      - {v1_idx: 16, v2_idx: 17, bidirectional: true, edge_rgb: {r: 0.8, g: 0.0, b: 0.8}}
 
 lifts: []

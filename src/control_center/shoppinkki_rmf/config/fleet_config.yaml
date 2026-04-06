@@ -11,12 +11,12 @@ fleet:
     - id: "54"
       ip: "192.168.102.54"
       initial_waypoint: "P1"       # 충전소 슬롯 1
-      initial_orientation: 1.5708  # 90° (북쪽)
+      initial_orientation: 0.0
 
     - id: "18"
       ip: "192.168.102.18"
       initial_waypoint: "P2"       # 충전소 슬롯 2
-      initial_orientation: 1.5708
+      initial_orientation: 0.0
 
   # 로봇 물리 프로파일 (Pinky Pro 기준)
   profile:
