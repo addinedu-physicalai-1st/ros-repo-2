@@ -149,6 +149,24 @@ def handle_404(e):
     return render_template("error.html", message=str(e.description)), 404
 
 
+# ── robot_id 쿼리파라미터 자동 보정 ──────────────────────────────
+
+@app.before_request
+def _ensure_robot_id_param():
+    """세션에 robot_id가 있는데 쿼리파라미터에 없으면 붙여서 리다이렉트."""
+    if request.endpoint in ("static", None):
+        return
+    robot_id = session.get("robot_id", "")
+    if robot_id and not request.args.get("robot_id"):
+        from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
+        parsed = urlparse(request.url)
+        qs = parse_qs(parsed.query)
+        qs["robot_id"] = [robot_id]
+        new_query = urlencode(qs, doseq=True)
+        new_url = urlunparse(parsed._replace(query=new_query))
+        return redirect(new_url)
+
+
 # ── 라우트 ────────────────────────────────────────────────────
 
 @app.route("/")
@@ -179,16 +197,17 @@ def index():
         # 세션 활성 여부 확인
         data = _ctrl_rest("GET", f"/session/{session_id}")
         if data and data.get("is_active"):
-            return redirect(url_for("main"))
+            return redirect(url_for("main", robot_id=robot_id))
         # 만료된 세션 초기화
         session.clear()
 
-    # 로봇 사용 중 여부 확인
+    # 로봇 사용 중 여부 확인 — 활성 사용자가 있으면 로그인에서 판단
     robots = _ctrl_rest("GET", "/robots")
     if robots:
         robot_state = robots.get(str(robot_id))
         if robot_state and robot_state.get("mode") not in ("CHARGING", "OFFLINE", None):
-            return redirect(url_for("blocked"))
+            if not robot_state.get("active_user_id"):
+                return redirect(url_for("blocked", robot_id=robot_id))
 
     return redirect(url_for("login", robot_id=robot_id))
 
@@ -212,7 +231,7 @@ def login():
             if data is None:
                 flash("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.")
             elif data.get("error") in ("robot already in session",):
-                return redirect(url_for("blocked"))
+                return redirect(url_for("blocked", robot_id=robot_id))
             elif data.get("error") == "user already has active session":
                 flash("이미 다른 로봇에서 세션이 활성화되어 있습니다.")
             elif data.get("error") in ("user not found", "robot_id and user_id required"):
@@ -223,7 +242,7 @@ def login():
                 session["robot_id"] = robot_id
                 session["user_id"] = user_id
                 session["session_id"] = data.get("session_id")
-                return redirect(url_for("main"))
+                return redirect(url_for("main", robot_id=robot_id))
 
         # 실패 시 GET /login?robot_id=... 으로 리다이렉트 (PRG 패턴)
         return redirect(url_for("login", robot_id=robot_id))
@@ -266,9 +285,7 @@ def logout():
         _ctrl_rest("PATCH", f"/session/{session_id}", json={"is_active": False})
     robot_id = session.get("robot_id", "")
     session.clear()
-    if robot_id:
-        return redirect(url_for("login", robot_id=robot_id))
-    return redirect(url_for("login"))
+    return redirect(url_for("login", robot_id=robot_id)) if robot_id else redirect(url_for("login"))
 
 
 # ── 진입점 ────────────────────────────────────────────────────

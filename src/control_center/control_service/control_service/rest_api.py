@@ -56,6 +56,7 @@ def create_app(robot_manager: 'RobotManager',
                 'pos_y': s.pos_y,
                 'battery': s.battery,
                 'is_locked_return': s.is_locked_return,
+                'active_user_id': s.active_user_id,
             }
             for rid, s in states.items()
         })
@@ -109,6 +110,13 @@ def create_app(robot_manager: 'RobotManager',
         # Check for existing active session on same robot
         existing = db.get_active_session_by_robot(robot_id)
         if existing:
+            # 같은 사용자가 같은 로봇에 재로그인 → 기존 세션 반환
+            if existing.get('user_id') == user_id:
+                cart = db.get_cart_by_session(existing['session_id'])
+                return jsonify({
+                    'session_id': existing['session_id'],
+                    'cart_id': cart['cart_id'] if cart else None,
+                }), 200
             return jsonify({'error': 'robot already in session',
                             'session_id': existing['session_id']}), 409
 

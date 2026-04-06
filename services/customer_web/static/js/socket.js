@@ -46,8 +46,14 @@ socket.on("control_connected", (data) => {
   bar.textContent = data.connected ? "" : "⚠ 서버 연결 중...";
 });
 
+// 내 로봇 메시지인지 확인 (다른 로봇 status/cart 무시)
+function _isMyRobot(data) {
+  return !data.robot_id || String(data.robot_id) === String(window.ROBOT_ID);
+}
+
 // status — 1~2Hz push
 socket.on("status", (data) => {
+  if (!_isMyRobot(data)) return;
   updateStatusBar(data);
   updatePanelVisibility(data.my_robot?.mode ?? data.mode);
   updateFollowDisabledBanner(data.my_robot?.follow_disabled ?? data.follow_disabled);
@@ -58,6 +64,7 @@ socket.on("status", (data) => {
 
 // cart
 socket.on("cart", (data) => {
+  if (!_isMyRobot(data)) return;
   updateCart(data.items || []);
 });
 
@@ -116,8 +123,7 @@ socket.on("staff_resolved", () => {
 // ── 상태바 갱신 ──────────────────────────────────────────────
 
 function updateStatusBar(data) {
-  const robot = data.my_robot || {};
-  const mode = robot.mode || "OFFLINE";
+  const mode = data.my_robot?.mode ?? data.mode ?? "OFFLINE";
   currentMode = mode;
 
   const badgeEl = document.getElementById("mode-badge");
@@ -128,7 +134,7 @@ function updateStatusBar(data) {
 
   const battEl = document.getElementById("battery-level");
   if (battEl) {
-    const batt = robot.battery ?? "--";
+    const batt = data.my_robot?.battery ?? data.battery ?? "--";
     battEl.textContent = "🔋" + batt + "%";
     battEl.style.color = batt < 20 ? "#ef4444" : "";
   }
@@ -216,7 +222,8 @@ function sessionEnd() {
   // 로그아웃 POST 후 리다이렉트
   fetch("/logout", { method: "POST" })
     .finally(() => {
-      window.location.href = "/login";
+      const rid = window.ROBOT_ID;
+      window.location.href = rid ? `/login?robot_id=${rid}` : "/login";
     });
 }
 
@@ -407,6 +414,7 @@ function requestReturn() {
     if (!ok) return;
   }
   socket.emit("return", {});
+  sessionEnd();
 }
 
 // ── STT (Web Speech API) ───────────────────────────────────────
