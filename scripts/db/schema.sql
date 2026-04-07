@@ -48,6 +48,16 @@ CREATE TABLE IF NOT EXISTS PRODUCT (
     FOREIGN KEY (zone_id) REFERENCES ZONE(zone_id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS PRODUCT_TEXT_EMBEDDING (
+    id          INT          NOT NULL AUTO_INCREMENT,
+    product_id  INT          NOT NULL,
+    text        TEXT         NOT NULL,
+    embedding   VECTOR(384)  NOT NULL,
+    model_name  VARCHAR(100) NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (product_id) REFERENCES PRODUCT(product_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ──────────────────────────────────────────────
 -- 경계 설정
 -- ──────────────────────────────────────────────
