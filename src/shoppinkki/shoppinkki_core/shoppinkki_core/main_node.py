@@ -366,14 +366,22 @@ class ShoppinkiMainNode(Node):
 
         self.get_logger().info(f'카메라 루프 시작 (index={cam_index})')
 
+        _CAM_STATES = {'IDLE', 'TRACKING', 'TRACKING_CHECKOUT'}
+
         while rclpy.ok():
+            state = self.sm.state
+
+            # 카메라가 불필요한 상태 → 프레임 읽기 건너뜀
+            if state not in _CAM_STATES:
+                time.sleep(0.2)
+                continue
+
             ret, frame = cap.read()
             if not ret:
                 time.sleep(0.05)
                 continue
 
             self._cam_frame = frame
-            state = self.sm.state
 
             if state == 'IDLE' and self.doll_detector is not None:
                 # LCD에 카메라 피드 표시
