@@ -45,8 +45,10 @@ class HWController:
         Pass ``None`` in unit-test environments (all calls become no-ops).
     """
 
-    def __init__(self, node: Optional['rclpy.node.Node'] = None) -> None:
+    def __init__(self, node: Optional['rclpy.node.Node'] = None,
+                 robot_id: str = '54') -> None:
         self._node = node
+        self._robot_id = str(robot_id)
         self._led_client = None
         self._emotion_client = None
         self._lamp_client = None
@@ -184,13 +186,19 @@ class HWController:
             return None
 
     def _lcd_show(self, target_portrait):
-        """240×320 portrait PIL 이미지를 LCD에 표시.
+        """PIL 이미지를 LCD에 표시.
 
-        img_show()는 FLIP_LEFT_RIGHT → ROTATE_270 을 내부 적용하므로
-        역변환 source = FLIP_LR( ROTATE_90_CW(target) )을 먼저 적용한다.
+        pinky_lcd.img_show() 내부에서 FLIP_LEFT_RIGHT → ROTATE_270 이 적용되므로
+        그 역변환을 먼저 적용한다:
+          source = ROTATE_90_CCW( FLIP_LR(target) )
+        즉 target 을 좌우 반전한 뒤 90° 반시계 회전하면 img_show 이후 원본이 복원된다.
         """
-        from PIL import Image
-        source = target_portrait.transpose(Image.ROTATE_90).transpose(Image.FLIP_LEFT_RIGHT)
+        try:
+            from PIL import Image
+        except ImportError:
+            return
+        # 역변환: FLIP_LR → ROTATE_90 (CCW)
+        source = target_portrait.transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.ROTATE_90)
         lcd = self._get_lcd()
         if lcd is not None:
             try:
@@ -281,8 +289,10 @@ class HWController:
         if state in ('TRACKING', 'TRACKING_CHECKOUT'):
             return
         if state == 'IDLE':
-            logger.info('LCD: QR (%s)', self.CUSTOMER_WEB_URL)
-            self.display_qr(self.CUSTOMER_WEB_URL, label='쑈삥끼 앱')
+            url   = f'{self.CUSTOMER_WEB_URL}/?robot_id={self._robot_id}'
+            label = f'{self._robot_id}번 카트'
+            logger.info('LCD: QR (%s)', url)
+            self.display_qr(url, label=label)
             return
         logger.info('LCD 상태 표시: %s', state)
         self.display_state_text(state)

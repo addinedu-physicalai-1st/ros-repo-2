@@ -71,7 +71,7 @@ class ShoppinkiMainNode(Node):
         )
 
         # ── Hardware controller ────────────────
-        self.hw = HWController(node=self)
+        self.hw = HWController(node=self, robot_id=ROBOT_ID)
 
         # ── BT stubs (replaced by real BTs in shoppinkki_nav) ──────────
         # Import lazily so the node boots even without shoppinkki_nav built
