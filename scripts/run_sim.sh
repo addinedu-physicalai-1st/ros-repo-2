@@ -16,9 +16,9 @@ SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROS_WS="$(dirname "$SCRIPTS_DIR")"
 SESSION="sp_sim"
 
-# Ubuntu + apt ROS 고정: conda 환경과 분리해서 실행
-ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-74}"
-ROS_ENV="export ROS_DOMAIN_ID=${ROS_DOMAIN_ID}"
+# ROS_DOMAIN_ID 는 _ros_env.sh 단일 소스에서 관리
+source "$SCRIPTS_DIR/_ros_env.sh"
+ROS_ENV="$TMUX_ROS_ENV"
 APT_ROS_SRC="source /opt/ros/jazzy/setup.zsh && source $ROS_WS/install/setup.zsh"
 APT_CLEAN_ENV="export PATH=/usr/bin:/bin:/usr/sbin:/sbin; unset CONDA_PREFIX CONDA_DEFAULT_ENV CONDA_EXE CONDA_PYTHON_EXE CONDA_SHLVL _CE_M _CE_CONDA PYTHONHOME PYTHONPATH RUBYLIB RUBYOPT GEM_HOME GEM_PATH"
 
