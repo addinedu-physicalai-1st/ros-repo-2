@@ -197,8 +197,8 @@ class HWController:
             from PIL import Image
         except ImportError:
             return
-        # 역변환: FLIP_LR → ROTATE_90 (CCW)
-        source = target_portrait.transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.ROTATE_90)
+        # 역변환: ROTATE_90 (CCW) → FLIP_LR  (LCD가 FLIP_LR→ROTATE_270 을 적용하므로)
+        source = target_portrait.transpose(Image.ROTATE_90).transpose(Image.FLIP_LEFT_RIGHT)
         lcd = self._get_lcd()
         if lcd is not None:
             try:
@@ -307,19 +307,24 @@ class HWController:
     # ── 카메라 피드 표시 ──────────────────────
 
     def display_frame(self, frame) -> None:
-        """카메라 프레임을 LCD 또는 디버그 창에 표시.
+        """카메라 프레임을 LCD에 표시.
 
-        Pi 5 실물 환경: DISPLAY 환경 변수가 설정된 경우 cv2 창으로 표시.
-        headless 환경에서는 no-op (예외 무시).
-        실제 LCD 드라이버(예: framebuffer /dev/fb0)가 있다면 이 메서드를 교체.
+        BGR numpy 배열(OpenCV)을 받아 PIL로 변환 후 _lcd_show()로 LCD에 출력.
+        DISPLAY 환경 변수가 설정된 경우 cv2 디버그 창도 함께 표시.
         """
         try:
             import cv2
+            from PIL import Image
+
+            # BGR → RGB 변환 후 PIL 이미지로 변환
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            pil_img = Image.fromarray(rgb).resize((320, 240), Image.LANCZOS)
+            self._lcd_show(pil_img)
+
             import os
-            if not os.environ.get('DISPLAY'):
-                return
-            small = cv2.resize(frame, (320, 240))
-            cv2.imshow('ShopPinkki Camera', small)
-            cv2.waitKey(1)
+            if os.environ.get('DISPLAY'):
+                small = cv2.resize(frame, (320, 240))
+                cv2.imshow('ShopPinkki Camera', small)
+                cv2.waitKey(1)
         except Exception:
             pass
