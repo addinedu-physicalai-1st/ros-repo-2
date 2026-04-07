@@ -12,10 +12,13 @@ Run with:
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import math
 import os
+import threading
+import time
 
 import rclpy
 import tf2_ros
@@ -38,6 +41,12 @@ from .cmd_handler import CmdHandler
 from .config import BATTERY_THRESHOLD, CHARGING_COMPLETE_THRESHOLD
 from .hw_controller import HWController
 from .state_machine import ShoppinkiSM
+
+try:
+    from shoppinkki_perception.doll_detector import DollDetector
+    _PERCEPTION_AVAILABLE = True
+except ImportError:
+    _PERCEPTION_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +94,18 @@ class ShoppinkiMainNode(Node):
             on_nav_failed=self._on_nav_failed,
         )
 
+        # ── DollDetector ──────────────────────
+        YOLO_HOST = os.environ.get('YOLO_HOST', '127.0.0.1')
+        YOLO_PORT = int(os.environ.get('YOLO_PORT', '5005'))
+        if _PERCEPTION_AVAILABLE:
+            self.doll_detector = DollDetector(
+                yolo_host=YOLO_HOST, yolo_port=YOLO_PORT)
+            self.get_logger().info(
+                f'DollDetector 초기화 (YOLO {YOLO_HOST}:{YOLO_PORT})')
+        else:
+            self.doll_detector = None
+            self.get_logger().warning('shoppinkki_perception 미설치 — DollDetector 비활성화')
+
         # ── Cmd handler ───────────────────────
         self.cmd_handler = CmdHandler(
             sm=self.sm,
@@ -94,6 +115,7 @@ class ShoppinkiMainNode(Node):
             on_start_session=self._on_start_session,
             has_unpaid_items=self._has_unpaid_items,
             on_enter_simulation=self._on_enter_simulation,
+            on_registration_confirm=self._on_registration_confirm,
         )
 
         # ── ROS publishers ────────────────────
@@ -103,6 +125,8 @@ class ShoppinkiMainNode(Node):
             String, f'/robot_{ROBOT_ID}/alarm', 10)
         self._cart_pub = self.create_publisher(
             String, f'/robot_{ROBOT_ID}/cart', 10)
+        self._snapshot_pub = self.create_publisher(
+            String, f'/robot_{ROBOT_ID}/snapshot', 10)
 
         # ── ROS subscribers ───────────────────
         self.create_subscription(
@@ -153,6 +177,16 @@ class ShoppinkiMainNode(Node):
         self._battery: float = 100.0
         self._cart_items: list = []
         self.follow_disabled: bool = False
+
+        # ── 카메라 / 스냅샷 상태 ───────────────
+        self._cam_frame = None              # 최신 카메라 프레임 (numpy BGR)
+        self._last_snapshot_time: float = 0.0  # 스냅샷 rate-limit (2초)
+        self._snapshot_rate_limit: float = 2.0
+
+        # ── 카메라 스레드 ─────────────────────
+        self._cam_thread = threading.Thread(
+            target=self._camera_loop, daemon=True)
+        self._cam_thread.start()
 
         self.get_logger().info('ShopPinkki main node ready')
 
@@ -241,6 +275,9 @@ class ShoppinkiMainNode(Node):
         self._cart_items = []
         self.follow_disabled = False
         self.bt_runner.follow_disabled = False
+        # 추종 데이터 소거 (gallery, safe_id, verification_buffer)
+        if self.doll_detector is not None:
+            self.doll_detector.reset()
 
     # ──────────────────────────────────────────
     # CmdHandler callbacks
@@ -304,6 +341,90 @@ class ShoppinkiMainNode(Node):
 
     def _has_unpaid_items(self) -> bool:
         return any(not item.get('is_paid', True) for item in self._cart_items)
+
+    # ──────────────────────────────────────────
+    # 카메라 루프 (별도 스레드)
+    # ──────────────────────────────────────────
+
+    def _camera_loop(self) -> None:
+        """카메라 프레임을 읽어 상태에 따라 처리하는 백그라운드 스레드.
+
+        - IDLE    : LCD 피드 표시 + 인형 감지 시 snapshot 발행
+        - TRACKING / TRACKING_CHECKOUT : doll_detector.run() 호출
+        """
+        try:
+            import cv2
+        except ImportError:
+            self.get_logger().warning('cv2 없음 — 카메라 루프 비활성화')
+            return
+
+        cam_index = int(os.environ.get('CAMERA_INDEX', '0'))
+        cap = cv2.VideoCapture(cam_index)
+        if not cap.isOpened():
+            self.get_logger().warning(f'카메라({cam_index}) 열기 실패 — 카메라 루프 종료')
+            return
+
+        self.get_logger().info(f'카메라 루프 시작 (index={cam_index})')
+
+        while rclpy.ok():
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(0.05)
+                continue
+
+            self._cam_frame = frame
+            state = self.sm.state
+
+            if state == 'IDLE' and self.doll_detector is not None:
+                # LCD에 카메라 피드 표시
+                self.hw.display_frame(frame)
+
+                # 인형 감지 → pending_snapshot 갱신
+                self.doll_detector.register(frame)
+
+                # rate-limit: 2초마다 snapshot 발행
+                snapshot = self.doll_detector.get_pending_snapshot()
+                now = time.time()
+                if snapshot and (now - self._last_snapshot_time) >= self._snapshot_rate_limit:
+                    self._last_snapshot_time = now
+                    jpeg_bytes, bbox = snapshot
+                    b64 = base64.b64encode(jpeg_bytes).decode('ascii')
+                    msg = String()
+                    msg.data = json.dumps({
+                        'robot_id': ROBOT_ID,
+                        'image': b64,
+                        'bbox': bbox,
+                    })
+                    self._snapshot_pub.publish(msg)
+                    self.get_logger().debug('snapshot 발행 (bbox conf=%.2f)',
+                                            bbox.get('confidence', 0))
+
+            elif state in ('TRACKING', 'TRACKING_CHECKOUT'):
+                if self.doll_detector is not None:
+                    self.doll_detector.run(frame)
+
+        cap.release()
+
+    # ──────────────────────────────────────────
+    # 인형 등록 확인 콜백
+    # ──────────────────────────────────────────
+
+    def _on_registration_confirm(self, bbox: dict) -> None:
+        """사용자가 앱에서 [확인]을 누르면 호출됨 (IDLE 상태).
+
+        최신 카메라 프레임 + bbox로 DollDetector 템플릿 등록 후 TRACKING 진입.
+        """
+        frame = self._cam_frame
+        if frame is None:
+            self.get_logger().warning('registration_confirm: 카메라 프레임 없음')
+            return
+        if self.doll_detector is None:
+            self.get_logger().warning('registration_confirm: DollDetector 없음')
+            return
+
+        self.doll_detector.confirm_registration(frame, bbox)
+        self.get_logger().info('registration_confirm: 등록 완료 → TRACKING 진입')
+        self.sm.enter_tracking()
 
 
 def main(args=None) -> None:

@@ -110,7 +110,8 @@ class ControlClient:
         처리 타입:
             status, cart, registration_done, checkout_zone_enter,
             payment_done, checkout_blocked, find_product_result,
-            arrived, nav_failed, enter_locked, enter_halted, staff_resolved
+            arrived, nav_failed, enter_locked, enter_halted, staff_resolved,
+            doll_detected
         """
         msg_type = msg.get("type")
         if not msg_type:
@@ -119,6 +120,7 @@ class ControlClient:
             "status", "cart", "registration_done", "checkout_zone_enter",
             "payment_done", "checkout_blocked", "find_product_result",
             "arrived", "nav_failed", "enter_locked", "enter_halted", "staff_resolved",
+            "doll_detected",
         }
         if msg_type in known:
             self._sio.emit(msg_type, msg)

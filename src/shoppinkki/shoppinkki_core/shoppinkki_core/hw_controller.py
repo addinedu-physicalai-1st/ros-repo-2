@@ -159,3 +159,23 @@ class HWController:
         """Trigger buzzer pattern ('short' | 'long' | 'alert')."""
         logger.debug('buzz(%s)', pattern)
         # Buzzer GPIO is managed by a separate node on Pi; log-only for now
+
+    # ── 카메라 피드 표시 ──────────────────────
+
+    def display_frame(self, frame) -> None:
+        """카메라 프레임을 LCD 또는 디버그 창에 표시.
+
+        Pi 5 실물 환경: DISPLAY 환경 변수가 설정된 경우 cv2 창으로 표시.
+        headless 환경에서는 no-op (예외 무시).
+        실제 LCD 드라이버(예: framebuffer /dev/fb0)가 있다면 이 메서드를 교체.
+        """
+        try:
+            import cv2
+            import os
+            if not os.environ.get('DISPLAY'):
+                return
+            small = cv2.resize(frame, (320, 240))
+            cv2.imshow('ShopPinkki Camera', small)
+            cv2.waitKey(1)
+        except Exception:
+            pass
