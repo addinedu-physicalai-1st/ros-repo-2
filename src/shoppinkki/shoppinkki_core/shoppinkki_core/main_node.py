@@ -38,7 +38,7 @@ except ImportError:
 
 from .bt_runner import BTRunner
 from .cmd_handler import CmdHandler
-from .config import BATTERY_THRESHOLD, CHARGING_COMPLETE_THRESHOLD
+from .config import BATTERY_THRESHOLD, CHARGER_POSES, CHARGING_COMPLETE_THRESHOLD
 from .hw_controller import HWController
 from .state_machine import ShoppinkiSM
 
@@ -87,6 +87,27 @@ class ShoppinkiMainNode(Node):
         self._bt_waiting = MockNavBT()
         self._bt_guiding = MockNavBT()
         self._bt_returning = MockNavBT()
+
+        # ── Nav2 action client (admin_goto / navigate_to) ─────
+        # 멀티로봇 환경에서 Nav2는 /robot_<id>/navigate_to_pose 로 실행됨
+        self._nav2_client = None
+        if _NAV2_AVAILABLE:
+            nav2_action = f'robot_{ROBOT_ID}/navigate_to_pose'
+            self._nav2_client = ActionClient(self, NavigateToPose, nav2_action)
+            self.get_logger().info(f'Nav2 action client ready ({nav2_action})')
+
+            # BT5 (RETURNING): Nav2 기반 실제 구현으로 교체
+            charger = CHARGER_POSES.get(ROBOT_ID)
+            if charger:
+                from .bt_returning import Nav2ReturningBT
+                self._bt_returning = Nav2ReturningBT(
+                    node=self, action_client=self._nav2_client,
+                    charger_x=charger[0], charger_y=charger[1],
+                    charger_yaw=charger[2])
+                self.get_logger().info(
+                    'BT5 RETURNING: charger (%.3f, %.3f)' % (charger[0], charger[1]))
+        else:
+            self.get_logger().warning('nav2_msgs not available — admin_goto disabled')
 
         # ── BT runner ─────────────────────────
         self.bt_runner = BTRunner(
@@ -139,16 +160,6 @@ class ShoppinkiMainNode(Node):
         self.create_subscription(
             String, f'/robot_{ROBOT_ID}/cmd',
             self._cmd_callback, 10)
-
-        # ── Nav2 action client (admin_goto / navigate_to) ─────
-        # 멀티로봇 환경에서 Nav2는 /robot_<id>/navigate_to_pose 로 실행됨
-        self._nav2_client = None
-        if _NAV2_AVAILABLE:
-            nav2_action = f'robot_{ROBOT_ID}/navigate_to_pose'
-            self._nav2_client = ActionClient(self, NavigateToPose, nav2_action)
-            self.get_logger().info(f'Nav2 action client ready ({nav2_action})')
-        else:
-            self.get_logger().warning('nav2_msgs not available — admin_goto disabled')
 
         # ── Timers ────────────────────────────
         self.create_timer(0.1, self._bt_tick_callback)    # 10 Hz BT tick

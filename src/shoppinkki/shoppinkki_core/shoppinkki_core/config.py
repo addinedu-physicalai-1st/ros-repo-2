@@ -27,6 +27,13 @@ BATTERY_THRESHOLD: int = 20          # battery % below which HALTED triggers
                                      # (raise to 90 for bench testing)
 CHARGING_COMPLETE_THRESHOLD: int = 80  # battery % above which CHARGING → IDLE
 
+# ── Charger positions (map frame) ─────────
+# robot_id → (x, y, yaw)   — nav2_params 의 initial_pose 와 동기화
+CHARGER_POSES: dict[str, tuple[float, float, float]] = {
+    '54': (-0.056, -0.899, 0.0),   # P2
+    '18': (-0.056, -0.606, 0.0),   # P1
+}
+
 # ── Robot connectivity ────────────────────────
 ROBOT_TIMEOUT_SEC: int = 30   # seconds without /status → OFFLINE
 
