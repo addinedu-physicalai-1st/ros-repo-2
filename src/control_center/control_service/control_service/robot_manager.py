@@ -237,7 +237,7 @@ class RobotManager:
             self._relay_to_pi(robot_id, payload)
         elif cmd in ('mode', 'resume_tracking',
                      'delete_item', 'start_session', 'enter_simulation',
-                     'return', 'registration_confirm'):
+                     'return', 'registration_confirm', 'enter_registration'):
             self._relay_to_pi(robot_id, payload)
         else:
             logger.warning('Unknown web cmd=%s', cmd)
