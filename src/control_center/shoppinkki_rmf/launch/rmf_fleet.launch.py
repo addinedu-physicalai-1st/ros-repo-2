@@ -17,7 +17,7 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -34,22 +34,43 @@ def generate_launch_description() -> LaunchDescription:
         description='fleet_config.yaml 경로',
     )
 
-    # ── PinkyFleetAdapter ─────────────────────────────────────────────────────
-    # 주의: rmf_traffic_schedule / rmf_traffic_blockade 는 별도 터미널에서 실행
-    #   ros2 run rmf_traffic_ros2 rmf_traffic_schedule
-    #   ros2 run rmf_traffic_ros2 rmf_traffic_blockade
-    fleet_adapter = Node(
-        package='shoppinkki_rmf',
-        executable='fleet_adapter',
-        name='pinky_fleet_adapter',
+    # ── rmf_traffic_schedule_node ─────────────────────────────────────────────
+    # Adapter.make() 가 이 노드에 연결해야 하므로 fleet_adapter 보다 먼저 기동
+    traffic_schedule = Node(
+        package='rmf_traffic_ros2',
+        executable='rmf_traffic_schedule_node',
+        name='rmf_traffic_schedule',
         output='screen',
-        parameters=[{
-            'use_sim_time': False,
-            'config_file': LaunchConfiguration('config_file'),
-        }],
+        parameters=[{'use_sim_time': False}],
+    )
+
+    # ── rmf_traffic_blockade_node ─────────────────────────────────────────────
+    traffic_blockade = Node(
+        package='rmf_traffic_ros2',
+        executable='rmf_traffic_blockade_node',
+        name='rmf_traffic_blockade',
+        output='screen',
+        parameters=[{'use_sim_time': False}],
+    )
+
+    # ── PinkyFleetAdapter (3초 지연 — traffic_schedule 준비 대기) ─────────────
+    fleet_adapter = TimerAction(
+        period=3.0,
+        actions=[Node(
+            package='shoppinkki_rmf',
+            executable='fleet_adapter',
+            name='pinky_fleet_adapter',
+            output='screen',
+            parameters=[{
+                'use_sim_time': False,
+                'config_file': LaunchConfiguration('config_file'),
+            }],
+        )],
     )
 
     return LaunchDescription([
         config_file_arg,
+        traffic_schedule,
+        traffic_blockade,
         fleet_adapter,
     ])
