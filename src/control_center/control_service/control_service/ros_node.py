@@ -1,9 +1,10 @@
 """ROS 2 node for control_service (channel G).
 
 Subscribes:
-    /robot_<id>/status  (std_msgs/String JSON)
-    /robot_<id>/alarm   (std_msgs/String JSON)
-    /robot_<id>/cart    (std_msgs/String JSON)
+    /robot_<id>/status    (std_msgs/String JSON)
+    /robot_<id>/alarm     (std_msgs/String JSON)
+    /robot_<id>/cart      (std_msgs/String JSON)
+    /robot_<id>/snapshot  (std_msgs/String JSON) — 인형 감지 스냅샷
 
 Publishes:
     /robot_<id>/cmd         (std_msgs/String JSON)
@@ -65,6 +66,9 @@ class ControlServiceNode:
                     inner_self.create_subscription(
                         String, f'/robot_{rid}/cart',
                         lambda msg, r=rid: self._on_cart(r, msg.data), 10)
+                    inner_self.create_subscription(
+                        String, f'/robot_{rid}/snapshot',
+                        lambda msg, r=rid: self._on_snapshot(r, msg.data), 10)
                     # Publish cmd
                     self._publishers[rid] = inner_self.create_publisher(
                         String, f'/robot_{rid}/cmd', 10)
@@ -152,3 +156,9 @@ class ControlServiceNode:
             self._rm.on_cart(robot_id, json.loads(raw))
         except Exception as e:
             logger.error('on_cart error: %s', e)
+
+    def _on_snapshot(self, robot_id: str, raw: str) -> None:
+        try:
+            self._rm.on_snapshot(robot_id, json.loads(raw))
+        except Exception as e:
+            logger.error('on_snapshot error: %s', e)

@@ -1,16 +1,18 @@
 """Handles /robot_<id>/cmd JSON messages and routes to SM triggers.
 
 Supported commands (채널 G):
-    start_session     → charging_completed()
-    mode              → enter_waiting() / enter_returning() / enter_locked()
-    resume_tracking   → sm.resume_tracking()
-    navigate_to       → enter_guiding() + on_navigate_to callback
-    payment_success   → enter_tracking_checkout()
-    delete_item       → on_delete_item callback
-    force_terminate   → sm.handle_force_terminate()
-    staff_resolved    → sm.handle_staff_resolved()
-    admin_goto        → on_admin_goto callback (IDLE only)
-    enter_simulation → on_enter_simulation callback (IDLE only, 시뮬레이션 모드)
+    start_session         → charging_completed()
+    mode                  → enter_waiting() / enter_returning() / enter_locked()
+    resume_tracking       → sm.resume_tracking()
+    navigate_to           → enter_guiding() + on_navigate_to callback
+    payment_success       → enter_tracking_checkout()
+    delete_item           → on_delete_item callback
+    force_terminate       → sm.handle_force_terminate()
+    staff_resolved        → sm.handle_staff_resolved()
+    admin_goto            → on_admin_goto callback (IDLE only)
+    enter_registration    → on_enter_registration callback (IDLE only, LCD 카메라 피드 전환)
+    enter_simulation      → on_enter_simulation callback (IDLE only, 시뮬레이션 모드)
+    registration_confirm  → on_registration_confirm callback (IDLE only, 인형 등록 확인)
 """
 
 from __future__ import annotations
@@ -42,9 +44,15 @@ class CmdHandler:
     has_unpaid_items:
         Callable() → bool; consulted for mode=RETURNING to decide
         LOCKED vs RETURNING transition.
+    on_enter_registration:
+        Called (no args) when enter_registration cmd is received in IDLE.
+        /register 페이지 접속 시 호출 — LCD 카메라 피드 전환.
     on_enter_simulation:
         Called (no args) when enter_simulation cmd is received in IDLE.
         시뮬레이션 모드: IDLE → TRACKING 전환 + 추종 비활성화.
+    on_registration_confirm:
+        Called with (bbox: dict) when registration_confirm cmd is received in IDLE.
+        사용자가 앱에서 인형을 확인했을 때 호출.
     """
 
     def __init__(
@@ -55,7 +63,9 @@ class CmdHandler:
         on_admin_goto: Optional[Callable[[float, float, float], None]] = None,
         on_start_session: Optional[Callable[[str], None]] = None,
         has_unpaid_items: Optional[Callable[[], bool]] = None,
+        on_enter_registration: Optional[Callable[[], None]] = None,
         on_enter_simulation: Optional[Callable[[], None]] = None,
+        on_registration_confirm: Optional[Callable[[dict], None]] = None,
     ) -> None:
         self.sm = sm
         self._on_navigate_to = on_navigate_to
@@ -63,7 +73,9 @@ class CmdHandler:
         self._on_admin_goto = on_admin_goto
         self._on_start_session = on_start_session
         self._has_unpaid_items = has_unpaid_items
+        self._on_enter_registration = on_enter_registration
         self._on_enter_simulation = on_enter_simulation
+        self._on_registration_confirm = on_registration_confirm
 
     def handle(self, raw: str) -> None:
         """Parse raw JSON string and dispatch to the appropriate handler."""
@@ -185,6 +197,34 @@ class CmdHandler:
         if self._on_admin_goto:
             self._on_admin_goto(x, y, theta)
 
+    def _handle_registration_confirm(self, payload: dict) -> None:
+        """인형 등록 확인 (IDLE 상태에서만 유효).
+
+        payload: {"cmd": "registration_confirm", "bbox": {...}}
+        """
+        if self.sm.state != 'IDLE':
+            logger.warning('registration_confirm ignored in state=%s (IDLE 상태에서만 가능)',
+                           self.sm.state)
+            return
+        bbox = payload.get('bbox', {})
+        logger.info('registration_confirm: bbox=%s', bbox)
+        if self._on_registration_confirm:
+            self._on_registration_confirm(bbox)
+
+    def _handle_enter_registration(self, payload: dict) -> None:
+        """등록 시작 (IDLE 상태에서만 유효).
+
+        /register 페이지 접속 시 호출 — _registration_active 플래그를 세워
+        카메라 루프가 LCD에 카메라 피드를 표시하도록 한다.
+        """
+        if self.sm.state != 'IDLE':
+            logger.warning('enter_registration ignored in state=%s (IDLE 상태에서만 가능)',
+                           self.sm.state)
+            return
+        logger.info('enter_registration: LCD 카메라 피드 전환')
+        if self._on_enter_registration:
+            self._on_enter_registration()
+
     def _handle_enter_simulation(self, payload: dict) -> None:
         """시뮬레이션 모드: IDLE → TRACKING + 추종 비활성화.
 
@@ -204,14 +244,16 @@ class CmdHandler:
     # ── Dispatch table ────────────────────────
 
     _dispatch: dict[str, Callable] = {
-        'start_session':      _handle_start_session,
-        'mode':               _handle_mode,
-        'resume_tracking':    _handle_resume_tracking,
-        'navigate_to':        _handle_navigate_to,
-        'payment_success':    _handle_payment_success,
-        'delete_item':        _handle_delete_item,
-        'force_terminate':    _handle_force_terminate,
-        'staff_resolved':     _handle_staff_resolved,
-        'admin_goto':         _handle_admin_goto,
-        'enter_simulation':  _handle_enter_simulation,
+        'start_session':         _handle_start_session,
+        'mode':                  _handle_mode,
+        'resume_tracking':       _handle_resume_tracking,
+        'navigate_to':           _handle_navigate_to,
+        'payment_success':       _handle_payment_success,
+        'delete_item':           _handle_delete_item,
+        'force_terminate':       _handle_force_terminate,
+        'staff_resolved':        _handle_staff_resolved,
+        'admin_goto':            _handle_admin_goto,
+        'enter_registration':    _handle_enter_registration,
+        'enter_simulation':      _handle_enter_simulation,
+        'registration_confirm':  _handle_registration_confirm,
     }
