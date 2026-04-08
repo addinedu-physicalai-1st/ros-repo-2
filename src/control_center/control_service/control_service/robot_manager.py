@@ -273,8 +273,29 @@ class RobotManager:
                      'start_session', 'enter_simulation',
                      'return', 'registration_confirm', 'enter_registration'):
             if cmd == 'return':
-                # 쇼핑 종료: 장바구니를 비우고 UI에 즉시 반영 (다음 로그인에 남지 않게)
+                # 쇼핑 종료: customer_web의 return 이벤트를 Pi가 이해하는 mode=RETURNING으로 변환해 전달한다.
+                # (Pi는 cmd='return'을 처리하지 않음)
+                #
+                # 1) cart/session 정리 (다음 로그인에 남지 않게)
                 self._clear_active_cart(robot_id, reason='return')
+                try:
+                    session = db.get_active_session_by_robot(robot_id)
+                    if session:
+                        db.end_session(session['session_id'])
+                        db.update_robot(robot_id, active_user_id=None)
+                except Exception:
+                    logger.exception('Failed to end session on return (robot=%s)', robot_id)
+                # 2) Pi에 RETURNING 모드 전환 명령 전달 (Pi가 status를 RETURNING으로 publish)
+                payload = dict(payload)
+                payload.pop('cmd', None)
+                payload_to_pi = {
+                    'cmd': 'mode',
+                    'value': 'RETURNING',
+                }
+                # 기존 필드는 남겨도 CmdHandler가 무시하므로 안전 (robot_id 등)
+                payload_to_pi.update(payload)
+                self._relay_to_pi(robot_id, payload_to_pi)
+                return
             self._relay_to_pi(robot_id, payload)
         else:
             logger.warning('Unknown web cmd=%s', cmd)
