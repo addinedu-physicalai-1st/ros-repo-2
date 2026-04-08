@@ -89,6 +89,34 @@ class RobotManager:
                     is_locked_return=bool(r['is_locked_return']),
                     active_user_id=r.get('active_user_id'),
                 )
+
+        # 서버 재시작/비정상 종료 등으로 SESSION/CART가 남아있으면,
+        # "아무것도 안 했는데 장바구니가 남는" 문제가 생긴다.
+        # 초기 부팅 시점에 안전하게 정리한다 (로봇이 쇼핑 중인 상태가 아닐 때만).
+        for rid, st in list(self._states.items()):
+            try:
+                sess = db.get_active_session_by_robot(rid)
+                if not sess:
+                    continue
+                # 쇼핑 상태(TRACKING 계열)라면 세션을 유지하는 편이 안전하다.
+                # 그 외(IDLE/CHARGING/RETURNING/LOCKED/OFFLINE/HALTED 등)는
+                # 남은 세션을 정리하고 장바구니를 비운다.
+                if st.mode in ('TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'GUIDING', 'SEARCHING'):
+                    continue
+                cart = db.get_cart_by_session(sess['session_id'])
+                if cart:
+                    db.delete_cart_items(cart['cart_id'])
+                db.end_session(sess['session_id'])
+                db.update_robot(rid, active_user_id=None)
+                with self._lock:
+                    self._states[rid].active_user_id = None
+                db.log_event(rid, 'SESSION_CLEANUP', sess.get('user_id'),
+                             detail=f'boot_cleanup mode={st.mode}')
+                logger.info('Startup cleanup: ended session + cleared cart (robot=%s, mode=%s)',
+                            rid, st.mode)
+            except Exception:
+                logger.exception('Startup cleanup failed (robot=%s)', rid)
+
         self._running = True
         self._cleanup_thread = threading.Thread(
             target=self._cleanup_loop, name='rm-cleanup', daemon=True)
