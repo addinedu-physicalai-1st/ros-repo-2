@@ -111,7 +111,7 @@ def search_context_in_db(name: str) -> Optional[dict]:
                 SELECT 'zone' as type, z.zone_name as display_name, z.zone_id, z.zone_name,
                        (ze.embedding <=> %s::vector) as distance
                 FROM ZONE_TEXT_EMBEDDING ze
-                JOIN ZONE z ON ze.zone_id = z.zone_id
+                JOIN ZONE z ON ze.id = z.zone_id
                 WHERE ze.embedding IS NOT NULL
             ) combined
             ORDER BY distance ASC
