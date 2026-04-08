@@ -50,7 +50,7 @@ tmux send-keys -t "${SESSION}:gz" \
 
 # 창 1–2: shoppinkki_core (ros2 run 은 shebang 시스템 python → conda pip 무시; env python3)
 _SHOP_CORE_MAIN="$ROS_WS/install/shoppinkki_core/lib/shoppinkki_core/main_node"
-_WAIT_SIM_CLOCK="ros2 topic echo -n 1 /clock >/dev/null 2>&1"
+_WAIT_SIM_CLOCK="until ros2 topic echo -n 1 /clock >/dev/null 2>&1; do sleep 2; done"
 
 # 창 1: shoppinkki_core 로봇 54
 tmux new-window -t "${SESSION}" -n "core54"
