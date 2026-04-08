@@ -93,4 +93,7 @@ nmcli device wifi list
 # 원하는 와이파이가 안 뜰 경우
 sudo nmcli device wifi rescan 
 nmcli device wifi list
+
+# 특정 와이파이를 지워버리고 싶을때
+sudo nmcli connection delete "addinedu_201class_2-5G"
 ```

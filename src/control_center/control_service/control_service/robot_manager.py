@@ -151,6 +151,19 @@ class RobotManager:
         items = payload.get('items', [])
         self._push_web(robot_id, {'type': 'cart_update', 'items': items})
 
+    def on_snapshot(self, robot_id: str, payload: dict) -> None:
+        """Process /robot_<id>/snapshot — Pi가 인형 감지 시 전송하는 스냅샷.
+
+        browser 에 doll_detected 이벤트로 base64 이미지를 전달.
+        """
+        self._push_web(robot_id, {
+            'type': 'doll_detected',
+            'robot_id': robot_id,
+            'image': payload.get('image', ''),
+            'bbox': payload.get('bbox', {}),
+        })
+        logger.debug('snapshot → web robot=%s', robot_id)
+
     # ──────────────────────────────────────────
     # Commands from Admin (channel B, via tcp_server)
     # ──────────────────────────────────────────
@@ -213,7 +226,7 @@ class RobotManager:
             self._handle_update_quantity(robot_id, payload)
         elif cmd in ('navigate_to', 'mode', 'resume_tracking',
                      'delete_item', 'start_session', 'enter_simulation',
-                     'return'):
+                     'return', 'registration_confirm', 'enter_registration'):
             self._relay_to_pi(robot_id, payload)
         else:
             logger.warning('Unknown web cmd=%s', cmd)

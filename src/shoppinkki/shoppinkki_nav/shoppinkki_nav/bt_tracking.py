@@ -93,9 +93,11 @@ class BTTracking:
             self._miss_count = 0
 
             # ── P-Control ─────────────────────
-            error_area = det.area - TARGET_AREA
+            # error_area > 0: doll 이 너무 멀리 있음 → 앞으로 이동
+            # error_area < 0: doll 이 너무 가까이 있음 → 멈춤 (도망 금지)
+            error_area = TARGET_AREA - det.area
             linear_x = KP_DIST * error_area
-            linear_x = max(-LINEAR_X_MAX, min(LINEAR_X_MAX, linear_x))
+            linear_x = max(0.0, min(LINEAR_X_MAX, linear_x))  # 후진(도망) 금지
 
             error_cx = det.cx - IMAGE_WIDTH / 2.0
             angular_z = -KP_ANGLE * error_cx  # negative: right cx → turn right

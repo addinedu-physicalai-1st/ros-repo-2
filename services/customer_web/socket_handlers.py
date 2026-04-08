@@ -122,6 +122,34 @@ def register_handlers(socketio, control_clients: dict, llm_cfg: dict):
             logger.info("qr_scan: robot_id=%s data=%s", robot_id, qr_data[:100])
             cc.send({"cmd": "qr_scan", "robot_id": robot_id, "qr_data": qr_data})
 
+    # ── 인형 등록 확인 ─────────────────────────────────────────────
+
+    @socketio.on("registration_confirm")
+    def on_registration_confirm(data):
+        """사용자가 "이 사람이 당신이 맞나요?" 에서 [확인]을 클릭.
+
+        data: {"bbox": {...}}
+        Pi의 DollDetector.confirm_registration() 호출로 이어짐.
+        """
+        robot_id, cc = _get_client()
+        if cc:
+            logger.info("registration_confirm 요청 (robot_id=%s)", robot_id)
+            cc.send({
+                "cmd": "registration_confirm",
+                "robot_id": robot_id,
+                "bbox": data.get("bbox", {}),
+            })
+
+    # ── 인형 등록 시작 ────────────────────────────────────────────
+
+    @socketio.on("enter_registration")
+    def on_enter_registration(data=None):
+        """/register 페이지 접속 시 자동 emit → Pi LCD 카메라 피드 전환."""
+        robot_id, cc = _get_client()
+        if cc:
+            logger.info("enter_registration 요청 (robot_id=%s)", robot_id)
+            cc.send({"cmd": "enter_registration", "robot_id": robot_id})
+
     # ── 시뮬레이션 모드 ───────────────────────────────────────────
 
     @socketio.on("enter_simulation")
