@@ -88,7 +88,8 @@ CREATE TABLE robot (
     last_seen       DATETIME,
     active_user_id  VARCHAR(50),
     is_locked_return TINYINT(1) NOT NULL DEFAULT 0,
-    FOREIGN KEY (active_user_id) REFERENCES user(user_id)
+    FOREIGN KEY (active_user_id) REFERENCES user(user_id),
+    UNIQUE KEY uk_active_user (active_user_id)   -- 유저 1명 = 로봇 1대
 );
 
 CREATE TABLE staff_call_log (
@@ -116,14 +117,18 @@ CREATE INDEX idx_event_log_robot ON event_log(robot_id, occurred_at DESC);
 CREATE INDEX idx_event_log_type  ON event_log(event_type, occurred_at DESC);
 
 CREATE TABLE session (
-    session_id VARCHAR(36) PRIMARY KEY,   -- UUID
-    robot_id   INT         NOT NULL,
-    user_id    VARCHAR(50) NOT NULL,
-    created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME    NOT NULL,
-    is_active  TINYINT(1)  NOT NULL DEFAULT 1,
+    session_id      VARCHAR(36) PRIMARY KEY,   -- UUID
+    robot_id        INT         NOT NULL,
+    user_id         VARCHAR(50) NOT NULL,
+    created_at      DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at      DATETIME    NOT NULL,
+    is_active       TINYINT(1)  NOT NULL DEFAULT 1,
+    active_user_key  VARCHAR(50) GENERATED ALWAYS AS (IF(is_active = 1, user_id, NULL)) VIRTUAL,
+    active_robot_key INT         GENERATED ALWAYS AS (IF(is_active = 1, robot_id, NULL)) VIRTUAL,
     FOREIGN KEY (robot_id) REFERENCES robot(robot_id),
-    FOREIGN KEY (user_id)  REFERENCES user(user_id)
+    FOREIGN KEY (user_id)  REFERENCES user(user_id),
+    UNIQUE KEY uk_active_session_user  (active_user_key),    -- 활성 세션 중 유저 1명 = 세션 1개
+    UNIQUE KEY uk_active_session_robot (active_robot_key)    -- 활성 세션 중 로봇 1대 = 세션 1개
 );
 
 CREATE TABLE cart (
@@ -262,7 +267,7 @@ with get_conn() as conn:
 | pos_y | DOUBLE | AMCL 기반 현재 위치 y (m) |
 | battery_level | INT | 배터리 잔량 (%, 0~100) |
 | last_seen | DATETIME | 마지막 status 수신 시각 |
-| active_user_id | VARCHAR(50) FK | 활성 세션 user_id. NULL=빈 카트 |
+| active_user_id | VARCHAR(50) FK UNIQUE | 활성 세션 user_id. NULL=빈 카트. UNIQUE → 유저 1명=로봇 1대 강제 |
 | is_locked_return | TINYINT(1) | LOCKED 귀환 중 LED 잠금 신호 플래그 (SR-55, UR-60) |
 
 > **OFFLINE 판정:** cleanup 스레드(10초 주기)가 `last_seen < NOW() - 30s` 이면 `current_mode='OFFLINE'`, `active_user_id=NULL` 처리.
@@ -318,6 +323,8 @@ LOCKED / HALTED 이벤트 발생 시 생성. `resolved_at=NULL`이면 미처리 
 | created_at | DATETIME DEFAULT CURRENT_TIMESTAMP | |
 | expires_at | DATETIME | 자동 만료 시각 |
 | is_active | TINYINT(1) DEFAULT 1 | 명시적 종료 플래그 |
+| active_user_key | VARCHAR(50) VIRTUAL | `is_active=1`이면 `user_id`, 아니면 NULL. UNIQUE → 활성 세션 중 유저 1명=1세션 강제 |
+| active_robot_key | INT VIRTUAL | `is_active=1`이면 `robot_id`, 아니면 NULL. UNIQUE → 활성 세션 중 로봇 1대=1세션 강제 |
 
 > **유효 세션 판단:** `is_active = 1 AND expires_at > NOW()`
 

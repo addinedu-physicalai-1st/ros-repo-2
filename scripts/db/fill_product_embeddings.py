@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Fill PRODUCT_TEXT_EMBEDDING.embedding using a sentence-transformers model.
 
-Reads rows from PRODUCT_TEXT_EMBEDDING and writes VECTOR(384) embeddings using
-MySQL 9's STRING_TO_VECTOR() function.
+Reads rows from PRODUCT_TEXT_EMBEDDING and writes vector(384) embeddings
+using pgvector's native cast syntax.
 
 Usage:
   python3 scripts/db/fill_product_embeddings.py
@@ -18,7 +18,8 @@ import os
 from pathlib import Path
 from typing import Iterable
 
-import mysql.connector
+import psycopg2
+import psycopg2.extras
 from sentence_transformers import SentenceTransformer
 
 DEFAULT_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
@@ -39,13 +40,13 @@ def load_env_file() -> None:
         os.environ.setdefault(key.strip(), value.strip())
 
 
-def get_connection() -> mysql.connector.MySQLConnection:
-    return mysql.connector.connect(
-        host=os.environ.get("MYSQL_HOST", "127.0.0.1"),
-        port=int(os.environ.get("MYSQL_PORT", "3306")),
-        user=os.environ.get("MYSQL_USER", "shoppinkki"),
-        password=os.environ.get("MYSQL_PASSWORD", "shoppinkki"),
-        database=os.environ.get("MYSQL_DATABASE", "shoppinkki"),
+def get_connection() -> psycopg2.extensions.connection:
+    return psycopg2.connect(
+        host=os.environ.get("PG_HOST", "127.0.0.1"),
+        port=int(os.environ.get("PG_PORT", "5432")),
+        user=os.environ.get("PG_USER", "shoppinkki"),
+        password=os.environ.get("PG_PASSWORD", "shoppinkki"),
+        dbname=os.environ.get("PG_DATABASE", "shoppinkki"),
     )
 
 
@@ -63,7 +64,7 @@ def build_select_query(force: bool, limit: int | None) -> tuple[str, tuple]:
 
 
 def vector_to_string(values: Iterable[float]) -> str:
-    # MySQL STRING_TO_VECTOR expects a string like: "[0.1, 0.2, ...]"
+    # pgvector expects a string like: "[0.1, 0.2, ...]"
     return "[" + ", ".join(f"{value:.8f}" for value in values) + "]"
 
 
@@ -87,12 +88,12 @@ def main() -> int:
     dim = model.get_sentence_embedding_dimension()
     if dim != EXPECTED_DIM:
         raise ValueError(
-            f"Model dimension {dim} does not match schema VECTOR({EXPECTED_DIM})."
+            f"Model dimension {dim} does not match schema vector({EXPECTED_DIM})."
         )
 
-    print("[2/4] Connecting to MySQL")
+    print("[2/4] Connecting to PostgreSQL")
     conn = get_connection()
-    select_cursor = conn.cursor(dictionary=True)
+    select_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     query, params = build_select_query(force=args.force, limit=args.limit)
     select_cursor.execute(query, params)
@@ -116,11 +117,11 @@ def main() -> int:
         show_progress_bar=True,
     )
 
-    print("[4/4] Writing embeddings to MySQL")
+    print("[4/4] Writing embeddings to PostgreSQL")
     update_cursor = conn.cursor()
     update_sql = """
         UPDATE PRODUCT_TEXT_EMBEDDING
-        SET embedding = STRING_TO_VECTOR(%s),
+        SET embedding = %s::vector,
             model_name = %s
         WHERE id = %s
     """
@@ -140,4 +141,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

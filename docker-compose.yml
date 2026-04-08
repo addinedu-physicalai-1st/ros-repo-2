@@ -1,24 +1,23 @@
 services:
-  mysql:
-    image: mysql:9.1
-    container_name: shoppinkki_mysql
+  pg:
+    image: pgvector/pgvector:pg17
+    container_name: shoppinkki_pg
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: shoppinkki
-      MYSQL_DATABASE: shoppinkki
-      MYSQL_USER: shoppinkki
-      MYSQL_PASSWORD: shoppinkki
+      POSTGRES_DB: shoppinkki
+      POSTGRES_USER: shoppinkki
+      POSTGRES_PASSWORD: shoppinkki
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - pg_data:/var/lib/postgresql/data
       - ./scripts/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ./scripts/db/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ushoppinkki", "-pshoppinkki"]
+      test: ["CMD", "pg_isready", "-U", "shoppinkki", "-d", "shoppinkki"]
       interval: 5s
       timeout: 3s
       retries: 10
 
 volumes:
-  mysql_data:
+  pg_data:
