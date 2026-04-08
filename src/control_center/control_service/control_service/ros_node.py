@@ -26,11 +26,11 @@ logger = logging.getLogger(__name__)
 ROBOT_IDS = os.environ.get('ROBOT_IDS', '18,54').split(',')
 DOMAIN_ID = int(os.environ.get('ROS_DOMAIN_ID', '14'))
 
-# 로봇별 AMCL 초기 위치 (맵 기준, gz_init_robots.sh 와 동일한 값)
-# (x, y, yaw_rad) — 충전소 근방 출발 위치
+# 로봇별 AMCL 초기 위치 — 맵 프레임 좌표 (Gazebo world 좌표 아님!)
+# SLAM 수렴 후 측정값. 변경 시 nav2_params_robot_<id>.yaml 의 initial_pose 와 동일하게 유지.
 _INIT_POSES: dict[str, tuple[float, float, float]] = {
-    '54': (0.939, 0.100, math.pi / 2),   # P2, yaw=90°
-    '18': (0.699, 0.100, math.pi / 2),   # P1, yaw=90°
+    '54': (0.247, -0.324, math.pi / 2),  # P2 충전소, map frame
+    '18': (0.023, -0.042, math.pi / 2),  # P1 충전소, map frame
 }
 
 if TYPE_CHECKING:
