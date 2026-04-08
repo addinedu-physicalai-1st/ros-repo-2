@@ -4,18 +4,18 @@ REST GET /query?name=<상품명>
 → {"zone_id": 3, "zone_name": "음료 코너"}
 
 검색 전략 (우선순위):
-  1) MySQL PRODUCT 테이블에서 product_name LIKE '%name%' → zone_id/zone_name 반환
+  1) PostgreSQL PRODUCT 테이블에서 product_name LIKE '%name%' → zone_id/zone_name 반환
   2) 정규화 키워드 매핑 (DB 연결 실패 시 fallback)
   3) 미매칭 → 404
 
 환경 변수:
-    MYSQL_HOST      기본 host.docker.internal
-    MYSQL_PORT      기본 3306
-    MYSQL_USER      기본 shoppinkki
-    MYSQL_PASSWORD  기본 shoppinkki
-    MYSQL_DATABASE  기본 shoppinkki
-    HOST            바인드 호스트 (기본 0.0.0.0)
-    PORT            바인드 포트 (기본 8000)
+    PG_HOST      기본 host.docker.internal
+    PG_PORT      기본 5432
+    PG_USER      기본 shoppinkki
+    PG_PASSWORD  기본 shoppinkki
+    PG_DATABASE  기본 shoppinkki
+    HOST         바인드 호스트 (기본 0.0.0.0)
+    PORT         바인드 포트 (기본 8000)
 """
 
 from __future__ import annotations
@@ -34,11 +34,11 @@ logging.basicConfig(
 logger = logging.getLogger('llm_server')
 
 # ── 환경 변수 ──────────────────────────────────────────────────────────────────
-MYSQL_HOST = os.environ.get('MYSQL_HOST', 'host.docker.internal')
-MYSQL_PORT = int(os.environ.get('MYSQL_PORT', '3306'))
-MYSQL_USER = os.environ.get('MYSQL_USER', 'shoppinkki')
-MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', 'shoppinkki')
-MYSQL_DATABASE = os.environ.get('MYSQL_DATABASE', 'shoppinkki')
+PG_HOST = os.environ.get('PG_HOST', 'host.docker.internal')
+PG_PORT = int(os.environ.get('PG_PORT', '5432'))
+PG_USER = os.environ.get('PG_USER', 'shoppinkki')
+PG_PASSWORD = os.environ.get('PG_PASSWORD', 'shoppinkki')
+PG_DATABASE = os.environ.get('PG_DATABASE', 'shoppinkki')
 HOST = os.environ.get('HOST', '0.0.0.0')
 PORT = int(os.environ.get('PORT', '8000'))
 
@@ -63,18 +63,19 @@ def _normalize(text: str) -> str:
 
 
 def search_db(name: str) -> Optional[dict]:
-    """MySQL PRODUCT·ZONE 테이블에서 상품명 검색."""
+    """PostgreSQL PRODUCT·ZONE 테이블에서 상품명 검색."""
     try:
-        import mysql.connector
-        conn = mysql.connector.connect(
-            host=MYSQL_HOST,
-            port=MYSQL_PORT,
-            user=MYSQL_USER,
-            password=MYSQL_PASSWORD,
-            database=MYSQL_DATABASE,
-            connection_timeout=3,
+        import psycopg2
+        import psycopg2.extras
+        conn = psycopg2.connect(
+            host=PG_HOST,
+            port=PG_PORT,
+            user=PG_USER,
+            password=PG_PASSWORD,
+            dbname=PG_DATABASE,
+            connect_timeout=3,
         )
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute(
             """
             SELECT z.zone_id, z.zone_name

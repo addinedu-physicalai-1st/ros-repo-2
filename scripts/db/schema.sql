@@ -1,159 +1,157 @@
 -- ShopPinkki Central DB Schema
--- MySQL 8.x  |  Database: shoppinkki
+-- PostgreSQL 17 + pgvector  |  Database: shoppinkki
 
-CREATE DATABASE IF NOT EXISTS shoppinkki
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
-
-USE shoppinkki;
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- ──────────────────────────────────────────────
 -- 사용자 / 카드
 -- ──────────────────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS USER (
+CREATE TABLE IF NOT EXISTS users (
     user_id       VARCHAR(50)  NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id)
-) ENGINE=InnoDB;
+);
 
 CREATE TABLE IF NOT EXISTS CARD (
-    card_id    INT          NOT NULL AUTO_INCREMENT,
+    card_id    SERIAL       PRIMARY KEY,
     user_id    VARCHAR(50)  NOT NULL,
     card_alias VARCHAR(50)  NOT NULL DEFAULT '기본 카드',
-    PRIMARY KEY (card_id),
-    FOREIGN KEY (user_id) REFERENCES USER(user_id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
 
 -- ──────────────────────────────────────────────
 -- 구역 / 상품
 -- ──────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS ZONE (
-    zone_id      INT          NOT NULL,
-    zone_name    VARCHAR(100) NOT NULL,
-    zone_type    VARCHAR(20)  NOT NULL COMMENT 'product | special',
-    waypoint_x   DOUBLE       NOT NULL DEFAULT 0.0,
-    waypoint_y   DOUBLE       NOT NULL DEFAULT 0.0,
-    waypoint_theta DOUBLE     NOT NULL DEFAULT 0.0,
+    zone_id        INT          NOT NULL,
+    zone_name      VARCHAR(100) NOT NULL,
+    zone_type      VARCHAR(20)  NOT NULL,   -- 'product' | 'special'
+    waypoint_x     DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    waypoint_y     DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    waypoint_theta DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     PRIMARY KEY (zone_id)
-) ENGINE=InnoDB;
+);
 
 CREATE TABLE IF NOT EXISTS PRODUCT (
-    product_id   INT          NOT NULL AUTO_INCREMENT,
+    product_id   SERIAL       PRIMARY KEY,
     product_name VARCHAR(100) NOT NULL,
     zone_id      INT          NOT NULL,
     price        INT          NOT NULL DEFAULT 0,
-    PRIMARY KEY (product_id),
-    FOREIGN KEY (zone_id) REFERENCES ZONE(zone_id)
-) ENGINE=InnoDB;
+    FOREIGN KEY (zone_id) REFERENCES ZONE(zone_id),
+    UNIQUE (product_name)
+);
 
 CREATE TABLE IF NOT EXISTS PRODUCT_TEXT_EMBEDDING (
-    id          INT          NOT NULL AUTO_INCREMENT,
+    id          SERIAL       PRIMARY KEY,
     product_id  INT          NOT NULL,
     text        TEXT         NOT NULL,
-    embedding   VECTOR(384)  NULL,
+    embedding   vector(384)  NULL,
     model_name  VARCHAR(100) NULL,
-    PRIMARY KEY (id),
     FOREIGN KEY (product_id) REFERENCES PRODUCT(product_id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+);
 
 -- ──────────────────────────────────────────────
 -- 경계 설정
 -- ──────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS BOUNDARY_CONFIG (
-    id          INT          NOT NULL AUTO_INCREMENT,
+    id          SERIAL       PRIMARY KEY,
     description VARCHAR(100) NOT NULL,
-    x_min       DOUBLE       NOT NULL,
-    x_max       DOUBLE       NOT NULL,
-    y_min       DOUBLE       NOT NULL,
-    y_max       DOUBLE       NOT NULL,
-    PRIMARY KEY (id)
-) ENGINE=InnoDB;
+    x_min       DOUBLE PRECISION NOT NULL,
+    x_max       DOUBLE PRECISION NOT NULL,
+    y_min       DOUBLE PRECISION NOT NULL,
+    y_max       DOUBLE PRECISION NOT NULL,
+    UNIQUE (description)
+);
 
 -- ──────────────────────────────────────────────
 -- 로봇
 -- ──────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS ROBOT (
-    robot_id        VARCHAR(10)  NOT NULL,
-    ip_address      VARCHAR(15)  NOT NULL,
-    current_mode    VARCHAR(30)  NOT NULL DEFAULT 'OFFLINE'
-        COMMENT 'CHARGING|IDLE|TRACKING|TRACKING_CHECKOUT|GUIDING|SEARCHING|WAITING|LOCKED|RETURNING|HALTED|OFFLINE',
-    pos_x           DOUBLE       NOT NULL DEFAULT 0.0,
-    pos_y           DOUBLE       NOT NULL DEFAULT 0.0,
-    battery_level   INT          NOT NULL DEFAULT 100,
-    last_seen       DATETIME     NULL,
-    active_user_id  VARCHAR(50)  NULL,
-    is_locked_return TINYINT(1)  NOT NULL DEFAULT 0,
+    robot_id         VARCHAR(10)      NOT NULL,
+    ip_address       VARCHAR(15)      NOT NULL,
+    current_mode     VARCHAR(30)      NOT NULL DEFAULT 'OFFLINE',
+    -- 'CHARGING|IDLE|TRACKING|TRACKING_CHECKOUT|GUIDING|SEARCHING|WAITING|LOCKED|RETURNING|HALTED|OFFLINE'
+    pos_x            DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    pos_y            DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    battery_level    INT              NOT NULL DEFAULT 100,
+    last_seen        TIMESTAMP        NULL,
+    active_user_id   VARCHAR(50)      NULL,
+    is_locked_return BOOLEAN          NOT NULL DEFAULT FALSE,
     PRIMARY KEY (robot_id),
-    FOREIGN KEY (active_user_id) REFERENCES USER(user_id) ON DELETE SET NULL
-) ENGINE=InnoDB;
+    FOREIGN KEY (active_user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    UNIQUE (active_user_id)   -- 유저 1명 = 로봇 1대
+);
 
 -- ──────────────────────────────────────────────
 -- 직원 호출 로그
 -- ──────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS STAFF_CALL_LOG (
-    log_id      INT          NOT NULL AUTO_INCREMENT,
-    robot_id    VARCHAR(10)  NOT NULL,
-    user_id     VARCHAR(50)  NULL,
-    event_type  VARCHAR(20)  NOT NULL COMMENT 'LOCKED|HALTED',
-    occurred_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    resolved_at DATETIME     NULL COMMENT 'NULL = 미처리',
-    PRIMARY KEY (log_id),
+    log_id      SERIAL      PRIMARY KEY,
+    robot_id    VARCHAR(10) NOT NULL,
+    user_id     VARCHAR(50) NULL,
+    event_type  VARCHAR(20) NOT NULL,   -- 'LOCKED' | 'HALTED'
+    occurred_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP   NULL,       -- NULL = 미처리
     FOREIGN KEY (robot_id) REFERENCES ROBOT(robot_id)
-) ENGINE=InnoDB;
+);
 
 -- ──────────────────────────────────────────────
 -- 이벤트 로그
 -- ──────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS EVENT_LOG (
-    event_id     INT          NOT NULL AUTO_INCREMENT,
-    robot_id     VARCHAR(10)  NOT NULL,
-    user_id      VARCHAR(50)  NULL,
-    event_type   VARCHAR(30)  NOT NULL
-        COMMENT 'SESSION_START|SESSION_END|FORCE_TERMINATE|LOCKED|HALTED|STAFF_RESOLVED|PAYMENT_SUCCESS|MODE_CHANGE|OFFLINE|ONLINE',
-    event_detail TEXT         NULL,
-    occurred_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (event_id),
+    event_id     SERIAL      PRIMARY KEY,
+    robot_id     VARCHAR(10) NOT NULL,
+    user_id      VARCHAR(50) NULL,
+    event_type   VARCHAR(30) NOT NULL,
+    -- 'SESSION_START|SESSION_END|FORCE_TERMINATE|LOCKED|HALTED|STAFF_RESOLVED|PAYMENT_SUCCESS|MODE_CHANGE|OFFLINE|ONLINE'
+    event_detail TEXT        NULL,
+    occurred_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (robot_id) REFERENCES ROBOT(robot_id)
-) ENGINE=InnoDB;
+);
 
 -- ──────────────────────────────────────────────
 -- 세션 / 장바구니
 -- ──────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS SESSION (
-    session_id  INT          NOT NULL AUTO_INCREMENT,
-    robot_id    VARCHAR(10)  NOT NULL,
-    user_id     VARCHAR(50)  NOT NULL,
-    is_active   TINYINT(1)   NOT NULL DEFAULT 1,
-    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at  DATETIME     NOT NULL,
-    PRIMARY KEY (session_id),
+    session_id  SERIAL      PRIMARY KEY,
+    robot_id    VARCHAR(10) NOT NULL,
+    user_id     VARCHAR(50) NOT NULL,
+    is_active   BOOLEAN     NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at  TIMESTAMP   NOT NULL,
     FOREIGN KEY (robot_id) REFERENCES ROBOT(robot_id),
-    FOREIGN KEY (user_id)  REFERENCES USER(user_id)
-) ENGINE=InnoDB;
+    FOREIGN KEY (user_id)  REFERENCES users(user_id)
+);
+
+-- 활성 세션 중 유저 1명 = 세션 1개
+CREATE UNIQUE INDEX IF NOT EXISTS uk_active_session_user
+    ON SESSION (user_id) WHERE is_active = TRUE;
+
+-- 활성 세션 중 로봇 1대 = 세션 1개
+CREATE UNIQUE INDEX IF NOT EXISTS uk_active_session_robot
+    ON SESSION (robot_id) WHERE is_active = TRUE;
 
 CREATE TABLE IF NOT EXISTS CART (
-    cart_id    INT NOT NULL AUTO_INCREMENT,
-    session_id INT NOT NULL,
-    PRIMARY KEY (cart_id),
+    cart_id    SERIAL PRIMARY KEY,
+    session_id INT    NOT NULL,
     FOREIGN KEY (session_id) REFERENCES SESSION(session_id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+);
 
 CREATE TABLE IF NOT EXISTS CART_ITEM (
-    item_id      INT          NOT NULL AUTO_INCREMENT,
+    item_id      SERIAL       PRIMARY KEY,
     cart_id      INT          NOT NULL,
     product_name VARCHAR(100) NOT NULL,
     price        INT          NOT NULL DEFAULT 0,
     quantity     INT          NOT NULL DEFAULT 1,
-    scanned_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    is_paid      TINYINT(1)   NOT NULL DEFAULT 0,
-    PRIMARY KEY (item_id),
+    scanned_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_paid      BOOLEAN      NOT NULL DEFAULT FALSE,
     FOREIGN KEY (cart_id) REFERENCES CART(cart_id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+);

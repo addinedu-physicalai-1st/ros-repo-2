@@ -11,11 +11,11 @@ version: '3.9'
 #   docker compose up
 #
 # 환경 변수 (.env 파일 또는 shell export):
-#   MYSQL_HOST     (llm 서버용, 기본 host.docker.internal)
-#   MYSQL_PORT     (기본 3306)
-#   MYSQL_USER     (기본 shoppinkki)
-#   MYSQL_PASSWORD (기본 shoppinkki)
-#   MYSQL_DATABASE (기본 shoppinkki)
+#   PG_HOST     (llm 서버용, 기본 host.docker.internal)
+#   PG_PORT     (기본 5432)
+#   PG_USER     (기본 shoppinkki)
+#   PG_PASSWORD (기본 shoppinkki)
+#   PG_DATABASE (기본 shoppinkki)
 
 services:
   yolo:
@@ -44,11 +44,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - MYSQL_HOST=${MYSQL_HOST:-host.docker.internal}
-      - MYSQL_PORT=${MYSQL_PORT:-3306}
-      - MYSQL_USER=${MYSQL_USER:-shoppinkki}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-shoppinkki}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-shoppinkki}
+      - PG_HOST=${PG_HOST:-host.docker.internal}
+      - PG_PORT=${PG_PORT:-5432}
+      - PG_USER=${PG_USER:-shoppinkki}
+      - PG_PASSWORD=${PG_PASSWORD:-shoppinkki}
+      - PG_DATABASE=${PG_DATABASE:-shoppinkki}
       - HOST=0.0.0.0
       - PORT=8000
     extra_hosts:
