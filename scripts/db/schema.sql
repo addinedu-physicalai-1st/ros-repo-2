@@ -53,6 +53,16 @@ CREATE TABLE IF NOT EXISTS PRODUCT_TEXT_EMBEDDING (
     FOREIGN KEY (product_id) REFERENCES PRODUCT(product_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS ZONE_TEXT_EMBEDDING (
+    id          INT          NOT NULL AUTO_INCREMENT,
+    zone_id     INT          NOT NULL,
+    text        TEXT         NOT NULL,
+    embedding   VECTOR(384)  NULL,
+    model_name  VARCHAR(100) NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (zone_id) REFERENCES ZONE(zone_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ──────────────────────────────────────────────
 -- 경계 설정
 -- ──────────────────────────────────────────────

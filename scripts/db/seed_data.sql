@@ -83,6 +83,27 @@ JOIN PRODUCT p ON p.product_name = v.product_name
 ON CONFLICT DO NOTHING;
 
 -- ──────────────────────────────────────────────
+-- ZONE_TEXT_EMBEDDING
+-- ──────────────────────────────────────────────
+INSERT INTO ZONE_TEXT_EMBEDDING (zone_id, text, embedding, model_name)
+SELECT z.zone_id, v.text, NULL, 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
+FROM (
+  SELECT '입구' AS zone_name, '쇼핑센터 마트로 들어오는 시작 구간, 입구, 시작, 환영합니다. 들어갈래' AS text
+  UNION ALL SELECT '출구', '쇼핑을 마치고 밖으로 나가는 구간, 퇴장, 안녕히 가세요, 나갈래, 집갈래'
+  UNION ALL SELECT '화장실', '생리 현상을 해결하는 곳, 화장실, 소변, 대변, 볼일, 손 씻기, 더러워, 급하다, 마려워, restroom, toilet'
+  UNION ALL SELECT '결제 구역', '물건을 다 사고 돈을 내고 계산하는 곳, 캐셔, 영수증, 결제, 계산대, 돈낼래, 결제할래, 카운터, checkout'
+  UNION ALL SELECT '가전제품', '테크 기기, TV, 냉장고, 에어컨, 세탁기 등 전자제품을 파는 구역. electronics'
+  UNION ALL SELECT '과자', '입이 심심할 때 먹는 달콤한 과자, 스낵, 칩, 초콜릿, 사탕, 젤리가 있는 구역. 단거, 달달한거 먹고 싶어. 당떨어져.'
+  UNION ALL SELECT '해산물', '바다에서 나온 신선한 생선, 연어, 새우, 장어, 생선회가 있는 구역. 비린내 땡기네, 물고기 먹고 싶다. 초밥'
+  UNION ALL SELECT '육류', '고기, 돼지고기, 소고기, 치킨, 오리고기, 닭고기, 정육점이 있는 구역. 고기 굽자, 삼겹살 먹고 싶어. 육식'
+  UNION ALL SELECT '채소', '신선한 야채, 채소, 브로콜리, 상추, 양파, 버섯, 배추, 감자, 당근, 대파가 있는 구역. 건강한 샐러드 먹어야지, 다이어트 음식, 채식'
+  UNION ALL SELECT '음료', '목이 마르거나 갈증이 날 때 시원하게 마실 수 있는 물, 얼음, 주스, 콜라, 사이다, 음료수가 있는 구역. 목마르다, 시원한게 땡기네, 마실거, 커피, 차'
+  UNION ALL SELECT '베이커리', '갓 구운 빵, 베이커리, 식빵, 크루아상, 케이크, 쿠키, 도넛이 있는 구역. 빵 땡겨, 생일 케이크, 아침식사 대용'
+  UNION ALL SELECT '음식', '요리가 귀찮을 때 끓여먹거나 돌려먹는 간편한 음식, 냉동식품, 통조림, 라면, 만두, 냉동피자, 볶음밥 등 레토르트가 있는 구역. 출출해, 밥먹자.'
+) v
+JOIN ZONE z ON z.zone_name = v.zone_name;
+
+-- ──────────────────────────────────────────────
 -- BOUNDARY_CONFIG
 -- ──────────────────────────────────────────────
 

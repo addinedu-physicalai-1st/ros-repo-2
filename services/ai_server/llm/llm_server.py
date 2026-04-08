@@ -130,10 +130,11 @@ def search_context_in_db(name: str) -> Optional[dict]:
     return None
 
 def extract_keywords(user_query: str) -> list[str]:
-    """Ollama를 사용하여 다중 키워드 추출"""
+    """Ollama를 사용하여 다중 키워드 및 연관 카테고리 추출"""
     try:
         prompt = (
-            f"당신은 매장 안내 시스템의 언어 분석기입니다. 다음 질문에서 핵심 '상품명'이나 '구역명', '상위 카테고리'를 최대 3개까지만 콤마(,)로 구분하여 추출하세요.\n"
+            f"당신은 매장 안내 시스템의 언어 분석기입니다. 다음 질문에서 핵심 '상품명'이나 '매장 구역명', 그리고 그 물건의 '상위 카테고리'를 콤마(,)로 구분하여 최대 3개까지만 뽑으세요.\n"
+            f"예: '삼겹살 먹고 싶어' -> '삼겹살, 고기, 육류'\n"
             f"질문: {user_query}\n"
             f"키워드:"
         )
@@ -162,10 +163,11 @@ def query():
     name = request.args.get('name', '').strip()
     if not name: return jsonify({'error': 'name 필요'}), 400
     
+    logger.info('검색 요청: "%s"', name)
     keywords = extract_keywords(name)
+    
     best_result = None
     min_dist = 1.0
-    
     for kw in keywords:
         res = search_context_in_db(kw)
         if res and res['distance'] < min_dist:

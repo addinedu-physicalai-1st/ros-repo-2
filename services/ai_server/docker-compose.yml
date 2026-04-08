@@ -51,6 +51,8 @@ services:
       - PG_DATABASE=${PG_DATABASE:-shoppinkki}
       - HOST=0.0.0.0
       - PORT=8000
+      - OLLAMA_URL=http://host.docker.internal:11434/api/generate
+      - OLLAMA_MODEL=qwen2.5:3b
     extra_hosts:
       - "host.docker.internal:host-gateway"   # Linux에서 호스트 접근
     restart: unless-stopped
