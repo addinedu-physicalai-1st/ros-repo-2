@@ -16,6 +16,7 @@ import struct
 import threading
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Generator, Optional
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,9 @@ YOLO_PORT = int(os.environ.get('YOLO_PORT', '5005'))
 
 MAX_FRAME_BUF = 2   # keep latest N frames per robot
 
+# YOLO는 프레임마다 보내면 병목/스레드 폭증이 발생할 수 있어 rate-limit 한다.
+YOLO_MAX_HZ = float(os.environ.get('YOLO_MAX_HZ', '5'))  # per robot
+
 
 class CameraStream:
     """Receives UDP camera frames from Pi and forwards to YOLO AI server."""
@@ -37,6 +41,9 @@ class CameraStream:
         self._frames: Dict[str, deque] = {}   # robot_id → deque of JPEG bytes
         self._lock = threading.Lock()
         self._running = False
+        self._yolo_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='yolo')
+        self._yolo_last_sent: Dict[str, float] = {}
+        self._yolo_in_flight: Dict[str, bool] = {}
 
     def run(self) -> None:
         """Main loop: receive UDP frames, forward to YOLO, update bbox cache."""
@@ -69,17 +76,25 @@ class CameraStream:
                     self._frames[robot_id] = deque(maxlen=MAX_FRAME_BUF)
                 self._frames[robot_id].append(frame)
 
-            # Forward to YOLO (non-blocking, best-effort)
-            threading.Thread(
-                target=self._query_yolo,
-                args=(robot_id, frame),
-                daemon=True,
-            ).start()
+            # Forward to YOLO (rate-limited, best-effort)
+            if YOLO_MAX_HZ > 0:
+                now = time.monotonic()
+                min_dt = 1.0 / YOLO_MAX_HZ
+                last = self._yolo_last_sent.get(robot_id, 0.0)
+                if (now - last) >= min_dt and not self._yolo_in_flight.get(robot_id, False):
+                    self._yolo_last_sent[robot_id] = now
+                    self._yolo_in_flight[robot_id] = True
+                    self._yolo_pool.submit(self._query_yolo, robot_id, frame)
 
         sock.close()
 
     def stop(self) -> None:
         self._running = False
+        try:
+            self._yolo_pool.shutdown(wait=False, cancel_futures=True)
+        except TypeError:
+            # Python < 3.9 compatibility (but workspace uses 3.12)
+            self._yolo_pool.shutdown(wait=False)
 
     # ── YOLO query ────────────────────────────
 
@@ -107,6 +122,9 @@ class CameraStream:
         except Exception:
             # YOLO server not available — clear bbox
             self._rm.update_bbox(robot_id, None)
+        finally:
+            # allow next request
+            self._yolo_in_flight[robot_id] = False
 
     # ── MJPEG generator ───────────────────────
 
