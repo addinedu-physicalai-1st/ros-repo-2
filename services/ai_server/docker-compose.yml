@@ -41,18 +41,15 @@ services:
       context: ./llm
       dockerfile: Dockerfile
     container_name: shoppinkki_llm
-    ports:
-      - "8000:8000"
+    network_mode: "host"
     environment:
-      - PG_HOST=${PG_HOST:-host.docker.internal}
+      - PG_HOST=${PG_HOST:-127.0.0.1}
       - PG_PORT=${PG_PORT:-5432}
       - PG_USER=${PG_USER:-shoppinkki}
       - PG_PASSWORD=${PG_PASSWORD:-shoppinkki}
       - PG_DATABASE=${PG_DATABASE:-shoppinkki}
       - HOST=0.0.0.0
       - PORT=8000
-      - OLLAMA_URL=http://host.docker.internal:11434/api/generate
+      - OLLAMA_URL=http://127.0.0.1:11434/api/generate
       - OLLAMA_MODEL=qwen2.5:3b
-    extra_hosts:
-      - "host.docker.internal:host-gateway"   # Linux에서 호스트 접근
     restart: unless-stopped

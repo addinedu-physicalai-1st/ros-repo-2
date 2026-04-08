@@ -49,7 +49,7 @@ except Exception as e:
     _embed_model = None
 
 def vector_to_string(values: np.ndarray) -> str:
-    """PostgreSQL pgvector 형식을 위한 문자열 변환"""
+    """PostgreSQL pgvector 형식을 위한 문자열 변환 [v1, v2, ...]"""
     return "[" + ", ".join(f"{v:.8f}" for v in values) + "]"
 
 def get_db_connection():
@@ -111,7 +111,7 @@ def search_context_in_db(name: str) -> Optional[dict]:
                 SELECT 'zone' as type, z.zone_name as display_name, z.zone_id, z.zone_name,
                        (ze.embedding <=> %s::vector) as distance
                 FROM ZONE_TEXT_EMBEDDING ze
-                JOIN ZONE z ON ze.id = z.zone_id
+                JOIN ZONE z ON ze.zone_id = z.zone_id
                 WHERE ze.embedding IS NOT NULL
             ) combined
             ORDER BY distance ASC
