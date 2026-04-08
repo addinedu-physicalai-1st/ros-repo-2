@@ -1,4 +1,4 @@
-"""Integration tests for db.py — requires Docker MySQL to be running.
+"""Integration tests for db.py — requires Docker PostgreSQL to be running.
 
 Run:
     cd ~/ros_ws && python -m pytest src/control_center/control_service/test/test_db.py -v
@@ -6,19 +6,19 @@ Run:
 
 import pytest
 
-# Skip entire module if MySQL is not reachable
+# Skip entire module if PostgreSQL is not reachable
 try:
     from control_service import db
     db.init_pool()
     with db._cursor() as cur:
         cur.execute('SELECT 1')
-    MYSQL_AVAILABLE = True
+    PG_AVAILABLE = True
 except Exception:
-    MYSQL_AVAILABLE = False
+    PG_AVAILABLE = False
 
 pytestmark = pytest.mark.skipif(
-    not MYSQL_AVAILABLE,
-    reason='MySQL not reachable (run: docker compose up -d mysql)',
+    not PG_AVAILABLE,
+    reason='PostgreSQL not reachable (run: docker compose up -d pg)',
 )
 
 
@@ -73,7 +73,7 @@ class TestSessionCart:
         """Clean up any test sessions."""
         with db._cursor() as cur:
             cur.execute(
-                "UPDATE SESSION SET is_active=0 "
+                "UPDATE SESSION SET is_active=FALSE "
                 "WHERE robot_id=%s AND user_id=%s",
                 (self.robot_id, self.user_id),
             )
@@ -89,11 +89,11 @@ class TestSessionCart:
 
         session = db.get_session(sid)
         assert session['robot_id'] == self.robot_id
-        assert session['is_active'] == 1
+        assert session['is_active'] is True
 
         db.end_session(sid)
         session = db.get_session(sid)
-        assert session['is_active'] == 0
+        assert session['is_active'] is False
 
     def test_cart_operations(self):
         existing = db.get_active_session_by_robot(self.robot_id)
@@ -112,7 +112,7 @@ class TestSessionCart:
         items = db.get_cart_items(cid)
         assert len(items) == 1
         assert items[0]['product_name'] == '콜라'
-        assert items[0]['is_paid'] == 0
+        assert items[0]['is_paid'] is False
 
         # Unpaid check
         assert db.has_unpaid_items(cid) is True

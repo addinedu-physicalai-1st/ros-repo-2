@@ -21,17 +21,17 @@ source "$SCRIPTS_DIR/_ros_env.sh"
 
 ROS_ENV="$TMUX_ROS_ENV"
 
-# ── MySQL 컨테이너 확인 및 시작 ────────────────────────────────────────────────
-MYSQL_CONTAINER="shoppinkki_mysql"
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${MYSQL_CONTAINER}$"; then
-    echo "[run_server] MySQL 컨테이너 실행중"
+# ── PostgreSQL 컨테이너 확인 및 시작 ────────────────────────────────────────────────
+PG_CONTAINER="shoppinkki_pg"
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${PG_CONTAINER}$"; then
+    echo "[run_server] PostgreSQL 컨테이너 실행중"
 else
-    echo "[run_server] MySQL 컨테이너 시작 중..."
-    docker compose -f "$ROS_WS/docker-compose.yml" up -d mysql
+    echo "[run_server] PostgreSQL 컨테이너 시작 중..."
+    docker compose -f "$ROS_WS/docker-compose.yml" up -d pg
     # healthcheck 통과 대기
-    echo -n "[run_server] MySQL 준비 대기 "
+    echo -n "[run_server] PostgreSQL 준비 대기 "
     for i in $(seq 1 30); do
-        if docker exec "$MYSQL_CONTAINER" mysqladmin ping -h localhost -ushoppinkki -pshoppinkki &>/dev/null; then
+        if docker exec "$PG_CONTAINER" pg_isready -U shoppinkki -d shoppinkki &>/dev/null; then
             echo " OK"
             break
         fi
@@ -63,10 +63,10 @@ tmux set-option -g mouse on 2>/dev/null || true
 
 # ── 창 생성 ────────────────────────────────────────────────────────────────────
 
-# 창 0: MySQL 로그
-tmux new-session -d -s "$SESSION" -n "mysql"
-tmux send-keys -t "${SESSION}:mysql" \
-    "docker logs -f $MYSQL_CONTAINER" Enter
+# 창 0: PostgreSQL 로그
+tmux new-session -d -s "$SESSION" -n "pg"
+tmux send-keys -t "${SESSION}:pg" \
+    "docker logs -f $PG_CONTAINER" Enter
 
 # 창 1: control_service
 tmux new-window -t "${SESSION}" -n "control"
@@ -89,7 +89,7 @@ echo ""
 echo "┌─────────────────────────────────────────────────────┐"
 echo "│         쑈삥끼 서버 스택 기동                       │"
 echo "├─────────────────────────────────────────────────────┤"
-echo "│  0. mysql    — Docker ($MYSQL_CONTAINER) :3306        │"
+echo "│  0. pg       — Docker ($PG_CONTAINER) :5432          │"
 echo "│  1. control  — control_service (TCP:8080/REST:8081) │"
 if [ "$NO_AI" = false ]; then
 echo "│  2. ai       — YOLO TCP:5005 / LLM REST:8000        │"
