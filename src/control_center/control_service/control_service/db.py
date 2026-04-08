@@ -1,7 +1,7 @@
-"""MySQL database access layer for control_service.
+"""PostgreSQL database access layer for control_service.
 
 Connection pool (size=5) backed by environment variables.
-All queries use %s placeholders and dictionary=True cursors.
+All queries use %s placeholders and RealDictCursor for dict rows.
 """
 
 from __future__ import annotations
@@ -13,12 +13,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import mysql.connector
-from mysql.connector import pooling
+import psycopg2
+import psycopg2.extras
+import psycopg2.pool
 
 logger = logging.getLogger(__name__)
 
-_pool: Optional[pooling.MySQLConnectionPool] = None
+_pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
 
 
 # ──────────────────────────────────────────────
@@ -42,20 +43,19 @@ def init_pool() -> None:
     if _pool is not None:
         return
     _load_env()
-    _pool = pooling.MySQLConnectionPool(
-        pool_name='shoppinkki',
-        pool_size=5,
-        host=os.environ.get('MYSQL_HOST', '127.0.0.1'),
-        port=int(os.environ.get('MYSQL_PORT', '3306')),
-        user=os.environ.get('MYSQL_USER', 'shoppinkki'),
-        password=os.environ.get('MYSQL_PASSWORD', 'shoppinkki'),
-        database=os.environ.get('MYSQL_DATABASE', 'shoppinkki'),
-        autocommit=False,
+    _pool = psycopg2.pool.ThreadedConnectionPool(
+        minconn=1,
+        maxconn=5,
+        host=os.environ.get('PG_HOST', '127.0.0.1'),
+        port=int(os.environ.get('PG_PORT', '5432')),
+        user=os.environ.get('PG_USER', 'shoppinkki'),
+        password=os.environ.get('PG_PASSWORD', 'shoppinkki'),
+        dbname=os.environ.get('PG_DATABASE', 'shoppinkki'),
     )
     logger.info('DB pool initialised (%s:%s/%s)',
-                os.environ.get('MYSQL_HOST', '127.0.0.1'),
-                os.environ.get('MYSQL_PORT', '3306'),
-                os.environ.get('MYSQL_DATABASE', 'shoppinkki'))
+                os.environ.get('PG_HOST', '127.0.0.1'),
+                os.environ.get('PG_PORT', '5432'),
+                os.environ.get('PG_DATABASE', 'shoppinkki'))
 
 
 @contextmanager
@@ -63,17 +63,22 @@ def _cursor(dictionary: bool = True):
     """Context manager: get cursor, commit on success, rollback on error."""
     if _pool is None:
         init_pool()
-    conn = _pool.get_connection()  # type: ignore[union-attr]
-    cur = conn.cursor(dictionary=dictionary)
+    conn = _pool.getconn()  # type: ignore[union-attr]
     try:
-        yield cur
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
+        if dictionary:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        else:
+            cur = conn.cursor()
+        try:
+            yield cur
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
     finally:
-        cur.close()
-        conn.close()
+        _pool.putconn(conn)
 
 
 # ──────────────────────────────────────────────
@@ -108,7 +113,7 @@ def update_robot(robot_id: str, **fields) -> None:
 
 def get_user(user_id: str) -> Optional[Dict]:
     with _cursor() as cur:
-        cur.execute('SELECT * FROM USER WHERE user_id = %s', (user_id,))
+        cur.execute('SELECT * FROM users WHERE user_id = %s', (user_id,))
         return cur.fetchone()
 
 
@@ -122,10 +127,10 @@ def create_session(robot_id: str, user_id: str, hours: int = 4) -> int:
     with _cursor() as cur:
         cur.execute(
             'INSERT INTO SESSION (robot_id, user_id, is_active, expires_at) '
-            'VALUES (%s, %s, 1, %s)',
+            'VALUES (%s, %s, TRUE, %s) RETURNING session_id',
             (robot_id, user_id, expires),
         )
-        session_id = cur.lastrowid
+        session_id = cur.fetchone()['session_id']
     # Also create empty cart
     with _cursor() as cur:
         cur.execute('INSERT INTO CART (session_id) VALUES (%s)', (session_id,))
@@ -142,7 +147,7 @@ def get_active_session_by_robot(robot_id: str) -> Optional[Dict]:
     with _cursor() as cur:
         cur.execute(
             'SELECT * FROM SESSION '
-            'WHERE robot_id = %s AND is_active = 1 AND expires_at > NOW()',
+            'WHERE robot_id = %s AND is_active = TRUE AND expires_at > NOW()',
             (robot_id,),
         )
         return cur.fetchone()
@@ -152,7 +157,7 @@ def get_active_session_by_user(user_id: str) -> Optional[Dict]:
     with _cursor() as cur:
         cur.execute(
             'SELECT * FROM SESSION '
-            'WHERE user_id = %s AND is_active = 1 AND expires_at > NOW()',
+            'WHERE user_id = %s AND is_active = TRUE AND expires_at > NOW()',
             (user_id,),
         )
         return cur.fetchone()
@@ -161,7 +166,7 @@ def get_active_session_by_user(user_id: str) -> Optional[Dict]:
 def end_session(session_id: int) -> None:
     with _cursor() as cur:
         cur.execute(
-            'UPDATE SESSION SET is_active = 0 WHERE session_id = %s',
+            'UPDATE SESSION SET is_active = FALSE WHERE session_id = %s',
             (session_id,),
         )
 
@@ -181,7 +186,7 @@ def add_cart_item(cart_id: int, product_name: str, price: int) -> int:
     with _cursor() as cur:
         cur.execute(
             'SELECT item_id FROM CART_ITEM '
-            'WHERE cart_id = %s AND product_name = %s AND price = %s AND is_paid = 0',
+            'WHERE cart_id = %s AND product_name = %s AND price = %s AND is_paid = FALSE',
             (cart_id, product_name, price),
         )
         row = cur.fetchone()
@@ -192,10 +197,11 @@ def add_cart_item(cart_id: int, product_name: str, price: int) -> int:
             )
             return row['item_id']
         cur.execute(
-            'INSERT INTO CART_ITEM (cart_id, product_name, price) VALUES (%s, %s, %s)',
+            'INSERT INTO CART_ITEM (cart_id, product_name, price) VALUES (%s, %s, %s) '
+            'RETURNING item_id',
             (cart_id, product_name, price),
         )
-        return cur.lastrowid
+        return cur.fetchone()['item_id']
 
 
 def update_cart_item_quantity(item_id: int, quantity: int) -> None:
@@ -204,7 +210,7 @@ def update_cart_item_quantity(item_id: int, quantity: int) -> None:
         quantity = 1
     with _cursor() as cur:
         cur.execute(
-            'UPDATE CART_ITEM SET quantity = %s WHERE item_id = %s AND is_paid = 0',
+            'UPDATE CART_ITEM SET quantity = %s WHERE item_id = %s AND is_paid = FALSE',
             (quantity, item_id),
         )
 
@@ -226,7 +232,7 @@ def get_cart_items(cart_id: int) -> List[Dict]:
 def mark_items_paid(cart_id: int) -> None:
     with _cursor() as cur:
         cur.execute(
-            'UPDATE CART_ITEM SET is_paid = 1 WHERE cart_id = %s',
+            'UPDATE CART_ITEM SET is_paid = TRUE WHERE cart_id = %s',
             (cart_id,),
         )
 
@@ -235,7 +241,7 @@ def has_unpaid_items(cart_id: int) -> bool:
     with _cursor() as cur:
         cur.execute(
             'SELECT COUNT(*) AS cnt FROM CART_ITEM '
-            'WHERE cart_id = %s AND is_paid = 0',
+            'WHERE cart_id = %s AND is_paid = FALSE',
             (cart_id,),
         )
         row = cur.fetchone()
@@ -305,10 +311,10 @@ def log_staff_call(robot_id: str, user_id: Optional[str], event_type: str) -> in
     with _cursor() as cur:
         cur.execute(
             'INSERT INTO STAFF_CALL_LOG (robot_id, user_id, event_type) '
-            'VALUES (%s, %s, %s)',
+            'VALUES (%s, %s, %s) RETURNING log_id',
             (robot_id, user_id, event_type),
         )
-        return cur.lastrowid
+        return cur.fetchone()['log_id']
 
 
 def resolve_staff_call(log_id: int) -> None:
