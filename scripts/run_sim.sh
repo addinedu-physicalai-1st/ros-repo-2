@@ -26,11 +26,17 @@ if ! command -v tmux &>/dev/null; then
     exit 1
 fi
 
-# ── 기존 세션 정리 ─────────────────────────────────────────────────────────────
+# ── 기존 세션 및 좀비 프로세스 정리 ───────────────────────────────────────────
 if tmux has-session -t "$SESSION" 2>/dev/null; then
     echo "[run_sim] 기존 '$SESSION' 세션 종료..."
     tmux kill-session -t "$SESSION"
 fi
+# tmux kill-session 후에도 살아남는 Gazebo/Nav2 프로세스 강제 종료
+pkill -f "gz sim" 2>/dev/null || true
+pkill -f "gz_sim" 2>/dev/null || true
+pkill -f "robot_state_publisher" 2>/dev/null || true
+pkill -f "nav2" 2>/dev/null || true
+sleep 1
 
 echo "[run_sim] tmux 세션 '$SESSION' 생성 중..."
 tmux set-option -g mouse on 2>/dev/null || true
