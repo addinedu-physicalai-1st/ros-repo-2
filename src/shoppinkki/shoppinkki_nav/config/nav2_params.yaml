@@ -256,6 +256,32 @@ collision_monitor:
       type: "scan"
       topic: /scan
 
+docking_server:
+  ros__parameters:
+    use_sim_time: false
+    controller_frequency: 50.0
+    initial_perception_timeout: 5.0
+    wait_charge_timeout: 5.0
+    dock_approach_timeout: 30.0
+    undock_linear_tolerance: 0.05
+    undock_angular_tolerance: 0.1
+    max_retries: 3
+    base_frame: "base_link"
+    fixed_frame: "odom"
+    dock_plugins: ["simple_charging_dock"]
+    simple_charging_dock:
+      plugin: "opennav_docking::SimpleChargingDock"
+      docking_threshold: 0.05
+      staging_x_offset: -0.7
+      use_external_detection_pose: false
+      use_battery_status: false
+    docks: ["home_dock"]
+    home_dock:
+      type: "simple_charging_dock"
+      frame: "map"
+      pose: [0.0, 0.0, 0.0]
+    navigator_bt_xml: ""
+
 lifecycle_manager_navigation:
   ros__parameters:
     use_sim_time: false
