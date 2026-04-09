@@ -62,16 +62,34 @@ def get_db_connection():
         connect_timeout=3
     )
 
-def ask_qwen(user_query: str, search_result: str) -> str:
+def ask_qwen(user_query: str, search_result: str, zone_type: str = 'product') -> str:
     """Ollama를 통해 Qwen 2.5 3B 모델에게 답변 생성 요청"""
     try:
-        prompt = (
-            f"당신은 ShopPinkki 매장의 친절한 한국인 AI 점원입니다. 다음 검색 정보를 참고해서 손님에게 한국어로만 아주 짧고 친절하게 대답해 주세요.\n"
-            f"반드시 한자나 다른 외국어를 섞지 말고 순수 한국어로만 자연스럽게 말해 주세요.\n\n"
-            f"매장 정보: {search_result}\n"
-            f"손님 질문: {user_query}\n\n"
-            f"답변 (한 문장으로):"
-        )
+        if zone_type == 'special':
+            # 화장실, 입구, 출구 등 특수 구역은 상품 추천 없이 위치 안내만 수행, '코너' 단어 제외
+            prompt = (
+                f"당신은 ShopPinkki 매장의 베테랑 AI 점원입니다. 손님이 특수 구역(화장실, 입구 등)을 찾고 있습니다.\n"
+                f"매장 정보: {search_result}\n"
+                f"손님 질문: {user_query}\n\n"
+                f"지침:\n"
+                f"1. 상품 추천은 절대 하지 마세요.\n"
+                f"2. 아주 친절하게 '해당 위치는 [구역명]에 있습니다. 안내를 시작할까요?' 형식으로 대답하세요. '코너'라는 단어는 절대 쓰지 마세요.\n"
+                f"3. 반드시 100% 한국어로만 답변하고, 영어나 다른 언어, 기호는 절대 사용하지 마세요.\n\n"
+                f"AI 점원의 답변:"
+            )
+        else:
+            # 일반 상품 구역: 질문 유형에 따라 맞춤형 답변
+            prompt = (
+                f"당신은 ShopPinkki 매장의 베테랑 AI 점원입니다. 다음 형식에 맞춰 아주 친절하게 손님에게 답변해 주세요.\n\n"
+                f"매장 정보: {search_result}\n"
+                f"손님 질문: {user_query}\n\n"
+                f"답변 가이드라인:\n"
+                f"1. 손님이 특정 상품이 어디 있는지 명확하게 물어본 경우(예: '콜라 어딨어?', '휴지 파는 곳은?'), 상품 추천 없이 즉시 '해당 상품은 [구역명] 코너에 있습니다. 안내를 시작할까요?'라고만 깔끔하게 답변하세요.\n"
+                f"2. 손님이 '목말라', '배고파'처럼 모호하게 기분이나 상황만 말한 경우에만, 구역에 어울리는 상품을 가볍게 1~2개 추천하고 '[구역명] 코너에 있습니다. 안내를 시작할까요?'라고 답변하세요.\n"
+                f"3. 어떤 경우든 답변의 마지막 문장은 반드시 '[구역명] 코너에 있습니다. 안내를 시작할까요?' 형식으로 끝나야 합니다.\n"
+                f"4. 반드시 100% 한국어로만 답변하고, 영어나 다른 언어, 특별한 기호(@ 등)는 절대 사용하지 마세요.\n\n"
+                f"AI 점원의 답변:"
+            )
         response = requests.post(
             OLLAMA_URL,
             json={
@@ -99,43 +117,46 @@ def search_context_in_db(name: str) -> Optional[dict]:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
         query = """
-            SELECT type, display_name, zone_id, zone_name, distance FROM (
-                SELECT 'product' as type, p.product_name as display_name, z.zone_id, z.zone_name,
-                       (e.embedding <=> %s::vector) as distance
-                FROM PRODUCT_TEXT_EMBEDDING e
-                JOIN PRODUCT p ON e.product_id = p.product_id
-                JOIN ZONE z ON p.zone_id = z.zone_id
-                WHERE e.embedding IS NOT NULL
+            SELECT type, display_name, zone_id, zone_name, zone_type, distance FROM (
+                -- 1. 상품명 검색 (임계값 0.55)
+                SELECT 'product' as type, p.product_name as display_name, z.zone_id, z.zone_name, z.zone_type,
+                       (te.embedding <=> %s::vector) as distance
+                FROM product_text_embedding te
+                JOIN product p ON te.product_id = p.product_id
+                JOIN zone z ON p.zone_id = z.zone_id
+                WHERE (te.embedding <=> %s::vector) < 0.55
                 
                 UNION ALL
                 
-                SELECT 'zone' as type, z.zone_name as display_name, z.zone_id, z.zone_name,
+                -- 2. 구역 설명 검색 (임계값 0.55)
+                SELECT 'zone' as type, z.zone_name as display_name, z.zone_id, z.zone_name, z.zone_type,
                        (ze.embedding <=> %s::vector) as distance
-                FROM ZONE_TEXT_EMBEDDING ze
-                JOIN ZONE z ON ze.zone_id = z.zone_id
-                WHERE ze.embedding IS NOT NULL
-            ) combined
+                FROM zone_text_embedding ze
+                JOIN zone z ON ze.zone_id = z.zone_id
+                WHERE (ze.embedding <=> %s::vector) < 0.55
+            ) as combined_search
             ORDER BY distance ASC
-            LIMIT 1
+            LIMIT 1;
         """
-        cursor.execute(query, (vec_str, vec_str))
+        cursor.execute(query, (vec_str, vec_str, vec_str, vec_str))
         row = cursor.fetchone()
         cursor.close()
         conn.close()
         
-        # Cosine Distance가 0.55 이하인 경우 유효 매칭으로 간주
-        if row and row['distance'] < 0.55:
-            return row
+        return row
     except Exception as e:
         logger.error('벡터 검색 중 에러: %s', e)
     return None
 
 def extract_keywords(user_query: str) -> list[str]:
-    """Ollama를 사용하여 다중 키워드 및 연관 카테고리 추출"""
+    """사용자 질문에서 핵심 카테고리 명사를 추출함"""
     try:
         prompt = (
-            f"당신은 매장 안내 시스템의 언어 분석기입니다. 다음 질문에서 핵심 '상품명'이나 '매장 구역명', 그리고 그 물건의 '상위 카테고리'를 콤마(,)로 구분하여 최대 3개까지만 뽑으세요.\n"
-            f"예: '삼겹살 먹고 싶어' -> '삼겹살, 고기, 육류'\n"
+            f"당신은 매장 상품 카테고리 분석기입니다. 다음 질문에서 검색에 필요한 핵심 '카테고리 명사'나 '상품명'을 최대 3개만 뽑으세요.\n"
+            f"질문의 어미(-는데, -거 없어? 등)는 무시하고 '음료', '스낵', '화장실', '출구'와 같은 표준 명사 형태로만 출력하세요.\n"
+            f"예: '목이 마른데 시원한거 없어?' -> '음료, 물, 주스'\n"
+            f"예: '삼겹살 먹고 싶어' -> '삼겹살, 돼지고기, 육류'\n"
+            f"예: '이제 집에 갈래' -> '출구, 퇴장'\n"
             f"질문: {user_query}\n"
             f"키워드:"
         )
@@ -151,10 +172,14 @@ def extract_keywords(user_query: str) -> list[str]:
         )
         if response.status_code == 200:
             raw = response.json().get('response', '').strip()
-            return [k.strip() for k in raw.split(',') if k.strip()]
+            raw = re.sub(r"['\">:\-]|(->)", " ", raw)
+            # 불용어 필터링 (검색 품질 저하 방지)
+            stop_words = {'없어', '있어', '있나요', '찾아줘', '어디', '어디야', '건가요'}
+            keywords = [k.strip() for k in re.split(r'[,\n]', raw) if k.strip() and k.strip() not in stop_words]
+            return keywords
     except Exception as e:
         logger.warning("키워드 추출 실패: %s", e)
-    return [user_query]
+    return []
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
@@ -165,19 +190,41 @@ def query():
     if not name: return jsonify({'error': 'name 필요'}), 400
     
     logger.info('검색 요청: "%s"', name)
-    keywords = extract_keywords(name)
+    
+    # 1. 키워드 추출 + 원본 질문 포함
+    extracted_keywords = extract_keywords(name)
+    search_candidates = list(dict.fromkeys(extracted_keywords + [name])) # 순서 유지하며 중복 제거
+    
+    logger.info('검색 후보 키워드: %s', search_candidates)
     
     best_result = None
     min_dist = 1.0
-    for kw in keywords:
+    
+    # 2. 각 후보 키워드별 벡터 검색 수행
+    for kw in search_candidates:
         res = search_context_in_db(kw)
-        if res and res['distance'] < min_dist:
-            min_dist = res['distance']
-            best_result = res
+        if res:
+            dist = res['distance']
+            zone_id = res['zone_id']
+            
+            # [특수 구역 방어 로직] 
+            # 출구(120), 입구(110), 결제구역(150)은 검색어와 아주 명확히 일치하지 않으면 페널티 부여
+            if zone_id in [110, 120, 150]:
+                is_explicit = any(word in kw for word in ['출구', '퇴장', '집에', '나갈', '입구', '들어갈', '결제', '계산', '돈', '카운터'])
+                if not is_explicit:
+                    dist += 0.12 # 페널티 (다른 상품 매칭이 더 우선되도록 함)
+            
+            logger.info('  - 키워드 [%s] 매칭 후보: %s (Weight-Dist: %.4f, Original: %.4f)', kw, res['display_name'], dist, res['distance'])
+            
+            if dist < min_dist and dist < 0.55:
+                min_dist = dist
+                best_result = res
+        else:
+            logger.info('  - 키워드 [%s] 매칭 실패 (임계값 초과)', kw)
             
     if best_result:
-        context_info = f"{best_result['display_name']} (구역: {best_result['zone_name']}, 번호: {best_result['zone_id']})"
-        answer = ask_qwen(name, context_info)
+        search_result_text = f"{best_result['display_name']} (구역: {best_result['zone_name']}, 번호: {best_result['zone_id']})"
+        answer = ask_qwen(name, search_result_text, best_result.get('zone_type', 'product'))
         return jsonify({
             'zone_id': best_result['zone_id'],
             'zone_name': best_result['zone_name'],
