@@ -7,7 +7,7 @@ version: '3.9'
 #   llm  — REST:8000 자연어 상품 위치 검색 서버 (채널 D)
 #
 # 실행:
-#   cd services/ai_server
+#   cd server/ai_service
 #   docker compose up
 #
 # 환경 변수 (.env 파일 또는 shell export):

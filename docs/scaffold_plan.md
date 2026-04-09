@@ -30,7 +30,7 @@ ros_ws/
 
 ---
 
-## EQUIP 레이어 — `src/shoppinkki/`
+## EQUIP 레이어 — `device/shoppinkki/`
 
 Pi 5에서 실행되는 ROS2 패키지 4개. 공통 구조:
 
@@ -200,7 +200,7 @@ shoppinkki_perception/
 
 ---
 
-## SERVER 레이어 — `src/control_center/`
+## SERVER 레이어 — `server/`
 
 서버 PC에서 실행되는 ROS2 패키지 2개.
 
@@ -437,7 +437,7 @@ Non-ROS 서비스. ROS2 빌드 시스템 외부.
 
 ---
 
-### `services/customer_web/`
+### `server/customer_web/`
 
 Flask + SocketIO 고객 웹앱. 포트 8501.
 
@@ -477,7 +477,7 @@ customer_web/
 
 ---
 
-### `services/ai_server/`
+### `server/ai_service/`
 
 Docker Compose. YOLO 추론 서버 + LLM 자연어 검색 서버.
 

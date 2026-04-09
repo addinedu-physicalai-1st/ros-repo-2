@@ -11,8 +11,8 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./scripts/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      - ./scripts/db/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
+      - ./server/control_db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./server/control_db/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "shoppinkki", "-d", "shoppinkki"]
       interval: 5s

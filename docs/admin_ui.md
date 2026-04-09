@@ -2,7 +2,7 @@
 
 > **기술 스택:** PyQt6 데스크톱 앱. 별도 프로세스 또는 별도 기기에서 실행.
 > **통신:** 채널 B (TCP, admin_ui ↔ control_service:8080)
-> **실행:** `ros2 run admin_ui admin_ui` 또는 `python3 src/control_center/admin_ui/admin_ui/main.py`
+> **실행:** `ros2 run admin_ui admin_ui` 또는 `python3 ui/admin_ui/admin_ui/main.py`
 
 ---
 

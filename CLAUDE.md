@@ -93,10 +93,10 @@ Python packages use pytest. Test files are in `test/` subdirectories of each pac
 
 ### customer_web 인증 플로우 테스트
 
-- 테스트 파일: `services/customer_web/tests/test_auth_flow.py` (22개 케이스)
-- 픽스처: `services/customer_web/tests/conftest.py` — ControlClient TCP mock, _ctrl_rest mock
-- 수동 실행: `cd services/customer_web && python3 -m pytest tests/ -v`
-- **pre-commit hook** (`.git/hooks/pre-commit`): `services/customer_web/` 파일이 스테이징되면 자동 실행, 실패 시 커밋 차단
+- 테스트 파일: `server/customer_web/tests/test_auth_flow.py` (22개 케이스)
+- 픽스처: `server/customer_web/tests/conftest.py` — ControlClient TCP mock, _ctrl_rest mock
+- 수동 실행: `cd server/customer_web && python3 -m pytest tests/ -v`
+- **pre-commit hook** (`.git/hooks/pre-commit`): `server/customer_web/` 파일이 스테이징되면 자동 실행, 실패 시 커밋 차단
 
 ## Running the Robot
 
@@ -167,7 +167,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
 # Navigation in sim
 ros2 launch pinky_gz_sim launch_sim_shop.launch.xml
-ros2 launch pinky_navigation gz_bringup_launch.xml map:=src/pinky_pro/pinky_navigation/map/shop.yaml
+ros2 launch pinky_navigation gz_bringup_launch.xml map:=device/pinky_pro/pinky_navigation/map/shop.yaml
 ros2 launch pinky_navigation gz_nav2_view.launch.xml
 ```
 
@@ -185,20 +185,22 @@ ros2 launch shoppinkki_rmf rmf_fleet.launch.py
 
 ```
 ros_ws/
-├── src/
-│   ├── pinky_pro/          ← 하드웨어 플랫폼 패키지 (git submodule, 수정 금지)
-│   ├── shoppinkki/         ← Pi 5 실행 ROS2 패키지
-│   │   ├── shoppinkki_interfaces/   ← 인터페이스 + Mock 구현체
-│   │   ├── shoppinkki_core/         ← 메인 노드 (SM + BT + HW)
-│   │   ├── shoppinkki_nav/          ← Nav2 BT + BoundaryMonitor + shop 맵
-│   │   └── shoppinkki_perception/   ← YOLO bbox 수신 + ReID/QR 스캔
-│   └── control_center/     ← 서버 PC 실행 ROS2 패키지
-│       ├── control_service/         ← ROS2 노드 + TCP(8080) + REST API + 중앙 MySQL DB
-│       ├── admin_ui/                ← TCP 관제 클라이언트
-│       └── shoppinkki_rmf/          ← Open-RMF Fleet Adapter
-├── services/
-│   ├── customer_web/        ← Flask + SocketIO 고객 웹앱 (포트 8501)
-│   └── ai_server/           ← Docker: 커스텀 YOLO(TCP:5005) + LLM(REST:8000)
+├── device/                  ← Pi 5 로봇 실행 패키지
+│   ├── pinky_pro/                   ← 하드웨어 플랫폼 패키지 (수정 금지)
+│   ├── sllidar_ros2/                ← LiDAR 드라이버 (git submodule)
+│   └── shoppinkki/                  ← 쑈삥끼 로봇 ROS2 패키지
+│       ├── shoppinkki_interfaces/   ← 인터페이스 + Mock 구현체
+│       ├── shoppinkki_core/         ← 메인 노드 (SM + BT + HW)
+│       ├── shoppinkki_nav/          ← Nav2 BT + BoundaryMonitor + shop 맵
+│       └── shoppinkki_perception/   ← YOLO bbox 수신 + ReID/QR 스캔
+├── server/                  ← 서버 PC 실행
+│   ├── control_service/             ← ROS2 노드 + TCP(8080) + REST API(:8081)
+│   ├── shoppinkki_rmf/              ← Open-RMF Fleet Adapter
+│   ├── customer_web/                ← Flask + SocketIO 고객 웹앱 (포트 8501)
+│   ├── control_db/                  ← DB 스키마 + 시드 데이터 (PostgreSQL 17)
+│   └── ai_service/                  ← Docker: 커스텀 YOLO(TCP:5005) + LLM(REST:8000)
+├── ui/                      ← 관제 PC
+│   └── admin_ui/                    ← PyQt6 TCP 관제 클라이언트
 └── scripts/
     ├── seed.sh / run_server.sh / run_ui.sh / run_sim.sh / run_robot.sh / run_ai.sh
 ```
@@ -207,10 +209,10 @@ ros_ws/
 
 ## Coding Conventions
 
-**control_service DB (mysql-connector-python):**
+**control_service DB (psycopg2):**
 - 플레이스홀더: `%s`
-- 항상 명시적 cursor 사용, `cursor(dictionary=True)`로 dict row 반환
-- 연결 설정은 환경 변수 `MYSQL_HOST/PORT/USER/PASSWORD/DATABASE`로 관리
+- 항상 명시적 cursor 사용, `RealDictCursor`로 dict row 반환
+- 연결 설정은 환경 변수 `PG_HOST/PORT/USER/PASSWORD/DATABASE`로 관리
 
 ## Key Documentation
 
@@ -229,4 +231,4 @@ ros_ws/
 | `docs/user_requirements.md` | UR 테이블 (LCD 표시 정책 UR-21 포함) |
 | `docs/scenarios/index.md` | 시나리오 목록 SC-01~SC-82 — 상태 전환 단위 테스트 |
 | `cheatsheet.md` | SLAM·Navigation 빠른 명령 참조 |
-| `src/shoppinkki/shoppinkki_core/shoppinkki_core/config.py` | 전체 파라미터 값 (KP_ANGLE, BATTERY_THRESHOLD 등) |
+| `device/shoppinkki/shoppinkki_core/shoppinkki_core/config.py` | 전체 파라미터 값 (KP_ANGLE, BATTERY_THRESHOLD 등) |

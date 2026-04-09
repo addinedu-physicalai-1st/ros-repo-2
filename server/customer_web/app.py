@@ -55,7 +55,7 @@ _SHOP_YAML_PATH = os.environ.get(
     "SHOP_YAML_PATH",
     os.path.join(
         os.path.dirname(__file__),
-        "../../src/shoppinkki/shoppinkki_nav/maps/shop.yaml",
+        "../../device/shoppinkki/shoppinkki_nav/maps/shop.yaml",
     ),
 )
 
