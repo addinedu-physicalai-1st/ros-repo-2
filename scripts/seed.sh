@@ -58,11 +58,13 @@ read -r -p "선택 [1/2/3/4]: " choice
 case "$choice" in
     1)
         echo "[seed.sh] DB 초기화 후 재시딩 ..."
-        # DROP 후 재생성
-        docker exec -i -e PGPASSWORD="$PASS" "$CONTAINER" \
-            psql -U "$USER" -d postgres \
-            -c "DROP DATABASE IF EXISTS $DB;" \
-            -c "CREATE DATABASE $DB OWNER $USER ENCODING 'UTF8';"
+        docker exec -i -e PGPASSWORD="$PASS" "$CONTAINER" psql -U "$USER" -d postgres <<EOF
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE datname = '$DB' AND pid <> pg_backend_pid();
+DROP DATABASE IF EXISTS $DB;
+CREATE DATABASE $DB OWNER $USER ENCODING 'UTF8';
+EOF
         run_sql < "$SCHEMA"
         run_sql < "$SEED"
         echo "✅ 완료 (reset)"

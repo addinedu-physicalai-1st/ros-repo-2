@@ -270,6 +270,12 @@ def get_parking_slots() -> List[Dict]:
         return cur.fetchall()
 
 
+def get_parking_available() -> Optional[Dict]:
+    """First parking slot row (lower zone_id first), or None if none defined."""
+    slots = get_parking_slots()
+    return slots[0] if slots else None
+
+
 # ──────────────────────────────────────────────
 # BOUNDARY
 # ──────────────────────────────────────────────

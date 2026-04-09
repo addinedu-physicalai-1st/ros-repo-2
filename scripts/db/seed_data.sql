@@ -1,7 +1,7 @@
 -- ShopPinkki Seed Data (PostgreSQL 17)
 
 -- ZONE
-INSERT INTO ZONE (zone_id, zone_name, zone_type, waypoint_x, waypoint_y, waypoint_theta) VALUES
+INSERT INTO zone (zone_id, zone_name, zone_type, waypoint_x, waypoint_y, waypoint_theta) VALUES
 (1,   '가전제품',  'product',  0.619, -0.007,  0.0),
 (2,   '과자',     'product',  0.950, -0.007,  0.0),
 (3,   '해산물',   'product',  1.151, -0.300,  3.1416),
@@ -13,11 +13,18 @@ INSERT INTO ZONE (zone_id, zone_name, zone_type, waypoint_x, waypoint_y, waypoin
 (100, '화장실',   'special',  0.812, -1.606,  1.5708),
 (110, '입구',     'special', -0.056, -0.007,  0.0),
 (120, '출구',     'special', -0.056, -1.617,  0.0),
+(140, '충전소_18(P1)','special', -0.056, -0.606, 0.0),
+(141, '충전소_54(P2)','special', -0.056, -0.899, 0.0),
 (150, '결제 구역','special',  0.186, -1.614,  1.5708)
-ON CONFLICT (zone_id) DO UPDATE SET zone_name = EXCLUDED.zone_name;
+ON CONFLICT (zone_id) DO UPDATE SET
+    zone_name      = EXCLUDED.zone_name,
+    zone_type      = EXCLUDED.zone_type,
+    waypoint_x     = EXCLUDED.waypoint_x,
+    waypoint_y     = EXCLUDED.waypoint_y,
+    waypoint_theta = EXCLUDED.waypoint_theta;
 
 -- PRODUCT
-INSERT INTO PRODUCT (product_name, zone_id, price) VALUES
+INSERT INTO product (product_name, zone_id, price) VALUES
 ('TV',       1, 990000), ('냉장고',   1, 1290000), ('에어컨',   1, 1590000),
 ('쌀과자',   2,   2000), ('포카칩',   2,    1800), ('오레오',   2,    2500),
 ('연어',     3,  12000), ('새우',     3,    9000), ('오징어',   3,    8000),
@@ -31,7 +38,7 @@ ON CONFLICT (product_name) DO UPDATE SET
     price   = EXCLUDED.price;
 
 -- PRODUCT_TEXT_EMBEDDING
-INSERT INTO PRODUCT_TEXT_EMBEDDING (product_id, text, model_name)
+INSERT INTO product_text_embedding (product_id, text, model_name)
 SELECT p.product_id, v.text, 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
 FROM (
   VALUES
@@ -61,11 +68,11 @@ FROM (
   ('라면',       '면과 스프를 끓여 만드는 음식으로 뜨거운 국물과 매운맛을 포함할 수 있다. 따뜻한 국물 음식이나 매운 음식을 찾는 경우와 가깝다.'),
   ('떡볶이',     '떡을 양념 소스에 조리한 음식으로 매콤달콤한 분식 메뉴에 해당한다. 분식이나 매콤한 간식을 찾을 때 자주 연결된다.')
 ) AS v(product_name, text)
-JOIN PRODUCT p ON p.product_name = v.product_name
-ON CONFLICT DO NOTHING;
+JOIN product p ON p.product_name = v.product_name
+ON CONFLICT (product_id) DO NOTHING;
 
 -- ZONE_TEXT_EMBEDDING
-INSERT INTO ZONE_TEXT_EMBEDDING (zone_id, text, model_name)
+INSERT INTO zone_text_embedding (zone_id, text, model_name)
 SELECT z.zone_id, v.text, 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
 FROM (
   VALUES
@@ -82,5 +89,35 @@ FROM (
   ('베이커리', '갓 구운 빵, 식빵, 크루아상, 케이크가 있는 구역.'),
   ('음식', '간편한 음식, 냉동식품, 라면, 볶음밥 등이 있는 구역.')
 ) AS v(zone_name, text)
-JOIN ZONE z ON z.zone_name = v.zone_name
-ON CONFLICT DO NOTHING;
+JOIN zone z ON z.zone_name = v.zone_name
+ON CONFLICT (zone_id) DO NOTHING;
+
+-- BOUNDARY_CONFIG
+INSERT INTO boundary_config (description, x_min, x_max, y_min, y_max) VALUES
+('결제 구역',    -0.10,  0.40, -1.70, -1.20),
+('맵 외곽 경계', -0.20,  1.35, -1.80,  0.20)
+ON CONFLICT (description) DO UPDATE SET
+    x_min = EXCLUDED.x_min,
+    x_max = EXCLUDED.x_max,
+    y_min = EXCLUDED.y_min,
+    y_max = EXCLUDED.y_max;
+
+-- ROBOT (active_user_id NULL — users 나중에 삽입)
+INSERT INTO robot (robot_id, ip_address, current_mode) VALUES
+('54', '192.168.102.54', 'CHARGING'),
+('18', '192.168.102.18', 'CHARGING')
+ON CONFLICT (robot_id) DO UPDATE SET
+    ip_address   = EXCLUDED.ip_address,
+    current_mode = EXCLUDED.current_mode;
+
+-- users (customer_web 데모: test01/test02 비밀번호 1234)
+INSERT INTO users (user_id, password_hash) VALUES
+('test01', '$2b$12$6n0jg8wVxTMyXXqw0dksG.GukfhfTZis31aqnEDjsTmn8FxJ3.UDi'),
+('test02', '$2b$12$6n0jg8wVxTMyXXqw0dksG.GukfhfTZis31aqnEDjsTmn8FxJ3.UDi')
+ON CONFLICT (user_id) DO UPDATE SET
+    password_hash = EXCLUDED.password_hash;
+
+INSERT INTO card (user_id, card_alias) VALUES
+('test01', '신한카드 1234'),
+('test02', '국민카드 5678')
+ON CONFLICT (user_id, card_alias) DO NOTHING;
