@@ -162,14 +162,17 @@ class MainWindow(QMainWindow):
         # -- 우: 수직 splitter (카드 패널 / 하단 패널)
         right_splitter = QSplitter(Qt.Orientation.Vertical)
         main_splitter.addWidget(right_splitter)
-        main_splitter.setStretchFactor(0, 0)
+        main_splitter.setStretchFactor(0, 1)
         main_splitter.setStretchFactor(1, 1)
 
-        # 우상: 로봇 카드 행
+        # 우상: 로봇 카드 (상하좌우 중앙)
         card_container = QWidget()
-        card_layout = QHBoxLayout(card_container)
-        card_layout.setContentsMargins(0, 0, 0, 0)
-        card_layout.setSpacing(8)
+        card_outer = QVBoxLayout(card_container)
+        card_outer.setContentsMargins(0, 0, 0, 0)
+        card_outer.addStretch()
+        card_row = QHBoxLayout()
+        card_row.setSpacing(8)
+        card_row.addStretch()
 
         self._robot_cards: dict[str, RobotCard] = {}
         for rid in self._robot_ids:
@@ -177,9 +180,11 @@ class MainWindow(QMainWindow):
             card.command_requested.connect(self._on_command_requested)
             card.card_clicked.connect(self._on_card_clicked)
             card.goto_mode_activated.connect(self._on_goto_mode_activated)
-            card_layout.addWidget(card)
+            card_row.addWidget(card)
             self._robot_cards[rid] = card
-        card_layout.addStretch()
+        card_row.addStretch()
+        card_outer.addLayout(card_row)
+        card_outer.addStretch()
         right_splitter.addWidget(card_container)
 
         # 우중: 카메라 디버그 패널 (기본 숨김)
