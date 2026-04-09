@@ -45,10 +45,10 @@ tmux set-option -g mouse on 2>/dev/null || true
 
 # ── 창 생성 ────────────────────────────────────────────────────────────────────
 
-# 창 0: bringup (Dynamixel 모터 + odometry + TF)
+# 창 0: bringup (Dynamixel 모터 + odometry + TF, namespace=robot_<id>)
 tmux new-session -d -s "$SESSION" -n "bringup"
 tmux send-keys -t "${SESSION}:bringup" \
-    "$TMUX_SRC && $ROS_ENV && cd $ROS_WS && ros2 launch pinky_bringup bringup_robot.launch.xml" Enter
+    "$TMUX_SRC && $ROS_ENV && export ROBOT_ID=$ROBOT_ID && cd $ROS_WS && ros2 launch shoppinkki_nav bringup.launch.py" Enter
 
 # 창 1: navigation (Nav2 + AMCL + slam_toolbox)
 # bringup 안정화 대기 후 실행 (10초)
