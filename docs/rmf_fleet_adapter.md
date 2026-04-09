@@ -99,7 +99,7 @@ docs/
 | 26 | 진열대2_우측우회 | 0.960 | -1.050 | detour |
 | 27 | 진열대2_좌측우회 | 0.460 | -1.050 | detour (26번 대칭) |
 
-충전소: **P1 (idx=2)** → pinky_54, **P2 (idx=3)** → pinky_18
+충전소: **P1 (idx=2)** → pinky_18, **P2 (idx=3)** → pinky_54
 
 > 시각화: `docs/nav_graph_viz.png` / 생성 스크립트: `scripts/visualize_nav_graph.py`
 

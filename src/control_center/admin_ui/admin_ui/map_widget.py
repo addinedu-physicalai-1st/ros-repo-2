@@ -42,6 +42,7 @@ from PyQt6.QtGui import (
     QPen,
     QPixmap,
     QPolygonF,
+    QTransform,
 )
 from PyQt6.QtWidgets import QLabel
 
@@ -170,7 +171,8 @@ class MapWidget(QLabel):
 
         # 맵 이미지
         self._base_pixmap: QPixmap | None = None
-        self._img_h: int = 0  # 원본 PNG 높이
+        self._img_h: int = 0  # 원본 PNG 높이 (회전 전)
+        self._img_w: int = 0  # 원본 PNG 너비 (회전 전)
 
         # 로봇 상태
         self._robot_states: dict[str, dict] = {}
@@ -205,13 +207,11 @@ class MapWidget(QLabel):
         if pix.isNull():
             return
 
-        self._base_pixmap = pix
+        # 원본 크기 저장 (좌표 변환용)
+        self._img_w = pix.width()
         self._img_h = pix.height()
-        self.setFixedSize(pix.size())
 
         # PNG/PGM scale 자동 계산 (PGM resolution 기준)
-        # PGM 크기 = PNG 크기 / scale
-        # YAML resolution은 PGM 기준이므로, 픽셀 변환 시 scale 곱해야 함
         yaml_path = _find_map_yaml()
         if yaml_path:
             pgm_dir = os.path.dirname(yaml_path)
@@ -227,30 +227,35 @@ class MapWidget(QLabel):
         if self._scale < 1:
             self._scale = 1
 
+        # 270° CW (= 90° CCW) 회전하여 가로 맵으로 표시
+        rotated = pix.transformed(QTransform().rotate(270))
+        self._base_pixmap = rotated
+        self.setFixedSize(rotated.size())
+
     # ── 좌표 변환 ───────────────────────────────────
     #
-    # ROS map_server 표준:
-    #   pixel_col = (x - origin_x) / resolution
-    #   pixel_row = (img_h_pgm - 1) - (y - origin_y) / resolution
+    # 원본 ROS map_server 표준:
+    #   col_orig = (x - origin_x) / resolution * scale
+    #   row_orig = img_h - (y - origin_y) / resolution * scale
     #
-    # PNG = PGM * scale 이므로:
-    #   px = (x - origin_x) / resolution * scale
-    #   py = img_h_png - (y - origin_y) / resolution * scale
+    # 270° CW 회전 후 (90° CCW):
+    #   col_rot = row_orig = img_h - (y - origin_y) / resolution * scale
+    #   row_rot = img_w - col_orig = img_w - (x - origin_x) / resolution * scale
 
     def _world_to_pixel(self, x: float, y: float) -> tuple[int, int]:
-        """월드 좌표 → PNG 픽셀 좌표."""
+        """월드 좌표 → 270° CW 회전된 PNG 픽셀 좌표."""
         s = self._scale
         r = self._resolution
-        px = int((x - self._origin_x) / r * s)
-        py = int(self._img_h - (y - self._origin_y) / r * s)
+        px = int(self._img_h - (y - self._origin_y) / r * s)
+        py = int(self._img_w - (x - self._origin_x) / r * s)
         return px, py
 
     def _pixel_to_world(self, px: int, py: int) -> tuple[float, float]:
-        """PNG 픽셀 좌표 → 월드 좌표."""
+        """270° CW 회전된 PNG 픽셀 좌표 → 월드 좌표."""
         s = self._scale
         r = self._resolution
-        x = self._origin_x + px / s * r
-        y = self._origin_y + (self._img_h - py) / s * r
+        x = self._origin_x + (self._img_w - py) / s * r
+        y = self._origin_y + (self._img_h - px) / s * r
         return x, y
 
     # ── 공개 API ────────────────────────────────────
