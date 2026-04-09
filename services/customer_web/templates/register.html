@@ -95,7 +95,7 @@
     document.getElementById("snapshot-img").src = "data:image/jpeg;base64," + data.image;
     document.getElementById("pending-bbox").value = JSON.stringify(data.bbox || {});
     document.getElementById("panel-waiting").style.display = "none";
-    document.getElementById("panel-confirm").style.display = "";
+    document.getElementById("panel-confirm").style.display = "block";
   });
 
   // 등록 완료 or 시뮬레이션 모드 → /main으로 이동
@@ -122,7 +122,7 @@
   function retakeRegistration() {
     document.getElementById("pending-bbox").value = "{}";
     document.getElementById("panel-confirm").style.display = "none";
-    document.getElementById("panel-waiting").style.display = "";
+    document.getElementById("panel-waiting").style.display = "block";
   }
 
   // [시뮬레이션 모드] 클릭

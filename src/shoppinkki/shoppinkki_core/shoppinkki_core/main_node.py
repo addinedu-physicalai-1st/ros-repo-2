@@ -38,7 +38,7 @@ except ImportError:
 
 from .bt_runner import BTRunner
 from .cmd_handler import CmdHandler
-from .config import BATTERY_THRESHOLD, CHARGER_POSES, CHARGING_COMPLETE_THRESHOLD
+from .config import BATTERY_THRESHOLD, CHARGING_COMPLETE_THRESHOLD
 from .hw_controller import HWController
 from .state_machine import ShoppinkiSM
 
@@ -66,7 +66,7 @@ class ShoppinkiMainNode(Node):
     """Main node: SM + BT Runner + HW + publishers/subscribers."""
 
     def __init__(self) -> None:
-        super().__init__(f'shoppinkki_main_node_{ROBOT_ID}')
+        super().__init__('shoppinkki_main_node')
         self.get_logger().info(f'Starting ShopPinkki main node (robot_id={ROBOT_ID})')
 
         # ── State machine ─────────────────────
@@ -162,6 +162,16 @@ class ShoppinkiMainNode(Node):
             String, f'/robot_{ROBOT_ID}/cmd',
             self._cmd_callback, 10)
 
+        # ── Nav2 action client (admin_goto / navigate_to) ─────
+        # 멀티로봇 환경에서 Nav2는 /robot_<id>/navigate_to_pose 로 실행됨
+        self._nav2_client = None
+        if _NAV2_AVAILABLE:
+            nav2_action = f'robot_{ROBOT_ID}/navigate_to_pose'
+            self._nav2_client = ActionClient(self, NavigateToPose, nav2_action)
+            self.get_logger().info(f'Nav2 action client ready ({nav2_action})')
+        else:
+            self.get_logger().warning('nav2_msgs not available — admin_goto disabled')
+
         # ── Timers ────────────────────────────
         self.create_timer(0.1, self._bt_tick_callback)    # 10 Hz BT tick
         self.create_timer(1.0, self._status_pub_callback)  # 1 Hz status
@@ -199,8 +209,8 @@ class ShoppinkiMainNode(Node):
 
         # ── 카메라 / 스냅샷 상태 ───────────────
         self._cam_frame = None              # 최신 카메라 프레임 (numpy BGR)
-        self._last_snapshot_time: float = 0.0  # 스냅샷 rate-limit (2초)
-        self._snapshot_rate_limit: float = 2.0
+        self._last_snapshot_time: float = 0.0  # 스냅샷 rate-limit (0.5초)
+        self._snapshot_rate_limit: float = 0.5
         # 고객이 /register 페이지에 접속했을 때 True → LCD 카메라 피드 표시
         self._registration_active: bool = False
 
@@ -292,7 +302,7 @@ class ShoppinkiMainNode(Node):
         self.hw.buzz('alert')
 
     def _on_session_end(self) -> None:
-        self.get_logger().info(f'Session ended for robot {ROBOT_ID}')
+        self.get_logger().info('Session ended for robot %s', ROBOT_ID)
         self._cart_items = []
         self.follow_disabled = False
         self.bt_runner.follow_disabled = False
@@ -306,29 +316,18 @@ class ShoppinkiMainNode(Node):
     # ──────────────────────────────────────────
 
     def _on_start_session(self, user_id: str) -> None:
-        self.get_logger().info(f'Session started: user={user_id}')
+        self.get_logger().info('Session started: user=%s', user_id)
 
     def _on_navigate_to(self, zone_id: int, x: float, y: float, theta: float) -> None:
-        self.get_logger().info(f'navigate_to zone={zone_id} ({x:.2f}, {y:.2f}, {theta:.2f})')
-        if self._nav2_client is None:
-            self.get_logger().warning('navigate_to: nav2_msgs not available')
-            return
-        if not self._nav2_client.server_is_ready():
-            self.get_logger().warning('navigate_to: Nav2 action server not ready')
-            return
-        goal_msg = NavigateToPose.Goal()
-        goal_msg.pose = PoseStamped()
-        goal_msg.pose.header.frame_id = 'map'
-        goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
-        goal_msg.pose.pose.position.x = x
-        goal_msg.pose.pose.position.y = y
-        goal_msg.pose.pose.orientation.z = math.sin(theta / 2.0)
-        goal_msg.pose.pose.orientation.w = math.cos(theta / 2.0)
-        self._nav2_client.send_goal_async(goal_msg)
-        self.get_logger().info(f'navigate_to: Nav2 goal sent → ({x:.2f}, {y:.2f})')
+        self.get_logger().info('navigate_to zone=%d (%.2f, %.2f, %.2f)',
+                               zone_id, x, y, theta)
+        # BT4 (bt_guiding) receives the goal via its own Nav2 client
+        # Here we just log; BT4 reads the goal from a shared data object
+        if hasattr(self._bt_guiding, 'set_goal'):
+            self._bt_guiding.set_goal(x, y, theta)
 
     def _on_delete_item(self, item_id: int) -> None:
-        self.get_logger().info(f'delete_item: id={item_id}')
+        self.get_logger().info('delete_item: id=%d', item_id)
         self._cart_items = [i for i in self._cart_items if i.get('id') != item_id]
 
     def _on_enter_registration(self) -> None:
@@ -351,7 +350,7 @@ class ShoppinkiMainNode(Node):
         self.sm.enter_tracking()
 
     def _on_admin_goto(self, x: float, y: float, theta: float) -> None:
-        self.get_logger().info('admin_goto: (%.2f, %.2f, %.2f)' % (x, y, theta))
+        self.get_logger().info('admin_goto: (%.2f, %.2f, %.2f)', x, y, theta)
         if self._nav2_client is None:
             self.get_logger().warning('admin_goto: nav2_msgs not available')
             return
@@ -369,7 +368,7 @@ class ShoppinkiMainNode(Node):
         goal_msg.pose.pose.orientation.w = math.cos(theta / 2.0)
 
         self._nav2_client.send_goal_async(goal_msg)
-        self.get_logger().info('admin_goto: Nav2 goal sent → (%.2f, %.2f)' % (x, y))
+        self.get_logger().info('admin_goto: Nav2 goal sent → (%.2f, %.2f)', x, y)
 
     def _on_arrived(self) -> None:
         self.get_logger().info('Arrived at destination')
@@ -460,8 +459,7 @@ class ShoppinkiMainNode(Node):
                         'bbox': bbox,
                     })
                     self._snapshot_pub.publish(msg)
-                    self.get_logger().debug('snapshot 발행 (bbox conf=%.2f)',
-                                            bbox.get('confidence', 0))
+                    self.get_logger().debug(f'snapshot 발행 (bbox conf={bbox.get("confidence", 0):.2f})')
 
             elif state in ('TRACKING', 'TRACKING_CHECKOUT'):
                 if self.doll_detector is not None:

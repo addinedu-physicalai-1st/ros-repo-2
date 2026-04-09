@@ -31,7 +31,9 @@ try:
     import torch.nn as nn
     import torchvision.models as models
     import torchvision.transforms as T
-    _TORCH_AVAILABLE = True
+    # Force disable local PyTorch models on Pinky to save RAM/CPU 
+    # since AI processing is moved to the laptop.
+    _TORCH_AVAILABLE = False
 except ImportError:
     _TORCH_AVAILABLE = False
     logger.warning('ReIDEngine: torch not available — falling back to colour stats')
