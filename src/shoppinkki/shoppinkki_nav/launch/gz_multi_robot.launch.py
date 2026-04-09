@@ -21,13 +21,11 @@ from launch.actions import (
     SetEnvironmentVariable,
     TimerAction,
 )
-from launch.launch_description_sources import (
-    AnyLaunchDescriptionSource,
-    PythonLaunchDescriptionSource,
-)
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command
 from launch_ros.actions import Node, PushRosNamespace
 from nav2_common.launch import RewrittenYaml
+from shoppinkki_nav.launch_utils import resolve_nav2_params
 
 
 # ── 패키지 경로 ────────────────────────────────────────────────────────────────
@@ -70,11 +68,10 @@ def make_robot_actions(robot: dict, delay: float) -> list:
     """한 로봇에 대한 launch action 목록 생성 (스폰 + 브리지 + Nav2)."""
     ns = robot['ns']
     bridge_yaml = os.path.join(SHOPPINKKI_NAV, 'config', f'bridge_{ns}.yaml')
-    nav2_params_raw = os.path.join(SHOPPINKKI_NAV, 'config', f'nav2_params_{ns}.yaml')
-    # YAML 키에 namespace prefix 추가 (controller_server → robot_XX/controller_server)
-    # multi-robot 환경에서 /robot_XX/controller_server 노드가 params를 올바르게 매칭하도록
+    template = os.path.join(SHOPPINKKI_NAV, 'config', 'nav2_params.yaml')
+    resolved = resolve_nav2_params(template, ns, robot['id'])
     nav2_params = RewrittenYaml(
-        source_file=nav2_params_raw,
+        source_file=resolved,
         root_key=ns,
         param_rewrites={},
         convert_types=True,
@@ -146,63 +143,60 @@ def make_robot_actions(robot: dict, delay: float) -> list:
         output='screen',
     )
 
-    # 3.5) map → <ns>/odom 초기 static TF (AMCL 부트스트랩용)
-    #      Gazebo world frame ≠ map frame 이므로 맵 좌표(map_x/y/yaw) 사용
-    #      AMCL이 초기화되면 동적 TF로 자동 대체됨
-    map_to_odom = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name=f'map_odom_{ns}',
-        arguments=[
-            '--x', robot['map_x'],
-            '--y', robot['map_y'],
-            '--z', '0',
-            '--yaw', robot['map_yaw'],
-            '--pitch', '0',
-            '--roll', '0',
-            '--frame-id', 'map',
-            '--child-frame-id', f'{ns}/odom',
-        ],
-        parameters=[{'use_sim_time': True}],
-        output='screen',
-    )
+    # 4) Nav2 전체 스택 — 단일 lifecycle_manager 로 순차 activate
+    #    localization(map_server, amcl) → navigation(controller, planner, ...) 순서 보장
+    sim_params = [nav2_params, {'use_sim_time': True}]
+    bt_xml_dir = os.path.join(PINKY_NAV, 'behavior_trees')
 
-    # 4) Nav2 스택 — localization + navigation 직접 호출 (component container 제거)
-    #    gz_bringup_launch.xml 우회: component_container_isolated가 params를 먼저 로드해
-    #    controller_server의 plugin 파라미터 매칭을 방해하는 문제 수정
     nav2 = GroupAction([
         PushRosNamespace(ns),
-        IncludeLaunchDescription(
-            AnyLaunchDescriptionSource(
-                os.path.join(PINKY_NAV, 'launch', 'localization_launch.xml')
-            ),
-            launch_arguments={
-                'namespace': ns,
-                'map': MAP_YAML,
-                'params_file': nav2_params,
-                'use_sim_time': 'True',
-            }.items(),
-        ),
-        IncludeLaunchDescription(
-            AnyLaunchDescriptionSource(
-                os.path.join(PINKY_NAV, 'launch', 'navigation_launch.xml')
-            ),
-            launch_arguments={
-                'params_file': nav2_params,
-                'use_sim_time': 'True',
-                # lifecycle_manager_navigation이 localization 노드(map_server, amcl)를
-                # 관리하려는 충돌 방지 — navigation 전용 노드만 명시
-                'lifecycle_nodes': (
-                    "['controller_server', 'smoother_server', 'planner_server',"
-                    " 'behavior_server', 'bt_navigator',"
-                    " 'waypoint_follower', 'velocity_smoother']"
-                ),
-            }.items(),
-        ),
+
+        # ── Localization ──
+        Node(package='nav2_map_server', executable='map_server', name='map_server',
+             output='screen', parameters=[*sim_params, {'yaml_filename': MAP_YAML}]),
+        Node(package='nav2_amcl', executable='amcl', name='amcl',
+             output='screen', parameters=sim_params),
+
+        # ── Navigation ──
+        Node(package='nav2_controller', executable='controller_server', output='screen',
+             parameters=sim_params, remappings=[('cmd_vel', 'cmd_vel_nav')]),
+        Node(package='nav2_smoother', executable='smoother_server', name='smoother_server',
+             output='screen', parameters=sim_params),
+        Node(package='nav2_planner', executable='planner_server', name='planner_server',
+             output='screen', parameters=sim_params),
+        Node(package='nav2_behaviors', executable='behavior_server', name='behavior_server',
+             output='screen', parameters=sim_params),
+        Node(package='nav2_bt_navigator', executable='bt_navigator', name='bt_navigator',
+             output='screen', parameters=[*sim_params, {
+                 'default_nav_to_pose_bt_xml':
+                     os.path.join(bt_xml_dir, 'navigate_to_pose_no_backup.xml'),
+                 'default_nav_through_poses_bt_xml':
+                     os.path.join(bt_xml_dir, 'navigate_through_poses_no_backup.xml'),
+             }]),
+        Node(package='nav2_waypoint_follower', executable='waypoint_follower',
+             name='waypoint_follower', output='screen', parameters=sim_params),
+        Node(package='nav2_velocity_smoother', executable='velocity_smoother',
+             name='velocity_smoother', output='screen', parameters=sim_params,
+             remappings=[('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel')]),
+
+        # ── 단일 lifecycle_manager: 리스트 순서대로 순차 activate ──
+        Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',
+             name='lifecycle_manager', output='screen',
+             parameters=[{
+                 'use_sim_time': True,
+                 'autostart': True,
+                 'node_names': [
+                     'map_server', 'amcl',                    # localization 먼저
+                     'controller_server', 'smoother_server',  # navigation 이후
+                     'planner_server', 'behavior_server',
+                     'bt_navigator', 'waypoint_follower',
+                     'velocity_smoother',
+                 ],
+             }]),
     ])
 
     # delay 적용 (두 번째 로봇은 첫 번째 이후에 스폰)
-    actions = [upload, spawn, bridge, map_to_odom, nav2]
+    actions = [upload, spawn, bridge, nav2]
     if delay > 0:
         return [TimerAction(period=delay, actions=actions)]
     return actions

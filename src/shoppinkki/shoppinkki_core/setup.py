@@ -20,6 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'main_node = shoppinkki_core.main_node:main',
+            'ns_bringup = shoppinkki_core.ns_bringup:main',
         ],
     },
 )

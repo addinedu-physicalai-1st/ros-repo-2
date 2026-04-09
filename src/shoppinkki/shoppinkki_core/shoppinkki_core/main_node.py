@@ -308,7 +308,7 @@ class ShoppinkiMainNode(Node):
         self.hw.buzz('alert')
 
     def _on_session_end(self) -> None:
-        self.get_logger().info('Session ended for robot %s', ROBOT_ID)
+        self.get_logger().info('Session ended for robot %s' % ROBOT_ID)
         self._cart_items = []
         self.follow_disabled = False
         self.bt_runner.follow_disabled = False
@@ -322,7 +322,7 @@ class ShoppinkiMainNode(Node):
     # ──────────────────────────────────────────
 
     def _on_start_session(self, user_id: str) -> None:
-        self.get_logger().info('Session started: user=%s', user_id)
+        self.get_logger().info('Session started: user=%s' % user_id)
 
     def _on_navigate_to(self, zone_id: int, x: float, y: float, theta: float) -> None:
         self.get_logger().info('navigate_to zone=%d (%.2f, %.2f, %.2f)',
@@ -333,7 +333,7 @@ class ShoppinkiMainNode(Node):
             self._bt_guiding.set_goal(x, y, theta)
 
     def _on_delete_item(self, item_id: int) -> None:
-        self.get_logger().info('delete_item: id=%d', item_id)
+        self.get_logger().info('delete_item: id=%d' % item_id)
         self._cart_items = [i for i in self._cart_items if i.get('id') != item_id]
 
     def _on_enter_registration(self) -> None:
@@ -356,7 +356,7 @@ class ShoppinkiMainNode(Node):
         self.sm.enter_tracking()
 
     def _on_admin_goto(self, x: float, y: float, theta: float) -> None:
-        self.get_logger().info('admin_goto: (%.2f, %.2f, %.2f)', x, y, theta)
+        self.get_logger().info('admin_goto: (%.2f, %.2f, %.2f)' % (x, y, theta))
         if self._nav2_client is None:
             self.get_logger().warning('admin_goto: nav2_msgs not available')
             return
@@ -374,7 +374,7 @@ class ShoppinkiMainNode(Node):
         goal_msg.pose.pose.orientation.w = math.cos(theta / 2.0)
 
         self._nav2_client.send_goal_async(goal_msg)
-        self.get_logger().info('admin_goto: Nav2 goal sent → (%.2f, %.2f)', x, y)
+        self.get_logger().info('admin_goto: Nav2 goal sent → (%.2f, %.2f)' % (x, y))
 
     def _on_arrived(self) -> None:
         self.get_logger().info('Arrived at destination')
