@@ -11,7 +11,7 @@
 ```
 ros_ws/
 ├── src/
-│   ├── pinky_pro/                      ← git submodule (수정 금지)
+│   ├── pinky_pro/
 │   ├── shoppinkki/                     ← EQUIP 레이어 — Pi 5 실행 ROS2 패키지
 │   │   ├── shoppinkki_interfaces/
 │   │   ├── shoppinkki_core/

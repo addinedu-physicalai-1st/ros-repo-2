@@ -34,9 +34,7 @@ PINKY_NAV = get_package_share_directory('pinky_navigation')
 PINKY_DESC = get_package_share_directory('pinky_description')
 SHOPPINKKI_NAV = get_package_share_directory('shoppinkki_nav')
 
-MAP_YAML = os.path.join(
-    get_package_share_directory('pinky_navigation'), 'map', 'shop.yaml'
-)
+MAP_YAML = os.path.join(SHOPPINKKI_NAV, 'maps', 'shop.yaml')
 WORLD_FILE = os.path.join(PINKY_GZ, 'worlds', 'shop.world')
 
 # ── 로봇 설정 ──────────────────────────────────────────────────────────────────
