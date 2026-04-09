@@ -100,19 +100,10 @@ def make_robot_actions(robot: dict, delay: float) -> list:
         }],
         output='screen',
     )
-    jsp = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
-        namespace=ns,
-        parameters=[{
-            'source_list': ['joint_states'],
-            'rate': 20.0,
-            'use_sim_time': True,
-        }],
-        output='screen',
-    )
-    upload = GroupAction([rsp, jsp])
+    # joint_state_publisher 불필요 — Gazebo bridge가 /<ns>/joint_states 발행,
+    # robot_state_publisher가 구독하여 바퀴 TF 발행.
+    # JSP를 같이 쓰면 타이밍 불일치로 TF_OLD_DATA 경고 대량 발생.
+    upload = GroupAction([rsp])
 
     # 2) Gazebo에 로봇 스폰
     spawn = Node(
