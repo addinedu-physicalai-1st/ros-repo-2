@@ -42,7 +42,7 @@ tmux send-keys -t "${SESSION}:admin" \
 # 창 1: customer_web (Flask + SocketIO, 포트 8501)
 tmux new-window -t "${SESSION}" -n "customer"
 tmux send-keys -t "${SESSION}:customer" \
-    "$TMUX_SRC && $ROS_ENV && cd $ROS_WS/services/customer_web && python3 app.py" Enter
+    "$TMUX_SRC && $ROS_ENV && cd $ROS_WS/server/customer_web && python3 app.py" Enter
 
 tmux select-window -t "${SESSION}:admin"
 

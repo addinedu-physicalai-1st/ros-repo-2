@@ -82,7 +82,7 @@ def make_robot_actions(robot: dict, delay: float) -> list:
     #    (Gazebo Harmonic 에서 type="lidar" 는 sensors system 에서 발행이 안 되는 버그)
     ns_slash = ns + '/'
     xacro_patch = os.path.join(SHOPPINKKI_NAV, '..', '..', '..', '..',
-                               'src', 'shoppinkki', 'shoppinkki_nav',
+                               'device', 'shoppinkki', 'shoppinkki_nav',
                                'scripts', 'xacro_patch.sh')
     xacro_patch = os.path.normpath(xacro_patch)
     rsp_cmd = Command([

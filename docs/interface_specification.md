@@ -27,7 +27,7 @@ Admin UI ──[TCP :8080]──▶ control_service (채널 B)
 
 ## 1. Python 내부 프로토콜
 
-**위치:** `src/shoppinkki/shoppinkki_interfaces/shoppinkki_interfaces/protocols.py`
+**위치:** `device/shoppinkki/shoppinkki_interfaces/shoppinkki_interfaces/protocols.py`
 
 ### 공유 데이터 타입
 

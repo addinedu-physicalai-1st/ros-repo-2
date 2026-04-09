@@ -2,7 +2,7 @@
 
 Run:
     cd ~/ros_ws
-    python -m pytest src/shoppinkki/shoppinkki_core/test/test_state_machine.py -v
+    python -m pytest device/shoppinkki/shoppinkki_core/test/test_state_machine.py -v
 """
 
 import pytest
