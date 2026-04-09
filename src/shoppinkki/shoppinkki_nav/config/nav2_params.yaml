@@ -247,12 +247,14 @@ lifecycle_manager_navigation:
     use_sim_time: false
     autostart: true
     node_names:
-      - map_server
-      - amcl
       - controller_server
+      - smoother_server
       - planner_server
-      - recoveries_server
+      - behavior_server
       - bt_navigator
+      - waypoint_follower
+      - velocity_smoother
+      - collision_monitor
 
 # Keepout filter lifecycle manager (autostart=false — activated by BT5)
 lifecycle_manager_filter:
