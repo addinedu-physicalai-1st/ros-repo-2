@@ -30,6 +30,9 @@ let followDisabled = false;
 // 도착한 구역명 캐시
 let arrivedZoneName = "";
 
+// control_service TCP 연결 상태 (customer_web ↔ control_service)
+window.CONTROL_CONNECTED = false;
+
 // ── 수신 이벤트 핸들러 ─────────────────────────────────────────
 
 socket.on("connect", () => {
@@ -44,6 +47,7 @@ socket.on("control_connected", (data) => {
   const bar = document.getElementById("ctrl-status");
   if (!bar) return;
   bar.textContent = data.connected ? "" : "⚠ 서버 연결 중...";
+  window.CONTROL_CONNECTED = !!data.connected;
 });
 
 // 내 로봇 메시지인지 확인 (다른 로봇 status/cart 무시)
@@ -272,6 +276,8 @@ const QR_TIMEOUT_SEC = 30;
 let _qrStream = null;      // MediaStream (시뮬레이션 모드)
 let _qrAnimId = null;       // requestAnimationFrame ID
 let _qrLastScanned = "";    // 중복 스캔 방지
+let _qrVideoHealthTimer = null;
+let _qrCloseAfterFirstScan = true; // 첫 스캔 후 자동 닫기
 
 function openQrPanel() {
   const overlay = document.getElementById("qr-overlay");
@@ -298,22 +304,39 @@ function _startQrCamera() {
   if (!wrap || !video) return;
   wrap.style.display = "";
 
-  navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
-  }).then((stream) => {
-    _qrStream = stream;
-    video.srcObject = stream;
-    video.play();
-    _qrScanLoop();
-  }).catch((err) => {
-    console.warn("[QR] 카메라 접근 실패:", err);
-    showToast("카메라를 사용할 수 없습니다");
-    wrap.style.display = "none";
-  });
+  // 일부 환경에서 {facingMode:"environment"} 제약 때문에 검은 화면/장치 선택 문제가 날 수 있어
+  // 실패 시 더 완화된 제약(video:true)로 재시도한다.
+  const preferred = { video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } };
+  const fallback = { video: true };
+
+  const tryGet = (constraints) => navigator.mediaDevices.getUserMedia(constraints);
+
+  tryGet(preferred)
+    .catch((e1) => {
+      console.warn("[QR] 카메라 제약(preferred) 실패, fallback 재시도:", e1);
+      return tryGet(fallback);
+    })
+    .then((stream) => {
+      _qrStream = stream;
+      video.srcObject = stream;
+      const playPromise = video.play();
+      if (playPromise && typeof playPromise.catch === "function") {
+        playPromise.catch((e) => console.warn("[QR] video.play() 실패:", e));
+      }
+      _startQrVideoHealthCheck(video);
+      _qrScanLoop();
+    })
+    .catch((err) => {
+      console.warn("[QR] 카메라 접근 실패:", err);
+      const reason = err && (err.name || err.message) ? (err.name || err.message) : "unknown";
+      showToast(`카메라를 사용할 수 없습니다 (${reason})`);
+      wrap.style.display = "none";
+    });
 }
 
 function _stopQrCamera() {
   if (_qrAnimId) { cancelAnimationFrame(_qrAnimId); _qrAnimId = null; }
+  if (_qrVideoHealthTimer) { clearTimeout(_qrVideoHealthTimer); _qrVideoHealthTimer = null; }
   if (_qrStream) {
     _qrStream.getTracks().forEach((t) => t.stop());
     _qrStream = null;
@@ -324,6 +347,18 @@ function _stopQrCamera() {
   if (wrap) wrap.style.display = "none";
   const resultEl = document.getElementById("qr-scan-result");
   if (resultEl) resultEl.style.display = "none";
+}
+
+function _startQrVideoHealthCheck(video) {
+  if (_qrVideoHealthTimer) { clearTimeout(_qrVideoHealthTimer); _qrVideoHealthTimer = null; }
+  // 스트림이 열렸는데도 videoWidth/Height가 0이면 대개 권한/점유/디바이스 선택 문제다.
+  _qrVideoHealthTimer = setTimeout(() => {
+    if (!_qrStream) return;
+    if ((video.videoWidth || 0) < 2 || (video.videoHeight || 0) < 2) {
+      console.warn("[QR] 비디오 프레임 없음 (videoWidth/Height=0)");
+      showToast("카메라 영상이 들어오지 않습니다 (권한/다른 앱 점유/디바이스 확인)");
+    }
+  }, 1500);
 }
 
 function _qrScanLoop() {
@@ -373,7 +408,15 @@ function _onQrDecoded(data) {
   socket.emit("qr_scan", { data: data });
   // 타임아웃 리셋 (활동 감지)
   _resetQrTimeout();
-  // 1.5초 후 다시 스캔 허용
+
+  // 기본 동작: 첫 스캔이 성공하면 바로 닫아 중복 인식을 막는다.
+  if (_qrCloseAfterFirstScan) {
+    // UI 피드백이 살짝 보이도록 짧게 지연 후 닫기
+    setTimeout(() => closeQrPanel(), 350);
+    return;
+  }
+
+  // (옵션) 여러 개 연속 스캔을 허용할 때만 다시 스캔 허용
   setTimeout(() => { _qrLastScanned = ""; }, 1500);
 }
 
@@ -418,7 +461,9 @@ function requestReturn() {
   const ok = confirm(msg);
   if (!ok) return;
   socket.emit("return", {});
-  sessionEnd();
+  // return 이벤트가 control_service까지 전달되기 전에 페이지가 이동하면 누락될 수 있어
+  // 아주 짧게 지연 후 로그아웃/리다이렉트한다.
+  setTimeout(() => sessionEnd(), 200);
 }
 
 // ── STT (Web Speech API) ───────────────────────────────────────
