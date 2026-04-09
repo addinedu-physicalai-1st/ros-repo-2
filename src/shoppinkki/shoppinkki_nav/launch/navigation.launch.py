@@ -26,6 +26,14 @@ def generate_launch_description():
     pkg_share = get_package_share_directory('shoppinkki_nav')
     nav2_bringup_dir = get_package_share_directory('nav2_bringup')
 
+    robot_id = os.environ.get('ROBOT_ID', '')
+    namespace = f'robot_{robot_id}' if robot_id else ''
+    default_params = (
+        os.path.join(pkg_share, 'config', f'nav2_params_robot_{robot_id}.yaml')
+        if robot_id else
+        os.path.join(pkg_share, 'config', 'nav2_params.yaml')
+    )
+
     # ── Launch arguments ──────────────────────
     map_arg = DeclareLaunchArgument(
         'map',
@@ -34,7 +42,7 @@ def generate_launch_description():
     )
     params_arg = DeclareLaunchArgument(
         'params_file',
-        default_value=os.path.join(pkg_share, 'config', 'nav2_params.yaml'),
+        default_value=default_params,
         description='Path to Nav2 params yaml',
     )
     use_sim_time_arg = DeclareLaunchArgument(
@@ -52,6 +60,7 @@ def generate_launch_description():
             'map': LaunchConfiguration('map'),
             'params_file': LaunchConfiguration('params_file'),
             'use_sim_time': LaunchConfiguration('use_sim_time'),
+            'namespace': namespace,
         }.items(),
     )
 
