@@ -52,6 +52,11 @@ from PyQt6.QtWidgets import QLabel
 ROBOT_ICON_RADIUS = 8
 ARROW_LENGTH_PX = 18
 MAP_DISPLAY_SCALE = 3  # PNG 대비 표시 배율
+
+# 로봇 footprint (m) — base_footprint 기준, 바구니 포함
+ROBOT_FRONT = 0.07   # 앞 (바구니 포함)
+ROBOT_REAR  = 0.08   # 뒤
+ROBOT_HALF_W = 0.055 # 좌우 반폭
 BLINK_INTERVAL_MS = 500
 
 ROBOT_COLORS = [
@@ -396,30 +401,67 @@ class MapWidget(QLabel):
             p.drawLine(cx + r, cy - r, cx - r, cy + r)
             return
 
-        # 원형 아이콘
-        p.setBrush(color)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(cx - r, cy - r, r * 2, r * 2)
+        # footprint 직사각형 (base_footprint 기준 비대칭)
+        d = self._display_scale
+        res = self._resolution
+        s = self._scale
+        # 미터 → 픽셀 변환 계수
+        m2px = d / res * s
+        front_px = ROBOT_FRONT * m2px
+        rear_px = ROBOT_REAR * m2px
+        hw_px = ROBOT_HALF_W * m2px
 
-        # 방향 화살표
-        arrow_m = ARROW_LENGTH_PX * self._resolution / self._scale
-        end_x = pos_x + arrow_m * math.cos(yaw)
-        end_y = pos_y + arrow_m * math.sin(yaw)
-        ax, ay = self._world_to_pixel(end_x, end_y)
+        # 로봇 로컬 좌표 (앞=+x) → 4 꼭짓점
+        corners_local = [
+            ( front_px,  hw_px),   # 앞 좌
+            ( front_px, -hw_px),   # 앞 우
+            (-rear_px,  -hw_px),   # 뒤 우
+            (-rear_px,   hw_px),   # 뒤 좌
+        ]
+        # 맵 회전 보정: 화면상 yaw → 픽셀 회전 (270° CW + 상하반전)
+        screen_angle = -(yaw - math.pi / 2)
+        cos_a = math.cos(screen_angle)
+        sin_a = math.sin(screen_angle)
+        poly = QPolygonF()
+        for lx, ly in corners_local:
+            rx = lx * cos_a - ly * sin_a
+            ry = lx * sin_a + ly * cos_a
+            poly.append(QPointF(cx + rx, cy + ry))
 
+        p.setBrush(QColor(color.red(), color.green(), color.blue(), 140))
+        p.setPen(QPen(color, 1.5))
+        p.drawPolygon(poly)
+
+        # 앞면 표시 (바구니 쪽, 굵은 선) — poly[2],[3]이 화면상 앞면
+        p.setPen(QPen(color.lighter(150), 3))
+        p.drawLine(poly[2], poly[3])
+
+        # 방향 화살표 (중심 → 앞면 중앙에서 돌출)
+        front_mid = QPointF((poly[2].x() + poly[3].x()) / 2,
+                            (poly[2].y() + poly[3].y()) / 2)
+        # 중심 → 앞면 중앙 방향으로 연장
+        dx_arrow = front_mid.x() - cx
+        dy_arrow = front_mid.y() - cy
+        arr_len = math.hypot(dx_arrow, dy_arrow)
+        if arr_len > 0:
+            nx, ny = dx_arrow / arr_len, dy_arrow / arr_len
+        else:
+            nx, ny = 1.0, 0.0
+        ext = front_px * 0.8
+        tip = QPointF(front_mid.x() + nx * ext, front_mid.y() + ny * ext)
         p.setPen(QPen(color.darker(130), 2))
-        p.drawLine(cx, cy, ax, ay)
-
+        p.drawLine(QPointF(cx, cy), tip)
         # 화살촉
-        hs = 5
-        dx, dy = float(ax - cx), float(ay - cy)
-        ang = math.atan2(dy, dx)
+        hs = 8
+        arr_ang = math.atan2(ny, nx)
         p.setBrush(color.darker(130))
         p.setPen(Qt.PenStyle.NoPen)
         p.drawPolygon(QPolygonF([
-            QPointF(ax, ay),
-            QPointF(ax - hs * math.cos(ang - 0.5), ay - hs * math.sin(ang - 0.5)),
-            QPointF(ax - hs * math.cos(ang + 0.5), ay - hs * math.sin(ang + 0.5)),
+            tip,
+            QPointF(tip.x() - hs * math.cos(arr_ang - 0.5),
+                    tip.y() - hs * math.sin(arr_ang - 0.5)),
+            QPointF(tip.x() - hs * math.cos(arr_ang + 0.5),
+                    tip.y() - hs * math.sin(arr_ang + 0.5)),
         ]))
 
         # 점멸 테두리 (LOCKED/HALTED)
@@ -427,11 +469,11 @@ class MapWidget(QLabel):
             if locked_ret:
                 p.setPen(QPen(QColor('#e74c3c'), 3))
                 p.setBrush(Qt.BrushStyle.NoBrush)
-                p.drawEllipse(cx - r - 3, cy - r - 3, (r + 3) * 2, (r + 3) * 2)
+                p.drawPolygon(poly)
             elif mode == 'HALTED':
                 p.setPen(QPen(QColor('#ffffff'), 3))
                 p.setBrush(Qt.BrushStyle.NoBrush)
-                p.drawEllipse(cx - r - 3, cy - r - 3, (r + 3) * 2, (r + 3) * 2)
+                p.drawPolygon(poly)
 
         # ID 레이블 (배경 박스 + 텍스트)
         font = QFont()
@@ -479,14 +521,20 @@ class MapWidget(QLabel):
             QPointF(ex - hs * math.cos(ang + 0.4), ey - hs * math.sin(ang + 0.4)),
         ]))
 
-        # 좌표 텍스트
+        # 좌표 텍스트 (오른쪽 넘치면 왼쪽에 표시)
         if self._click_label:
             font = QFont()
             font.setPointSize(9)
             font.setBold(True)
             p.setFont(font)
+            fm = p.fontMetrics()
+            tw = fm.horizontalAdvance(self._click_label)
+            if mx + 12 + tw > self.width():
+                tx = mx - 12 - tw
+            else:
+                tx = mx + 12
             p.setPen(color)
-            p.drawText(mx + 12, my - 4, self._click_label)
+            p.drawText(tx, my - 4, self._click_label)
 
     def paintEvent(self, event):
         p = QPainter(self)
