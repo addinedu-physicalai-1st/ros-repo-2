@@ -31,6 +31,7 @@ UI:
 """
 
 import math
+import time
 import urllib.request
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
@@ -101,6 +102,8 @@ class CameraDebugPanel(QWidget):
         self._mjpeg_thread: MjpegThread | None = None
         self._bbox: dict | None = None
         self._current_pixmap: QPixmap | None = None
+        self._last_render_ts = 0.0
+        self._max_fps = 12.0  # UI 렌더링 상한 (너무 높으면 렉/CPU 급증)
 
         self.setWindowTitle('카메라 디버그 패널')
         self.setMinimumSize(680, 440)
@@ -172,7 +175,10 @@ class CameraDebugPanel(QWidget):
         if img.isNull():
             return
         self._current_pixmap = QPixmap.fromImage(img)
-        self._render_frame()
+        now = time.monotonic()
+        if (now - self._last_render_ts) >= (1.0 / max(self._max_fps, 1.0)):
+            self._last_render_ts = now
+            self._render_frame()
         w, h = img.width(), img.height()
         self._lbl_status.setText(f'스트리밍 중 {w}x{h}')
 
@@ -198,7 +204,8 @@ class CameraDebugPanel(QWidget):
         scaled = pix.scaled(
             self._lbl_frame.size(),
             Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
+            # Smooth는 고비용이라 실시간 프리뷰에서는 Fast가 체감이 훨씬 좋음
+            Qt.TransformationMode.FastTransformation,
         )
         self._lbl_frame.setPixmap(scaled)
 

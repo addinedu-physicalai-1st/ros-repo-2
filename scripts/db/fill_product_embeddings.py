@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
-"""Fill PRODUCT_TEXT_EMBEDDING.embedding using a sentence-transformers model.
+"""Fill text embeddings using a sentence-transformers model (PostgreSQL).
 
-Reads rows from PRODUCT_TEXT_EMBEDDING and writes VECTOR(384) embeddings using
-MySQL 9's STRING_TO_VECTOR() function.
+Reads rows from PRODUCT_TEXT_EMBEDDING and ZONE_TEXT_EMBEDDING tables
+and writes vector(384) embeddings using pgvector's native cast syntax.
 
 Usage:
-  python3 scripts/db/fill_product_embeddings.py
-  python3 scripts/db/fill_product_embeddings.py --limit 5
   python3 scripts/db/fill_product_embeddings.py --force
-  python3 scripts/db/fill_product_embeddings.py --device cpu
 """
 
 from __future__ import annotations
@@ -18,7 +15,8 @@ import os
 from pathlib import Path
 from typing import Iterable
 
-import mysql.connector
+import psycopg2
+import psycopg2.extras
 from sentence_transformers import SentenceTransformer
 
 DEFAULT_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
@@ -39,105 +37,87 @@ def load_env_file() -> None:
         os.environ.setdefault(key.strip(), value.strip())
 
 
-def get_connection() -> mysql.connector.MySQLConnection:
-    return mysql.connector.connect(
-        host=os.environ.get("MYSQL_HOST", "127.0.0.1"),
-        port=int(os.environ.get("MYSQL_PORT", "3306")),
-        user=os.environ.get("MYSQL_USER", "shoppinkki"),
-        password=os.environ.get("MYSQL_PASSWORD", "shoppinkki"),
-        database=os.environ.get("MYSQL_DATABASE", "shoppinkki"),
+def get_connection() -> psycopg2.extensions.connection:
+    return psycopg2.connect(
+        host=os.environ.get("PG_HOST", "127.0.0.1"),
+        port=int(os.environ.get("PG_PORT", "5432")),
+        user=os.environ.get("PG_USER", "shoppinkki"),
+        password=os.environ.get("PG_PASSWORD", "shoppinkki"),
+        dbname=os.environ.get("PG_DATABASE", "shoppinkki"),
     )
 
 
-def build_select_query(force: bool, limit: int | None) -> tuple[str, tuple]:
+def process_table(table_name: str, model: SentenceTransformer, conn: psycopg2.extensions.connection, force: bool):
+    print(f"\n>>> Processing table: {table_name}")
+    select_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
     where_clause = "" if force else "WHERE embedding IS NULL"
-    limit_clause = " LIMIT %s" if limit is not None else ""
-    params: tuple = (limit,) if limit is not None else ()
-    query = (
-        "SELECT id, text FROM PRODUCT_TEXT_EMBEDDING "
-        f"{where_clause} "
-        "ORDER BY id"
-        f"{limit_clause}"
-    )
-    return query, params
-
-
-def vector_to_string(values: Iterable[float]) -> str:
-    # MySQL STRING_TO_VECTOR expects a string like: "[0.1, 0.2, ...]"
-    return "[" + ", ".join(f"{value:.8f}" for value in values) + "]"
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Fill PRODUCT_TEXT_EMBEDDING.embedding with sentence embeddings."
-    )
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="sentence-transformers model name")
-    parser.add_argument("--batch-size", type=int, default=16, help="embedding batch size")
-    parser.add_argument("--limit", type=int, default=None, help="max number of rows to process")
-    parser.add_argument("--force", action="store_true", help="rebuild embeddings for all rows")
-    parser.add_argument("--device", default=None, help="device override, e.g. cpu")
-    args = parser.parse_args()
-
-    load_env_file()
-
-    print(f"[1/4] Loading model: {args.model}")
-    model_kwargs = {"device": args.device} if args.device else {}
-    model = SentenceTransformer(args.model, **model_kwargs)
-
-    dim = model.get_sentence_embedding_dimension()
-    if dim != EXPECTED_DIM:
-        raise ValueError(
-            f"Model dimension {dim} does not match schema VECTOR({EXPECTED_DIM})."
-        )
-
-    print("[2/4] Connecting to MySQL")
-    conn = get_connection()
-    select_cursor = conn.cursor(dictionary=True)
-
-    query, params = build_select_query(force=args.force, limit=args.limit)
-    select_cursor.execute(query, params)
+    query = f"SELECT id, text FROM {table_name} {where_clause} ORDER BY id"
+    
+    select_cursor.execute(query)
     rows = select_cursor.fetchall()
 
     if not rows:
-        print("No rows to update.")
+        print(f"No rows to update in {table_name}.")
         select_cursor.close()
-        conn.close()
-        return 0
+        return
 
     ids = [row["id"] for row in rows]
     texts = [row["text"] for row in rows]
-    print(f"[3/4] Encoding {len(rows)} rows")
+    print(f"Encoding {len(rows)} rows for {table_name}")
 
     embeddings = model.encode(
         texts,
-        batch_size=args.batch_size,
+        batch_size=16,
         convert_to_numpy=True,
         normalize_embeddings=True,
         show_progress_bar=True,
     )
 
-    print("[4/4] Writing embeddings to MySQL")
+    print(f"Writing embeddings to {table_name}")
     update_cursor = conn.cursor()
-    update_sql = """
-        UPDATE PRODUCT_TEXT_EMBEDDING
-        SET embedding = STRING_TO_VECTOR(%s),
+    update_sql = f"""
+        UPDATE {table_name}
+        SET embedding = %s::vector,
             model_name = %s
         WHERE id = %s
     """
     payload = [
-        (vector_to_string(embedding.tolist()), args.model, row_id)
+        ("[" + ", ".join(f"{v:.8f}" for v in embedding.tolist()) + "]", DEFAULT_MODEL, row_id)
         for row_id, embedding in zip(ids, embeddings, strict=True)
     ]
     update_cursor.executemany(update_sql, payload)
     conn.commit()
-
-    print(f"Updated {update_cursor.rowcount} rows.")
+    print(f"Updated {update_cursor.rowcount} rows in {table_name}.")
     update_cursor.close()
     select_cursor.close()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Fill text embeddings with sentence-transformers.")
+    parser.add_argument("--force", action="store_true", help="rebuild embeddings for all rows")
+    args = parser.parse_args()
+
+    load_env_file()
+
+    print(f"[1/3] Loading model: {DEFAULT_MODEL}")
+    model = SentenceTransformer(DEFAULT_MODEL)
+
+    dim = model.get_sentence_embedding_dimension()
+    if dim != EXPECTED_DIM:
+        raise ValueError(f"Model dimension {dim} does not match schema vector({EXPECTED_DIM}).")
+
+    print("[2/3] Connecting to PostgreSQL")
+    conn = get_connection()
+
+    print("[3/3] Processing tables")
+    process_table("PRODUCT_TEXT_EMBEDDING", model, conn, args.force)
+    process_table("ZONE_TEXT_EMBEDDING", model, conn, args.force)
+
     conn.close()
+    print("\nAll embedding tasks completed successfully.")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

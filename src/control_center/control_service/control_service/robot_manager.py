@@ -89,6 +89,34 @@ class RobotManager:
                     is_locked_return=bool(r['is_locked_return']),
                     active_user_id=r.get('active_user_id'),
                 )
+
+        # 서버 재시작/비정상 종료 등으로 SESSION/CART가 남아있으면,
+        # "아무것도 안 했는데 장바구니가 남는" 문제가 생긴다.
+        # 초기 부팅 시점에 안전하게 정리한다 (로봇이 쇼핑 중인 상태가 아닐 때만).
+        for rid, st in list(self._states.items()):
+            try:
+                sess = db.get_active_session_by_robot(rid)
+                if not sess:
+                    continue
+                # 쇼핑 상태(TRACKING 계열)라면 세션을 유지하는 편이 안전하다.
+                # 그 외(IDLE/CHARGING/RETURNING/LOCKED/OFFLINE/HALTED 등)는
+                # 남은 세션을 정리하고 장바구니를 비운다.
+                if st.mode in ('TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'GUIDING', 'SEARCHING'):
+                    continue
+                cart = db.get_cart_by_session(sess['session_id'])
+                if cart:
+                    db.delete_cart_items(cart['cart_id'])
+                db.end_session(sess['session_id'])
+                db.update_robot(rid, active_user_id=None)
+                with self._lock:
+                    self._states[rid].active_user_id = None
+                db.log_event(rid, 'SESSION_CLEANUP', sess.get('user_id'),
+                             detail=f'boot_cleanup mode={st.mode}')
+                logger.info('Startup cleanup: ended session + cleared cart (robot=%s, mode=%s)',
+                            rid, st.mode)
+            except Exception:
+                logger.exception('Startup cleanup failed (robot=%s)', rid)
+
         self._running = True
         self._cleanup_thread = threading.Thread(
             target=self._cleanup_loop, name='rm-cleanup', daemon=True)
@@ -203,8 +231,12 @@ class RobotManager:
                 logger.warning('publish_init_pose not wired; init_pose dropped for robot=%s',
                                robot_id)
 
-        elif cmd in ('mode', 'resume_tracking', 'force_terminate',
-                     'staff_resolved', 'navigate_to', 'start_session'):
+        elif cmd in ('mode', 'resume_tracking', 'navigate_to', 'start_session'):
+            self._relay_to_pi(robot_id, payload)
+
+        elif cmd in ('force_terminate', 'staff_resolved'):
+            # 세션을 강제 종료하거나 잠금 해제 처리 시, 다음 로그인에 장바구니가 남지 않도록 정리한다.
+            self._clear_active_cart(robot_id, reason=cmd)
             self._relay_to_pi(robot_id, payload)
 
         else:
@@ -224,6 +256,8 @@ class RobotManager:
             self._handle_qr_scan(robot_id, payload)
         elif cmd == 'update_quantity':
             self._handle_update_quantity(robot_id, payload)
+        elif cmd == 'delete_item':
+            self._handle_delete_item(robot_id, payload)
         elif cmd == 'navigate_to':
             zone_id = payload.get('zone_id')
             if zone_id is not None and 'x' not in payload:
@@ -236,8 +270,32 @@ class RobotManager:
                     logger.warning('navigate_to: zone_id=%s not found in DB', zone_id)
             self._relay_to_pi(robot_id, payload)
         elif cmd in ('mode', 'resume_tracking',
-                     'delete_item', 'start_session', 'enter_simulation',
+                     'start_session', 'enter_simulation',
                      'return', 'registration_confirm', 'enter_registration'):
+            if cmd == 'return':
+                # 쇼핑 종료: customer_web의 return 이벤트를 Pi가 이해하는 mode=RETURNING으로 변환해 전달한다.
+                # (Pi는 cmd='return'을 처리하지 않음)
+                #
+                # 1) cart/session 정리 (다음 로그인에 남지 않게)
+                self._clear_active_cart(robot_id, reason='return')
+                try:
+                    session = db.get_active_session_by_robot(robot_id)
+                    if session:
+                        db.end_session(session['session_id'])
+                        db.update_robot(robot_id, active_user_id=None)
+                except Exception:
+                    logger.exception('Failed to end session on return (robot=%s)', robot_id)
+                # 2) Pi에 RETURNING 모드 전환 명령 전달 (Pi가 status를 RETURNING으로 publish)
+                payload = dict(payload)
+                payload.pop('cmd', None)
+                payload_to_pi = {
+                    'cmd': 'mode',
+                    'value': 'RETURNING',
+                }
+                # 기존 필드는 남겨도 CmdHandler가 무시하므로 안전 (robot_id 등)
+                payload_to_pi.update(payload)
+                self._relay_to_pi(robot_id, payload_to_pi)
+                return
             self._relay_to_pi(robot_id, payload)
         else:
             logger.warning('Unknown web cmd=%s', cmd)
@@ -319,6 +377,24 @@ class RobotManager:
             'items': self._format_cart_items(items),
         })
 
+    def _handle_delete_item(self, robot_id: str, payload: dict) -> None:
+        """장바구니 항목 삭제."""
+        item_id = payload.get('item_id')
+        if item_id is None:
+            return
+        db.delete_cart_item(int(item_id))
+        session = db.get_active_session_by_robot(robot_id)
+        if not session:
+            return
+        cart = db.get_cart_by_session(session['session_id'])
+        if not cart:
+            return
+        items = db.get_cart_items(cart['cart_id'])
+        self._push_web(robot_id, {
+            'type': 'cart',
+            'items': self._format_cart_items(items),
+        })
+
     @staticmethod
     def _format_cart_items(rows: list) -> list:
         """DB CART_ITEM 행을 브라우저 스펙(id/name/quantity) 형식으로 변환."""
@@ -329,6 +405,24 @@ class RobotManager:
             'quantity': r.get('quantity', 1),
             'is_paid':  bool(r['is_paid']),
         } for r in rows]
+
+    def _clear_active_cart(self, robot_id: str, reason: str) -> None:
+        """해당 로봇의 활성 세션 장바구니를 비우고 웹에 empty cart push."""
+        try:
+            session = db.get_active_session_by_robot(robot_id)
+            if not session:
+                return
+            cart = db.get_cart_by_session(session['session_id'])
+            if not cart:
+                return
+            db.delete_cart_items(cart['cart_id'])
+            db.log_event(robot_id, 'CART_CLEARED', session.get('user_id'),
+                         detail=f'reason={reason}')
+            # 브라우저 장바구니 즉시 비우기
+            self._push_web(robot_id, {'type': 'cart', 'items': []})
+            logger.info('Cleared cart for robot=%s (reason=%s)', robot_id, reason)
+        except Exception:
+            logger.exception('Failed to clear cart for robot=%s (reason=%s)', robot_id, reason)
 
     # ──────────────────────────────────────────
     # Bbox update (from camera_stream / AI server)
