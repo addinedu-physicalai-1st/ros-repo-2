@@ -18,8 +18,8 @@ if os.path.exists(_font_path):
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-MAP_PGM    = os.path.join(BASE, 'device/pinky_pro/pinky_navigation/map/shop.pgm')
-MAP_YAML   = os.path.join(BASE, 'device/pinky_pro/pinky_navigation/map/shop.yaml')
+MAP_PGM    = os.path.join(BASE, 'device/shoppinkki/shoppinkki_nav/maps/shop.pgm')
+MAP_YAML   = os.path.join(BASE, 'device/shoppinkki/shoppinkki_nav/maps/shop.yaml')
 GRAPH_YAML = os.path.join(BASE, 'server/shoppinkki_rmf/maps/shop_nav_graph.yaml')
 
 # ── 맵 로드 ──────────────────────────────────────────────────────────────────

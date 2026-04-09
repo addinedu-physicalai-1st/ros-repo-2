@@ -167,7 +167,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
 # Navigation in sim
 ros2 launch pinky_gz_sim launch_sim_shop.launch.xml
-ros2 launch pinky_navigation gz_bringup_launch.xml map:=device/pinky_pro/pinky_navigation/map/shop.yaml
+ros2 launch pinky_navigation gz_bringup_launch.xml map:=device/shoppinkki/shoppinkki_nav/maps/shop.yaml
 ros2 launch pinky_navigation gz_nav2_view.launch.xml
 ```
 
@@ -186,7 +186,7 @@ ros2 launch shoppinkki_rmf rmf_fleet.launch.py
 ```
 ros_ws/
 ├── device/                  ← Pi 5 로봇 실행 패키지
-│   ├── pinky_pro/                   ← 하드웨어 플랫폼 패키지 (수정 금지)
+│   ├── pinky_pro/                   ← 하드웨어 플랫폼 패키지
 │   ├── sllidar_ros2/                ← LiDAR 드라이버 (git submodule)
 │   └── shoppinkki/                  ← 쑈삥끼 로봇 ROS2 패키지
 │       ├── shoppinkki_interfaces/   ← 인터페이스 + Mock 구현체
