@@ -347,9 +347,11 @@ class MapWidget(QLabel):
     def mouseReleaseEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton and self._drag_origin_world:
             wx, wy = self._drag_origin_world
-            theta = self._goto_theta
-            self._click_label = f'({wx:.3f}, {wy:.3f}, {math.degrees(theta):.0f}°)'
-            self.map_clicked.emit(wx, wy, theta)
+            display_theta = self._goto_theta
+            # 화면 좌표계 → ROS map frame 보정 (맵 270° CW + 상하반전)
+            ros_theta = display_theta - math.pi / 2
+            self._click_label = f'({wx:.3f}, {wy:.3f}, {math.degrees(display_theta):.0f}°)'
+            self.map_clicked.emit(wx, wy, ros_theta)
             self._drag_origin_px = None
             self._drag_origin_world = None
             self._drag_current_px = None

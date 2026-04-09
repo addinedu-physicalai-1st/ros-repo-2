@@ -350,7 +350,7 @@ class MainWindow(QMainWindow):
             'theta': round(theta, 4),
         }
         self._tcp.send(payload)
-        self._map_widget.set_goto_marker(x, y, theta)
+        # 마커는 드래그 시점에 이미 표시됨 (display_theta 기준)
         import math as _math
         self.statusBar().showMessage(
             f'Robot #{rid} → admin_goto ({x:.3f}, {y:.3f}, {_math.degrees(theta):.0f}°) 전송'
