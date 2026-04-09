@@ -20,7 +20,7 @@ ShopPinkki 프로젝트의 Open-RMF Fleet Adapter 구현 문서.
 ## 2. 패키지 구조
 
 ```
-src/control_center/shoppinkki_rmf/
+server/shoppinkki_rmf/
 ├── config/
 │   └── fleet_config.yaml        ← 플릿 설정 (속도, 배터리, 로봇 목록)
 ├── maps/

@@ -41,7 +41,7 @@ ros2 launch pinky_gz_sim launch_sim_shop.launch.xml
 시뮬레이션의 경우
 ```bash
 ros2 launch pinky_gz_sim launch_sim_shop.launch.xml
-ros2 launch pinky_navigation gz_bringup_launch.xml map:=src/pinky_pro/pinky_navigation/map/shop.yaml
+ros2 launch pinky_navigation gz_bringup_launch.xml map:=device/pinky_pro/pinky_navigation/map/shop.yaml
 ros2 launch pinky_navigation gz_nav2_view.launch.xml
 ```
 
@@ -53,7 +53,7 @@ ros2 launch pinky_navigation gz_nav2_view.launch.xml
 ROBOT_ID=54 ros2 launch shoppinkki_nav bringup.launch.py
 
 # 저장한 정적 맵(yaml)을 로드해 localization + navigation(Nav2) 스택을 실행합니다.
-ros2 launch pinky_navigation bringup_launch.xml map:=src/pinky_pro/pinky_navigation/map/shop.yaml
+ros2 launch pinky_navigation bringup_launch.xml map:=device/pinky_pro/pinky_navigation/map/shop.yaml
 
 # [PC]
 # RViz를 실행해 로봇 위치, 코스트맵, 계획 경로를 시각화하고 목표를 줄 수 있습니다.

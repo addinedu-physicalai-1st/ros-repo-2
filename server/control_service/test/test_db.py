@@ -1,7 +1,7 @@
 """Integration tests for db.py — requires Docker PostgreSQL to be running.
 
 Run:
-    cd ~/ros_ws && python -m pytest src/control_center/control_service/test/test_db.py -v
+    cd ~/ros_ws && python -m pytest server/control_service/test/test_db.py -v
 """
 
 import pytest

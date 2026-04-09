@@ -28,9 +28,17 @@ _pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
 
 def _load_env() -> None:
     """Load .env file from ros_ws root if present (no extra deps needed)."""
-    env_file = Path(__file__).parents[4] / '.env'
-    if env_file.exists():
-        for line in env_file.read_text().splitlines():
+    p = Path(__file__).resolve().parent
+    env_file = None
+    for _ in range(10):
+        candidate = p / '.env'
+        if candidate.exists():
+            env_file = candidate
+            break
+        p = p.parent
+    if env_file is None:
+        return
+    for line in env_file.read_text().splitlines():
             line = line.strip()
             if line and not line.startswith('#') and '=' in line:
                 k, v = line.split('=', 1)

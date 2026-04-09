@@ -3,7 +3,7 @@
 
 set -e
 ROS_WS="$(cd "$(dirname "$0")/.." && pwd)"
-AI_DIR="$ROS_WS/services/ai_server"
+AI_DIR="$ROS_WS/server/ai_service"
 
 # Docker 실행 여부 확인
 if ! docker info > /dev/null 2>&1; then

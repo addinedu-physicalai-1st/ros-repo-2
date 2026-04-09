@@ -9,8 +9,8 @@ CONTAINER="shoppinkki_pg"
 DB="shoppinkki"
 USER="shoppinkki"
 PASS="shoppinkki"
-SCHEMA="$ROOT/scripts/db/schema.sql"
-SEED="$ROOT/scripts/db/seed_data.sql"
+SCHEMA="$ROOT/server/control_db/schema.sql"
+SEED="$ROOT/server/control_db/seed_data.sql"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 # ── PostgreSQL 실행 헬퍼 ─────────────────────────────
@@ -86,7 +86,7 @@ EOF
             echo "    pip install psycopg2-binary 또는 pip install -r requirements.txt"
             exit 1
         fi
-        "$PY" "$ROOT/scripts/db/fill_product_embeddings.py"
+        "$PY" "$ROOT/server/control_db/fill_product_embeddings.py"
         echo "✅ 완료 (embed)"
         ;;
     *)
