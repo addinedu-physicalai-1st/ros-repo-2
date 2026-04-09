@@ -10,9 +10,9 @@ BL_PIN   = 18
 
 class LCD():
     def __init__(self):
-        # LCD 해상도
-        self.w = 240
-        self.h = 320
+        # LCD 해상도 - Landscape 전환
+        self.w = 320
+        self.h = 240
         
         # GPIO 초기화
         GPIO.setmode(GPIO.BCM)
@@ -73,7 +73,7 @@ class LCD():
         self._write_cmd(0xC7); self._write_data(0x92) # VCM control
         
         self._write_cmd(0x3A); self._write_data(0x55) # Pixel Format Set (RGB565)
-        self._write_cmd(0x36); self._write_data(0x00) # Memory Access Control (RGB Mode)
+        self._write_cmd(0x36); self._write_data(0x20) # Memory Access Control (Landscape, RGB, Unflipped)
         
         self._write_cmd(0xB1); self._write_data(0x00); self._write_data(0x12)
         self._write_cmd(0xB6); self._write_data(0x0A); self._write_data(0xA2) # Display Function Control
@@ -110,10 +110,9 @@ class LCD():
         self._write_cmd(0x2C) # Memory Write
 
     def img_show(self, img):
-        # 90도 시계 방향 회전 (320x240 Landscape -> 240x320 Portrait)
-        # PIL.Image.ROTATE_270은 시계 방향 90도 회전을 의미합니다.
-        img = img.transpose(Image.Transpose.ROTATE_270)
-        img = img.resize((self.w, self.h), Image.Resampling.LANCZOS)
+        # Native 320x240 Landscape mode
+        if img.size != (self.w, self.h):
+            img = img.resize((self.w, self.h), Image.NEAREST)
         
         image = np.asarray(img.convert('RGB'))
         
@@ -124,7 +123,7 @@ class LCD():
         pixel_bytes = pixel.tobytes()
         
         self._write_cmd(0x36)
-        self._write_data(0x00) # Ensure RGB mode
+        self._write_data(0x20) # Ensure Landscape RGB mode
         self._set_windows(0, 0, self.w, self.h)
         
         self._write_data_buffer(pixel)

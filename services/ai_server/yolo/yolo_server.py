@@ -35,6 +35,10 @@ from typing import Optional
 
 import cv2
 import numpy as np
+import torch
+import torch.nn as nn
+import torchvision.models as models
+import torchvision.transforms as T
 from ultralytics import YOLO
 
 logging.basicConfig(
@@ -44,11 +48,49 @@ logging.basicConfig(
 logger = logging.getLogger('yolo_server')
 
 # ── 환경 변수 ──────────────────────────────────────────────────────────────────
-MODEL_PATH = os.environ.get('MODEL_PATH', '/app/models/doll_yolov8n.pt')
+MODEL_PATH = os.environ.get('MODEL_PATH', '/app/models/best.pt')
 FALLBACK_MODEL = os.environ.get('FALLBACK_MODEL', 'yolov8n.pt')
-YOLO_CONF = float(os.environ.get('YOLO_CONFIDENCE', '0.40'))
+YOLO_CONF = float(os.environ.get('YOLO_CONFIDENCE', '0.25'))
 HOST = os.environ.get('HOST', '0.0.0.0')
 PORT = int(os.environ.get('PORT', '5005'))
+
+
+# ── ReID 엔진 ────────────────────────────────────────────────────────────────
+class ReIDEngine:
+    def __init__(self):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # MobileNetV3-Small: lightweight, fast inference
+        backbone = models.mobilenet_v3_small(
+            weights=models.MobileNet_V3_Small_Weights.IMAGENET1K_V1
+        )
+        # Remove the classifier head (1024-dim output)
+        self.model = nn.Sequential(*list(backbone.children())[:-1])
+        self.model.to(self.device)
+        self.model.eval()
+
+        self.transform = T.Compose([
+            T.ToPILImage(),
+            T.Resize((224, 224)),
+            T.ToTensor(),
+            T.Normalize(mean=[0.485, 0.456, 0.406],
+                        std=[0.229, 0.224, 0.225]),
+        ])
+        logger.info('ReIDEngine 로드 완료 (%s)', self.device)
+
+    def extract(self, roi):
+        try:
+            rgb = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
+            tensor = self.transform(rgb).unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                feat = self.model(tensor)
+            feat = feat.squeeze().cpu().numpy().astype(np.float32)
+            norm = np.linalg.norm(feat)
+            if norm > 1e-8:
+                feat = feat / norm
+            return feat.tolist()
+        except Exception as e:
+            logger.debug('ReID 추출 실패: %s', e)
+            return [0.0] * 1024
 
 
 def load_model() -> YOLO:
@@ -62,46 +104,47 @@ def load_model() -> YOLO:
     return YOLO(FALLBACK_MODEL)
 
 
-def infer(model: YOLO, frame_bytes: bytes) -> dict:
-    """JPEG bytes → YOLOv8 추론 → bbox dict.
-
-    인형이 여러 개 감지될 경우 신뢰도 가장 높은 1개 반환.
-    감지 없으면 빈 dict 반환.
+def infer(model: YOLO, reid: ReIDEngine, frame_bytes: bytes) -> list[dict]:
+    """JPEG bytes → YOLOv8 + ReID → list of detections.
     """
-    # JPEG 디코드
     buf = np.frombuffer(frame_bytes, dtype=np.uint8)
     img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
     if img is None:
-        logger.warning('프레임 디코드 실패 (길이=%d)', len(frame_bytes))
-        return {}
+        return []
 
     results = model(img, conf=YOLO_CONF, verbose=False)
-
-    best: Optional[dict] = None
-    best_conf = -1.0
-
+    h_img, w_img = img.shape[:2]
+    
+    outputs = []
     for r in results:
         for box in r.boxes:
             conf = float(box.conf[0])
-            if conf <= best_conf:
-                continue
             x1, y1, x2, y2 = map(float, box.xyxy[0])
-            cx = (x1 + x2) / 2.0
-            cy = (y1 + y2) / 2.0
-            area = (x2 - x1) * (y2 - y1)
-            best_conf = conf
-            best = {
-                'cx': round(cx, 1),
-                'cy': round(cy, 1),
-                'area': round(area, 1),
+            
+            # ROI 크롭 및 ReID 추출
+            ix1, iy1, ix2, iy2 = map(int, [max(0, x1), max(0, y1), min(w_img, x2), min(h_img, y2)])
+            if ix2 > ix1 and iy2 > iy1:
+                roi = img[iy1:iy2, ix1:ix2]
+                features = reid.extract(roi)
+            else:
+                features = [0.0] * 1024
+
+            outputs.append({
+                'cx': round((x1 + x2) / 2.0, 1),
+                'cy': round((y1 + y2) / 2.0, 1),
+                'area': round((x2 - x1) * (y2 - y1), 1),
                 'confidence': round(conf, 4),
                 'x1': round(x1, 1),
                 'y1': round(y1, 1),
                 'x2': round(x2, 1),
                 'y2': round(y2, 1),
-            }
+                'features': features
+            })
 
-    return best if best is not None else {}
+    if outputs:
+        logger.info('감지 성공: %d개 인형 (conf=%.2f)', len(outputs), outputs[0]['confidence'])
+
+    return outputs
 
 
 # ── TCP 연결 처리 ──────────────────────────────────────────────────────────────
@@ -117,7 +160,7 @@ def recv_all(sock: socket.socket, n: int) -> bytes:
     return data
 
 
-def handle_client(conn: socket.socket, addr: tuple, model: YOLO) -> None:
+def handle_client(conn: socket.socket, addr: tuple, model: YOLO, reid: ReIDEngine) -> None:
     """단일 클라이언트 연결 처리 (요청-응답 반복)."""
     logger.debug('연결: %s', addr)
     try:
@@ -137,8 +180,8 @@ def handle_client(conn: socket.socket, addr: tuple, model: YOLO) -> None:
                 if len(frame) < frame_len:
                     break
 
-                # 추론
-                result = infer(model, frame)
+                # 추론 (YOLO + ReID)
+                result = infer(model, reid, frame)
                 resp = json.dumps(result, ensure_ascii=False).encode()
 
                 # 응답 전송 (4B 길이 + JSON)
@@ -154,7 +197,8 @@ def handle_client(conn: socket.socket, addr: tuple, model: YOLO) -> None:
 
 def main() -> None:
     model = load_model()
-    logger.info('YOLO 모델 준비 완료. TCP %s:%d 대기 중...', HOST, PORT)
+    reid = ReIDEngine()
+    logger.info('AI 서버 준비 완료 (YOLO + ReID). TCP %s:%d 대기 중...', HOST, PORT)
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -165,7 +209,7 @@ def main() -> None:
         while True:
             conn, addr = server.accept()
             t = threading.Thread(
-                target=handle_client, args=(conn, addr, model), daemon=True
+                target=handle_client, args=(conn, addr, model, reid), daemon=True
             )
             t.start()
     except KeyboardInterrupt:
