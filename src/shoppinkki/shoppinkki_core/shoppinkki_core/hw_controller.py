@@ -8,6 +8,7 @@ without a physical robot.
 from __future__ import annotations
 
 import logging
+import time
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -193,20 +194,15 @@ class HWController:
         except ImportError:
             return None
 
-    def _lcd_show(self, target_img, flip: bool = False):
-        """PIL 이미지를 LCD에 표시.
-        
-        하드웨어 거치를 고려한 회전 처리는 이제 pinky_lcd 드라이버 레벨에서 
-        통합 관리되므로, 여기서는 원본 이미지를 그대로 전달합니다.
-        (단, flip=True인 경우 좌우 반전을 수행합니다.)
-        """
+    # LCD 해상도 — 320x240 Landscape (하드웨어 240x320 가로 거치)
+    LCD_W, LCD_H = 320, 240
+
+    def _lcd_show(self, target_landscape):
+        """PIL 이미지를 LCD에 표시."""
         lcd = self._get_lcd()
         if lcd is not None:
             try:
-                from PIL import Image
-                if flip:
-                    target_img = target_img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-                lcd.img_show(target_img)
+                lcd.img_show(target_landscape)
             except Exception as e:
                 logger.warning('LCD img_show 실패: %s', e)
 
@@ -283,7 +279,7 @@ class HWController:
                 ly = y_off + qh2 + 5
                 draw.text((lx, ly), label, fill=(0, 0, 0), font=font)
 
-        self._lcd_show(target, flip=True)
+        self._lcd_show(target)
 
     def set_lcd_for_state(self, state: str) -> None:
         """SM 상태에 따라 LCD 내용 갱신.
@@ -324,7 +320,7 @@ class HWController:
 
             # BGR → RGB 변환
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            pil_img = Image.fromarray(rgb_frame).resize((self.LCD_W, self.LCD_H), Image.Resampling.LANCZOS)
+            pil_img = Image.fromarray(rgb_frame).resize((self.LCD_W, self.LCD_H), Image.NEAREST)
             self._lcd_show(pil_img)
 
             import os

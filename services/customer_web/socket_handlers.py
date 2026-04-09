@@ -141,6 +141,29 @@ def register_handlers(socketio, control_clients: dict, llm_cfg: dict):
             logger.info("qr_scan: robot_id=%s data=%s", robot_id, qr_data[:100])
             cc.send({"cmd": "qr_scan", "robot_id": robot_id, "qr_data": qr_data})
 
+    # ── 인형 등록 (Registration) ─────────────────────────────────
+ 
+    @socketio.on("enter_registration")
+    def on_enter_registration(data=None):
+        """인형 등록 페이지 진입 → Pi LCD 피드 활성화."""
+        robot_id, cc = _get_client()
+        if cc:
+            logger.info("enter_registration 요청 (robot_id=%s)", robot_id)
+            cc.send({"cmd": "enter_registration", "robot_id": robot_id})
+ 
+    @socketio.on("registration_confirm")
+    def on_registration_confirm(data):
+        """[맞아요] 클릭 → 인형 템플릿 확정."""
+        bbox = data.get("bbox") if isinstance(data, dict) else None
+        robot_id, cc = _get_client()
+        if cc:
+            logger.info("registration_confirm 요청 (robot_id=%s)", robot_id)
+            cc.send({
+                "cmd": "registration_confirm",
+                "robot_id": robot_id,
+                "bbox": bbox,
+            })
+ 
     # ── 시뮬레이션 모드 ───────────────────────────────────────────
 
     @socketio.on("enter_simulation")
