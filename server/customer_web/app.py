@@ -25,7 +25,7 @@ import eventlet
 eventlet.monkey_patch()  # noqa: E402 — 반드시 최상단에서 패치
 
 import requests
-from flask import Flask, abort, flash, get_flashed_messages, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, get_flashed_messages, redirect, render_template, request, send_file, session, url_for
 from flask_socketio import SocketIO
 
 from control_client import ControlClient
@@ -80,6 +80,20 @@ except Exception as _e:
 # ── Flask 앱 ───────────────────────────────────────────────────
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+
+# ── 맵 PNG 서빙 (shoppinkki_nav/maps/ 단일 원본) ──────────────
+_MAP_PNG = os.path.normpath(os.path.join(
+    os.path.dirname(__file__),
+    '../../device/shoppinkki/shoppinkki_nav/maps/shop.png',
+))
+
+
+@app.get('/static/map/shop.png')
+def _serve_map_png():
+    if os.path.isfile(_MAP_PNG):
+        return send_file(_MAP_PNG, mimetype='image/png')
+    abort(404)
+
 
 socketio = SocketIO(
     app,

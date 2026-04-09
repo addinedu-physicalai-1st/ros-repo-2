@@ -51,6 +51,7 @@ from PyQt6.QtWidgets import QLabel
 # ────────────────────────────────────────────────────
 ROBOT_ICON_RADIUS = 8
 ARROW_LENGTH_PX = 18
+MAP_DISPLAY_SCALE = 3  # PNG 대비 표시 배율
 BLINK_INTERVAL_MS = 500
 
 ROBOT_COLORS = [
@@ -74,13 +75,13 @@ def _find_map_yaml() -> str | None:
     """shop.yaml 경로를 찾는다. 없으면 None."""
     candidates: list[str] = []
 
-    # 1) pinky_navigation 패키지 (source of truth)
+    # 1) shoppinkki_nav 패키지 (source of truth)
     try:
         from ament_index_python.packages import get_package_share_directory
         candidates.append(
             os.path.join(
-                get_package_share_directory('pinky_navigation'),
-                'map', 'shop.yaml',
+                get_package_share_directory('shoppinkki_nav'),
+                'maps', 'shop.yaml',
             )
         )
     except Exception:
@@ -90,7 +91,7 @@ def _find_map_yaml() -> str | None:
     candidates.append(
         os.path.join(
             os.path.dirname(__file__), '..', '..', '..', '..',
-            'pinky_pro', 'pinky_navigation', 'map', 'shop.yaml',
+            'device', 'shoppinkki', 'shoppinkki_nav', 'maps', 'shop.yaml',
         )
     )
 
@@ -123,22 +124,25 @@ def _load_map_meta() -> dict[str, Any]:
 # PNG 탐색
 # ────────────────────────────────────────────────────
 def _find_map_png() -> str | None:
-    """shop_map.png 경로를 찾는다."""
+    """shop.png 경로를 찾는다 (shoppinkki_nav/maps/ 단일 원본)."""
     candidates: list[str] = []
 
     try:
         from ament_index_python.packages import get_package_share_directory
         candidates.append(
             os.path.join(
-                get_package_share_directory('admin_ui'),
-                'assets', 'shop_map.png',
+                get_package_share_directory('shoppinkki_nav'),
+                'maps', 'shop.png',
             )
         )
     except Exception:
         pass
 
     candidates.append(
-        os.path.join(os.path.dirname(__file__), '..', 'assets', 'shop_map.png')
+        os.path.join(
+            os.path.dirname(__file__), '..', '..', '..', '..',
+            'device', 'shoppinkki', 'shoppinkki_nav', 'maps', 'shop.png',
+        )
     )
 
     for path in candidates:
@@ -227,10 +231,13 @@ class MapWidget(QLabel):
         if self._scale < 1:
             self._scale = 1
 
-        # 270° CW (= 90° CCW) 회전하여 가로 맵으로 표시
-        rotated = pix.transformed(QTransform().rotate(270))
+        # 270° CW 회전 + 상하 반전
+        rotated = pix.transformed(QTransform().rotate(270).scale(1, -1))
         self._base_pixmap = rotated
-        self.setFixedSize(rotated.size())
+        # 초기 크기: 맵 × MAP_DISPLAY_SCALE, 리사이즈 가능
+        self.setMinimumSize(rotated.width(), rotated.height())
+        self.resize(rotated.width() * MAP_DISPLAY_SCALE,
+                    rotated.height() * MAP_DISPLAY_SCALE)
 
     # ── 좌표 변환 ───────────────────────────────────
     #
@@ -242,20 +249,43 @@ class MapWidget(QLabel):
     #   col_rot = row_orig = img_h - (y - origin_y) / resolution * scale
     #   row_rot = img_w - col_orig = img_w - (x - origin_x) / resolution * scale
 
+    @property
+    def _display_scale(self) -> float:
+        """위젯 크기 / 원본 픽스맵 크기 비율 (비율 유지, 작은 쪽 기준)."""
+        if self._base_pixmap is None or self._base_pixmap.width() == 0:
+            return 1.0
+        sx = self.width() / self._base_pixmap.width()
+        sy = self.height() / self._base_pixmap.height()
+        return min(sx, sy)
+
+    @property
+    def _map_offset(self) -> tuple[int, int]:
+        """비율 유지 시 맵을 위젯 중앙에 배치하기 위한 (ox, oy) 오프셋."""
+        if self._base_pixmap is None:
+            return 0, 0
+        d = self._display_scale
+        draw_w = int(self._base_pixmap.width() * d)
+        draw_h = int(self._base_pixmap.height() * d)
+        return (self.width() - draw_w) // 2, (self.height() - draw_h) // 2
+
     def _world_to_pixel(self, x: float, y: float) -> tuple[int, int]:
-        """월드 좌표 → 270° CW 회전된 PNG 픽셀 좌표."""
+        """월드 좌표 → 위젯 픽셀 좌표."""
         s = self._scale
         r = self._resolution
-        px = int(self._img_h - (y - self._origin_y) / r * s)
-        py = int(self._img_w - (x - self._origin_x) / r * s)
+        d = self._display_scale
+        ox, oy = self._map_offset
+        px = int((self._img_h - (y - self._origin_y) / r * s) * d) + ox
+        py = int((self._img_w - (x - self._origin_x) / r * s) * d) + oy
         return px, py
 
     def _pixel_to_world(self, px: int, py: int) -> tuple[float, float]:
-        """270° CW 회전된 PNG 픽셀 좌표 → 월드 좌표."""
+        """위젯 픽셀 좌표 → 월드 좌표."""
         s = self._scale
         r = self._resolution
-        x = self._origin_x + (self._img_w - py) / s * r
-        y = self._origin_y + (self._img_h - px) / s * r
+        d = self._display_scale
+        ox, oy = self._map_offset
+        x = self._origin_x + (self._img_w - (py - oy) / d) / s * r
+        y = self._origin_y + (self._img_h - (px - ox) / d) / s * r
         return x, y
 
     # ── 공개 API ────────────────────────────────────
@@ -400,7 +430,12 @@ class MapWidget(QLabel):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         if self._base_pixmap is not None:
-            p.drawPixmap(0, 0, self._base_pixmap)
+            d = self._display_scale
+            ox, oy = self._map_offset
+            draw_w = int(self._base_pixmap.width() * d)
+            draw_h = int(self._base_pixmap.height() * d)
+            from PyQt6.QtCore import QRect
+            p.drawPixmap(QRect(ox, oy, draw_w, draw_h), self._base_pixmap)
         else:
             p.fillRect(self.rect(), QColor('#555555'))
             p.setPen(QColor('#ffffff'))
