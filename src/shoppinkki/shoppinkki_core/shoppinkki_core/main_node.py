@@ -58,9 +58,7 @@ logger = logging.getLogger(__name__)
 
 # Robot ID is read from the environment variable ROBOT_ID (default '54')
 ROBOT_ID = os.environ.get('ROBOT_ID', '54')
-# IS_SIM=true → Nav2 is namespaced (robot_XX/navigate_to_pose)
-# IS_SIM=false (default) → real robot, Nav2 runs without namespace (/navigate_to_pose)
-_IS_SIM = os.environ.get('IS_SIM', 'false').lower() == 'true'
+
 
 
 
@@ -92,11 +90,10 @@ class ShoppinkiMainNode(Node):
         self._bt_returning = MockNavBT()
 
         # ── Nav2 action client (admin_goto / navigate_to) ─────
-        # 멀티로봇 환경에서 Nav2는 /robot_<id>/navigate_to_pose 로 실행됨
+        # Nav2는 항상 robot_<id> namespace로 실행됨 (실물/시뮬 동일)
         self._nav2_client = None
         if _NAV2_AVAILABLE:
-            nav2_action = (f'robot_{ROBOT_ID}/navigate_to_pose' if _IS_SIM
-                           else 'navigate_to_pose')
+            nav2_action = f'robot_{ROBOT_ID}/navigate_to_pose'
             self._nav2_client = ActionClient(self, NavigateToPose, nav2_action)
             self.get_logger().info(f'Nav2 action client ready ({nav2_action})')
 

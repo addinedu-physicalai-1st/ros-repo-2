@@ -60,12 +60,12 @@ _SHOP_CORE_MAIN="$ROS_WS/install/shoppinkki_core/lib/shoppinkki_core/main_node"
 # 창 1: shoppinkki_core 로봇 54
 tmux new-window -t "${SESSION}" -n "core54"
 tmux send-keys -t "${SESSION}:core54" \
-    "$TMUX_SRC && $ROS_ENV && IS_SIM=true ROBOT_ID=54 env python3 $_SHOP_CORE_MAIN --ros-args -p use_sim_time:=true" Enter
+    "$TMUX_SRC && $ROS_ENV && ROBOT_ID=54 env python3 $_SHOP_CORE_MAIN --ros-args -p use_sim_time:=true" Enter
 
 # 창 2: shoppinkki_core 로봇 18
 tmux new-window -t "${SESSION}" -n "core18"
 tmux send-keys -t "${SESSION}:core18" \
-    "$TMUX_SRC && $ROS_ENV && IS_SIM=true ROBOT_ID=18 env python3 $_SHOP_CORE_MAIN --ros-args -p use_sim_time:=true" Enter
+    "$TMUX_SRC && $ROS_ENV && ROBOT_ID=18 env python3 $_SHOP_CORE_MAIN --ros-args -p use_sim_time:=true" Enter
 
 tmux select-window -t "${SESSION}:gz"
 
