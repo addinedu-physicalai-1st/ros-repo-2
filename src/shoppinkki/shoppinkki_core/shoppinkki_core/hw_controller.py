@@ -138,7 +138,10 @@ class HWController:
     def _get_customer_web_url() -> str:
         import os
         host = os.environ.get('CUSTOMER_WEB_HOST', '127.0.0.1')
-        return f'http://{host}:8501'
+        return f"http://{host}:8501"
+
+    # LCD 해상도 — 320x240 Landscape (하드웨어 240x320 가로 거치)
+    LCD_W, LCD_H = 320, 240
 
     _TEXT_LINES = {
         'CHARGING':  ['충전 중'],
@@ -190,24 +193,20 @@ class HWController:
         except ImportError:
             return None
 
-    def _lcd_show(self, target_portrait):
+    def _lcd_show(self, target_img, flip: bool = False):
         """PIL 이미지를 LCD에 표시.
-
-        pinky_lcd.img_show() 내부에서 FLIP_LEFT_RIGHT → ROTATE_270 이 적용되므로
-        그 역변환을 먼저 적용한다:
-          source = ROTATE_90_CCW( FLIP_LR(target) )
-        즉 target 을 좌우 반전한 뒤 90° 반시계 회전하면 img_show 이후 원본이 복원된다.
+        
+        하드웨어 거치를 고려한 회전 처리는 이제 pinky_lcd 드라이버 레벨에서 
+        통합 관리되므로, 여기서는 원본 이미지를 그대로 전달합니다.
+        (단, flip=True인 경우 좌우 반전을 수행합니다.)
         """
-        try:
-            from PIL import Image
-        except ImportError:
-            return
-        # 역변환: ROTATE_90 (CCW) → FLIP_LR  (LCD가 FLIP_LR→ROTATE_270 을 적용하므로)
-        source = target_portrait.transpose(Image.ROTATE_90).transpose(Image.FLIP_LEFT_RIGHT)
         lcd = self._get_lcd()
         if lcd is not None:
             try:
-                lcd.img_show(source)
+                from PIL import Image
+                if flip:
+                    target_img = target_img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                lcd.img_show(target_img)
             except Exception as e:
                 logger.warning('LCD img_show 실패: %s', e)
 
@@ -225,17 +224,17 @@ class HWController:
         if font is None:
             return
 
-        target = Image.new('RGB', (240, 320), color=bg)
+        target = Image.new('RGB', (self.LCD_W, self.LCD_H), color=bg)
         draw   = ImageDraw.Draw(target)
 
         line_height = 52
         total_h     = len(lines) * line_height
-        start_y     = (320 - total_h) // 2
+        start_y     = (self.LCD_H - total_h) // 2
 
         for i, line in enumerate(lines):
             bbox   = draw.textbbox((0, 0), line, font=font)
             text_w = bbox[2] - bbox[0]
-            x = (240 - text_w) // 2
+            x = (self.LCD_W - text_w) // 2
             y = start_y + i * line_height
             draw.text((x, y), line, fill=(255, 255, 255), font=font)
 
@@ -255,34 +254,36 @@ class HWController:
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color='black', back_color='white').convert('RGB')
 
-        # 240×320 portrait 배경에 QR 중앙 배치
-        target = Image.new('RGB', (240, 320), color=(255, 255, 255))
+        # 320x240 Landscape 배경에 QR 중앙 배치
+        target = Image.new('RGB', (self.LCD_W, self.LCD_H), color=(255, 255, 255))
         qw, qh = qr_img.size
-        # 최대 220×260 에 맞게 비율 축소
-        max_w, max_h = 220, 260
+        # QR 코드 크기 최적화 (텍스트 공간 확보를 위해 180x180으로 조정)
+        max_w, max_h = 180, 180
         scale = min(max_w / qw, max_h / qh)
         qw2 = int(qw * scale)
         qh2 = int(qh * scale)
-        qr_img = qr_img.resize((qw2, qh2), Image.LANCZOS)
+        qr_img = qr_img.resize((qw2, qh2), Image.Resampling.LANCZOS)
 
-        x_off = (240 - qw2) // 2
+        x_off = (self.LCD_W - qw2) // 2
         if label:
-            y_off = (320 - qh2) // 2 - 15
+            # 텍스트가 있을 경우 QR을 위로 더 올림
+            y_off = (self.LCD_H - qh2) // 2 - 20
         else:
-            y_off = (320 - qh2) // 2
+            y_off = (self.LCD_H - qh2) // 2
         target.paste(qr_img, (x_off, y_off))
 
         if label:
             draw = ImageDraw.Draw(target)
-            font = self._get_font(18)
+            font = self._get_font(22)  # 가독성을 위해 폰트 크기 약간 키움
             if font:
                 bbox   = draw.textbbox((0, 0), label, font=font)
                 text_w = bbox[2] - bbox[0]
-                lx = (240 - text_w) // 2
-                ly = y_off + qh2 + 6
+                lx = (self.LCD_W - text_w) // 2
+                # QR 직후에 텍스트 배치 (간격 5px)
+                ly = y_off + qh2 + 5
                 draw.text((lx, ly), label, fill=(0, 0, 0), font=font)
 
-        self._lcd_show(target)
+        self._lcd_show(target, flip=True)
 
     def set_lcd_for_state(self, state: str) -> None:
         """SM 상태에 따라 LCD 내용 갱신.
@@ -321,14 +322,14 @@ class HWController:
             import cv2
             from PIL import Image
 
-            # BGR → RGB 변환 후 PIL 이미지로 변환
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            pil_img = Image.fromarray(rgb).resize((320, 240), Image.LANCZOS)
+            # BGR → RGB 변환
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            pil_img = Image.fromarray(rgb_frame).resize((self.LCD_W, self.LCD_H), Image.Resampling.LANCZOS)
             self._lcd_show(pil_img)
 
             import os
             if os.environ.get('DISPLAY'):
-                small = cv2.resize(frame, (320, 240))
+                small = cv2.resize(frame, (160, 120))
                 cv2.imshow('ShopPinkki Camera', small)
                 cv2.waitKey(1)
         except Exception:
