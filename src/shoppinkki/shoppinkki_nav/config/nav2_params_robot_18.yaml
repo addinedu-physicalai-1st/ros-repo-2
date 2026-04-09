@@ -9,7 +9,7 @@ amcl:
     alpha3: 0.2
     alpha4: 0.2
     alpha5: 0.2
-    base_frame_id: "robot_18/base_footprint"
+    base_frame_id: "base_footprint"
     beam_skip_distance: 0.5
     beam_skip_error_threshold: 0.9
     beam_skip_threshold: 0.3
@@ -23,7 +23,7 @@ amcl:
     max_beams: 60
     max_particles: 2000
     min_particles: 500
-    odom_frame_id: "robot_18/odom"
+    odom_frame_id: "odom"
     pf_err: 0.05
     pf_z: 0.99
     recovery_alpha_fast: 0.0
@@ -51,7 +51,7 @@ bt_navigator:
   ros__parameters:
     use_sim_time: false
     global_frame: map
-    robot_base_frame: robot_18/base_link
+    robot_base_frame: base_link
     odom_topic: /robot_18/odom
     bt_loop_duration: 10
     default_server_timeout: 20
@@ -127,8 +127,8 @@ local_costmap:
       use_sim_time: false
       update_frequency: 5.0
       publish_frequency: 2.0
-      global_frame: robot_18/odom
-      robot_base_frame: robot_18/base_footprint
+      global_frame: odom
+      robot_base_frame: base_footprint
       rolling_window: true
       width: 1
       height: 1
@@ -169,7 +169,7 @@ global_costmap:
       update_frequency: 1.0
       publish_frequency: 1.0
       global_frame: map
-      robot_base_frame: robot_18/base_footprint
+      robot_base_frame: base_footprint
       footprint: '[[0.075, 0.055], [0.075, -0.055], [-0.075, -0.055], [-0.075, 0.055]]'
       resolution: 0.01
       track_unknown_space: true
@@ -247,9 +247,9 @@ behavior_server:
       plugin: "nav2_behaviors::Wait"
     assisted_teleop:
       plugin: "nav2_behaviors::AssistedTeleop"
-    local_frame: robot_18/odom
+    local_frame: odom
     global_frame: map
-    robot_base_frame: robot_18/base_footprint
+    robot_base_frame: base_footprint
     transform_tolerance: 0.1
     simulate_ahead_time: 2.0
     max_rotational_vel: 0.4
