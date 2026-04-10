@@ -48,6 +48,9 @@ class ControlServiceNode:
 
         self._rm = robot_manager
         self._publishers: dict = {}
+        self._gz_world = os.environ.get('GZ_WORLD_NAME', 'default')
+        self._set_pose_client = None
+        self._SetEntityPose = None
 
         from geometry_msgs.msg import PoseWithCovarianceStamped
 
@@ -82,6 +85,16 @@ class ControlServiceNode:
         # Wire callbacks into robot_manager
         robot_manager.publish_cmd = self.publish_cmd
         robot_manager.publish_init_pose = self.publish_init_pose
+        robot_manager.teleport_entity = self.teleport_entity
+
+        try:
+            from ros_gz_interfaces.srv import SetEntityPose
+            self._SetEntityPose = SetEntityPose
+            self._set_pose_client = self._node.create_client(
+                SetEntityPose, f'/world/{self._gz_world}/set_pose'
+            )
+        except Exception as e:
+            logger.warning('Gazebo SetEntityPose unavailable: %s', e)
 
     def publish_cmd(self, robot_id: str, payload: dict) -> None:
         from std_msgs.msg import String
@@ -135,6 +148,62 @@ class ControlServiceNode:
 
     def get_node(self):
         return self._node
+
+    def teleport_entity(self, robot_id: str, x: float, y: float, theta: float) -> bool:
+        """Teleport Gazebo entity (simulation only).
+
+        Input x,y,theta are map-frame coordinates from Admin UI MapWidget.
+        They are converted to Gazebo world coordinates when possible.
+        """
+        if self._set_pose_client is None or self._SetEntityPose is None:
+            return False
+
+        model_name = f'pinky_{robot_id.strip()}'
+
+        # map → gazebo 변환 (가능할 때만). 실패 시 identity로 진행.
+        gx, gy, gyaw = x, y, theta
+        try:
+            from shoppinkki_nav.launch_utils import map_to_gazebo
+            gz = map_to_gazebo(x, y, theta)
+            gx, gy, gyaw = float(gz['x']), float(gz['y']), float(gz['yaw'])
+        except Exception:
+            logger.debug('teleport: map_to_gazebo unavailable; using identity')
+
+        try:
+            from geometry_msgs.msg import Pose
+            from ros_gz_interfaces.msg import Entity
+        except Exception as e:
+            logger.warning('teleport: missing message types: %s', e)
+            return False
+
+        if not self._set_pose_client.wait_for_service(timeout_sec=0.2):
+            logger.warning('teleport: /world/%s/set_pose not ready', self._gz_world)
+            return False
+
+        req = self._SetEntityPose.Request()
+        req.entity = Entity(name=model_name, type=Entity.MODEL)
+        req.pose = Pose()
+        req.pose.position.x = gx
+        req.pose.position.y = gy
+        req.pose.position.z = 0.05
+        req.pose.orientation.z = math.sin(gyaw / 2.0)
+        req.pose.orientation.w = math.cos(gyaw / 2.0)
+
+        future = self._set_pose_client.call_async(req)
+        start_ns = self._node.get_clock().now().nanoseconds
+        while not future.done():
+            if (self._node.get_clock().now().nanoseconds - start_ns) > int(0.5e9):
+                logger.warning('teleport: timeout waiting for service response')
+                return False
+        try:
+            resp = future.result()
+            ok = bool(getattr(resp, 'success', False))
+            logger.info('teleport: %s → (%.3f, %.3f, %.3f) success=%s',
+                        model_name, gx, gy, gyaw, ok)
+            return ok
+        except Exception:
+            logger.exception('teleport: service call failed')
+            return False
 
     def _on_status(self, robot_id: str, raw: str) -> None:
         try:
