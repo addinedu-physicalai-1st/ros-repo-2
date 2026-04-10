@@ -10,43 +10,31 @@
 
 ```
 ros_ws/
-├── src/
-│   ├── pinky_pro/
-│   ├── shoppinkki/                     ← EQUIP 레이어 — Pi 5 실행 ROS2 패키지
-│   │   ├── shoppinkki_interfaces/
-│   │   ├── shoppinkki_core/
-│   │   ├── shoppinkki_nav/
-│   │   └── shoppinkki_perception/
-│   └── control_center/                 ← SERVER 레이어 — 서버 PC 실행 ROS2 패키지
-│       ├── control_service/
-│       ├── admin_ui/
-│       └── shoppinkki_rmf/             ← Open-RMF 연동 — Fleet Adapter (서버 PC 실행)
-├── services/                           ← SERVER / UI 레이어 — Non-ROS 서비스
-│   ├── customer_web/
-│   └── ai_server/
-└── scripts/                            ← 실행 스크립트 + DB 관리
-    └── db/
+├── device/                             ← EQUIP 레이어 — Pi 5 실행 패키지
+│   ├── pinky_pro/                      ← 하드웨어 플랫폼 패키지
+│   ├── sllidar_ros2/                   ← LiDAR 드라이버 (git submodule)
+│   └── shoppinkki/                     ← 쑈삥끼 로봇 ROS2 패키지
+│       ├── shoppinkki_interfaces/
+│       ├── shoppinkki_core/
+│       ├── shoppinkki_nav/
+│       └── shoppinkki_perception/
+├── server/                             ← SERVER 레이어 — 서버 PC 실행
+│   ├── control_service/                ← ROS2 노드 + TCP + REST API
+│   ├── control_db/                     ← DB 스키마 + 시드 데이터 (PostgreSQL 17)
+│   ├── shoppinkki_rmf/                 ← Open-RMF Fleet Adapter
+│   ├── customer_web/                   ← Flask + SocketIO 고객 웹앱
+│   └── ai_service/                     ← Docker: YOLO + LLM
+├── ui/                                 ← UI 레이어 — 관제 PC
+│   └── admin_ui/                       ← PyQt6 TCP 관제 데스크톱 앱
+├── scripts/                            ← 실행 스크립트
+└── docs/                               ← 설계 문서
 ```
 
 ---
 
 ## EQUIP 레이어 — `device/shoppinkki/`
 
-Pi 5에서 실행되는 ROS2 패키지 4개. 공통 구조:
-
-```
-<package_name>/
-├── package.xml
-├── setup.py
-├── setup.cfg
-├── resource/<package_name>       ← ament marker
-├── <package_name>/               ← Python 모듈
-│   └── __init__.py
-└── test/
-    ├── test_copyright.py
-    ├── test_flake8.py
-    └── test_pep257.py
-```
+Pi 5에서 실행되는 ROS2 패키지 4개.
 
 ---
 
@@ -93,6 +81,7 @@ shoppinkki_core/
 │   │                                TARGET_AREA, KP_ANGLE, KP_DIST, LINEAR_X_MAX,
 │   │                                ANGULAR_Z_MAX, MIN_DIST, IMAGE_WIDTH)
 │   ├── main_node.py              ← ROS2 Node 진입점. 각 모듈을 조합하여 spin()
+│   ├── ns_bringup.py             ← 네임스페이스 기반 bringup 유틸리티
 │   ├── state_machine.py          ← ShoppinkiSM (transitions 라이브러리)
 │   │                                - 10개 상태 정의
 │   │                                - on_enter_* / on_exit_* 콜백
@@ -103,6 +92,7 @@ shoppinkki_core/
 │   ├── bt_runner.py              ← 현재 SM 상태에 따라 BT 선택 + tick() 루프 실행
 │   │                                - BT1~BT5 인스턴스 보유 (NavBTInterface 타입)
 │   │                                - on_enter_*/on_exit_* 콜백과 연동
+│   ├── bt_returning.py           ← BT5 귀환 로직 (core 레벨 구현)
 │   ├── hw_controller.py          ← HW 서비스 호출 래퍼
 │   │                                - set_led(color): /set_led
 │   │                                - set_lcd(text): /set_emotion 또는 LCD 직접 제어
@@ -140,23 +130,35 @@ shoppinkki_nav/
 │   ├── bridge_robot_18.yaml      ← ros_gz_bridge 토픽 매핑 (로봇 18)
 │   └── keepout_mask.yaml         ← Keepout Filter 마스크 설정
 ├── launch/
+│   ├── bringup.launch.py         ← 실물 로봇 bringup (LiDAR + IMU + 센서)
 │   ├── navigation.launch.py      ← Nav2 스택 + BoundaryMonitor 노드 통합 실행
-│   └── gz_multi_robot.launch.py  ← Gazebo 멀티로봇 시뮬레이션 실행
+│   ├── gz_multi_robot.launch.py  ← Gazebo 멀티로봇 시뮬레이션 실행
+│   └── multi_robot_rviz.launch.py ← 멀티로봇 RViz 시각화
+├── maps/
+│   ├── shop.yaml                 ← Nav2 맵 설정 파일
+│   ├── shop.pgm                  ← 2D Occupancy Grid Map
+│   └── shop.png                  ← 맵 시각화 이미지
+├── rviz/
+│   └── multi_robot_view.rviz     ← 멀티로봇 RViz 설정
+├── scripts/
+│   └── xacro_patch.sh            ← xacro 패치 스크립트
 ├── shoppinkki_nav/
 │   ├── __init__.py
 │   ├── bt_tracking.py            ← BT1: P-Control 추종 + RPLiDAR 장애물 회피 (Parallel)
 │   ├── bt_searching.py           ← BT2: 제자리 회전 탐색 + 방향 전환 + 30s 타임아웃
 │   ├── bt_waiting.py             ← BT3: 정지 대기 + 통행자 감지 시 소폭 회피
 │   ├── bt_guiding.py             ← BT4: Nav2 Waypoint 이동 → SUCCESS: enter_waiting
-│   │                                                              FAILURE: resume_tracking()
+│   │                                                          FAILURE: resume_tracking()
 │   ├── bt_returning.py           ← BT5: Keepout ON → /zone/parking/available 조회
 │   │                                     → Nav2 슬롯 이동 → enter_charging / Keepout OFF
-│   └── boundary_monitor.py       ← BoundaryMonitor: AMCL pose 기반 결제구역 감시
-│                                    - on_checkout_enter (TRACKING → 결제 팝업)
-│                                    - on_checkout_exit_blocked (출구 차단)
-│                                    - on_checkout_reenter (TRACKING_CHECKOUT → TRACKING)
-│                                    - SM 상태가 TRACKING / TRACKING_CHECKOUT 일 때만
-│                                      활성 감시. 나머지 상태에서는 pose 이벤트 무시
+│   ├── boundary_monitor.py       ← BoundaryMonitor: AMCL pose 기반 결제구역 감시
+│   │                                - on_checkout_enter (TRACKING → 결제 팝업)
+│   │                                - on_checkout_exit_blocked (출구 차단)
+│   │                                - on_checkout_reenter (TRACKING_CHECKOUT → TRACKING)
+│   │                                - SM 상태가 TRACKING / TRACKING_CHECKOUT 일 때만
+│   │                                  활성 감시. 나머지 상태에서는 pose 이벤트 무시
+│   ├── launch_utils.py           ← launch 파일 공용 유틸리티 함수
+│   └── nav2_client.py            ← Nav2 액션 클라이언트 래퍼
 └── test/
     ├── test_boundary_monitor.py
     └── test_bt_searching.py
@@ -186,6 +188,7 @@ shoppinkki_perception/
 │   │                                - run(frame): TRACKING 단계 매칭 → 버퍼 저장
 │   │                                - get_latest() → Optional[Detection]
 │   │                                - is_ready() → bool
+│   ├── doll-recog-model.pt       ← 인형 인식 모델 가중치 (로컬 ReID용)
 │   ├── reid_engine.py            ← ReID 특징 벡터 추출 엔진
 │   │                                - 임베딩 생성 + 코사인 유사도 매칭
 │   ├── iou_tracker.py            ← bbox IoU 기반 프레임 간 추적기
@@ -202,13 +205,13 @@ shoppinkki_perception/
 
 ## SERVER 레이어 — `server/`
 
-서버 PC에서 실행되는 ROS2 패키지 2개.
+서버 PC에서 실행되는 ROS2 패키지 2개 + Non-ROS 서비스.
 
 ---
 
 ### `control_service/`
 
-ROS2 노드 + TCP 서버(채널 B·C) + REST API + MySQL 접근 + UDP 카메라 수신을 하나의 프로세스로 통합.
+ROS2 노드 + TCP 서버(채널 B·C) + REST API + DB 접근 + UDP 카메라 수신을 하나의 프로세스로 통합.
 
 ```
 control_service/
@@ -216,6 +219,10 @@ control_service/
 ├── setup.py
 ├── setup.cfg
 ├── resource/control_service
+├── map/
+│   ├── shop.building.yaml        ← 매장 빌딩 맵 (RMF/시각화용)
+│   ├── shop.pgm                  ← 맵 이미지 (PGM)
+│   └── shop.png                  ← 맵 이미지 (PNG)
 ├── control_service/
 │   ├── __init__.py
 │   ├── main.py                   ← 진입점. ROS2 init + TCP 서버 + REST 서버 + cleanup 스레드
@@ -233,7 +240,7 @@ control_service/
 │   │                                  + payment_success cmd → Pi relay
 │   │                                - admin_goto 수신 시 IDLE 여부 확인 → 거부 시
 │   │                                  admin_goto_rejected 응답 (채널 B)
-│   ├── rest_api.py               ← REST API 엔드포인트 (포트 8080, 채널 C HTTP 겸용)
+│   ├── rest_api.py               ← REST API 엔드포인트 (포트 8081, 채널 C HTTP)
 │   │                                - GET  /zone/<zone_id>/waypoint
 │   │                                - GET  /zone/parking/available
 │   │                                - GET  /boundary
@@ -243,9 +250,9 @@ control_service/
 │   │                                - PATCH /cart/<id>/items/mark_paid
 │   │                                - GET  /cart/<id>/has_unpaid
 │   │                                - GET  /camera/<robot_id>  ← MJPEG re-stream
-│   ├── db.py                     ← MySQL 연결 풀 (pool_size=5) + 쿼리 함수
-│   │                                - 환경 변수: MYSQL_HOST/PORT/USER/PASSWORD/DATABASE
-│   │                                - 플레이스홀더 %s, cursor(dictionary=True)
+│   ├── db.py                     ← PostgreSQL 연결 풀 (psycopg2) + 쿼리 함수
+│   │                                - 환경 변수: PG_HOST/PORT/USER/PASSWORD/DATABASE
+│   │                                - 플레이스홀더 %s, RealDictCursor
 │   │                                - 테이블별 CRUD 함수 (robot, session, cart, event_log 등)
 │   ├── robot_manager.py          ← 로봇 상태 캐시 + 비즈니스 로직
 │   │                                - RobotState 딕셔너리 (robot_id → 현재 상태)
@@ -271,61 +278,21 @@ control_service/
 
 ---
 
-### `admin_ui/`
+### `control_db/`
 
-PyQt6 관제 데스크톱 앱. `ros2 run admin_ui admin_ui` 로 실행.
+DB 스키마 및 시드 데이터 관리. PostgreSQL 17 기반.
 
 ```
-admin_ui/
-├── package.xml
-├── setup.py
-├── setup.cfg
-├── resource/admin_ui
-├── assets/
-│   └── shop_map.png              ← 관제 맵 이미지 (맵 오버레이 배경)
-├── admin_ui/
-│   ├── __init__.py
-│   ├── main.py                   ← QApplication + QMainWindow 진입점
-│   ├── main_window.py            ← 전체 레이아웃 조립 (splitter 기반)
-│   │                                - MapWidget (좌상)
-│   │                                - RobotCardPanel (우상)
-│   │                                - CameraDebugPanel (우중, 기본 닫힘)
-│   │                                - StaffCallPanel (하좌)
-│   │                                - EventLogPanel (하우)
-│   ├── tcp_client.py             ← TCP 클라이언트 (채널 B, QThread)
-│   │                                - 수신 루프 → pyqtSignal로 Qt 메인 스레드 전달
-│   │                                - send_cmd(payload: dict) 헬퍼
-│   ├── map_widget.py             ← MapWidget (QLabel + QPixmap)
-│   │                                - shop_map.png 오버레이
-│   │                                - 로봇 아이콘 (yaw 방향, is_locked_return 테두리)
-│   │                                - 오프라인: × 표시, 마지막 위치 유지
-│   │                                - 클릭 → 월드 좌표 변환 → admin_goto 마커
-│   ├── robot_card.py             ← RobotCard 위젯 (로봇 1대)
-│   │                                - 모드 뱃지, 배터리 바, 좌표, 활성 사용자
-│   │                                - 상태 전환 버튼 ([대기]/[추종]/[복귀]) 활성화 규칙
-│   │                                - [강제 종료] / [이동 명령] / [잠금 해제] 버튼
-│   ├── camera_panel.py           ← CameraDebugPanel (QWidget)
-│   │                                - QThread에서 GET /camera/<robot_id> MJPEG 수신
-│   │                                - QLabel에 프레임 표시 (QPixmap)
-│   │                                - status bbox 필드로 바운딩박스 QPainter 오버레이
-│   │                                - 로봇 선택 드롭다운, [닫기] 버튼
-│   ├── robot_detail_dialog.py    ← RobotDetailDialog (QDialog)
-│   │                                - 로봇 상세 정보 팝업
-│   ├── staff_panel.py            ← StaffCallPanel (QListWidget 기반)
-│   │                                - LOCKED/HALTED 이벤트 항목 추가
-│   │                                - [잠금 해제]/[초기화] → staff_resolved 전송
-│   │                                - "✓ 처리됨" 회색 처리
-│   └── event_log_panel.py        ← EventLogPanel (QTableWidget)
-│                                    - 이벤트 색상 구분 (SESSION_START/LOCKED/HALTED 등)
-│                                    - 필터 버튼 [전체]/[스태프호출]/[세션]/[이벤트]
-│                                    - 최대 200건. 행 클릭 → 로봇 카드 하이라이트
-└── test/
-    └── test_admin_ui.py
+control_db/
+├── schema.sql                    ← 전체 DDL (CREATE TABLE IF NOT EXISTS)
+│                                    USER, CARD, ZONE, PRODUCT, BOUNDARY_CONFIG,
+│                                    ROBOT, STAFF_CALL_LOG, EVENT_LOG,
+│                                    SESSION, CART, CART_ITEM
+├── seed_data.sql                 ← 기본 데이터 (ZONE, PRODUCT, BOUNDARY_CONFIG,
+│                                    ROBOT #54/#18, USER test01/test02, CARD)
+├── fill_product_embeddings.py    ← 상품 임베딩 벡터 DB 삽입 스크립트
+└── README.md
 ```
-
-**핵심 파일:**
-- `tcp_client.py` — QThread 기반 수신 루프. `pyqtSignal` 발행으로 UI 갱신 보장(thread-safe).
-- `camera_panel.py` — `GET /camera/<robot_id>` MJPEG 스트림을 별도 QThread로 수신 후 `QPixmap`으로 표시.
 
 ---
 
@@ -396,6 +363,7 @@ shoppinkki_rmf/
 │                                        - JSON status 파싱 → geometry_msgs/PoseStamped
 │                                        - RobotUpdateHandle.update() 호출 (1~2Hz)
 └── test/
+    ├── __init__.py
     └── test_robot_command_handle.py  ← navigate/stop/dock mock 테스트
 ```
 
@@ -431,15 +399,9 @@ shoppinkki_rmf/
 
 ---
 
-## SERVER / UI 레이어 — `services/`
+### `customer_web/`
 
-Non-ROS 서비스. ROS2 빌드 시스템 외부.
-
----
-
-### `server/customer_web/`
-
-Flask + SocketIO 고객 웹앱. 포트 8501.
+Flask + SocketIO 고객 웹앱. 포트 8501. Non-ROS 서비스.
 
 ```
 customer_web/
@@ -477,12 +439,12 @@ customer_web/
 
 ---
 
-### `server/ai_service/`
+### `ai_service/`
 
 Docker Compose. YOLO 추론 서버 + LLM 자연어 검색 서버.
 
 ```
-ai_server/
+ai_service/
 ├── docker-compose.yml            ← yolo + llm 서비스 정의
 ├── yolo/
 │   ├── Dockerfile
@@ -492,13 +454,78 @@ ai_server/
 │   │                                  {"cx": 320, "area": 12000, "confidence": 0.92}
 │   ├── requirements.txt          ← ultralytics, ...
 │   └── models/
-│       └── doll_yolov8n.pt       ← 인형 전용 custom-trained 가중치
+│       ├── doll_yolov8n.pt       ← 인형 전용 custom-trained 가중치
+│       └── best.pt               ← 추가 학습 가중치
 └── llm/
     ├── Dockerfile
     ├── llm_server.py             ← REST:8000 자연어 상품 위치 검색
     │                                - GET /query?name=콜라 → {"zone_id": 3, "zone_name": "음료 코너"}
     └── requirements.txt
 ```
+
+---
+
+## UI 레이어 — `ui/`
+
+관제 PC에서 실행되는 데스크톱 앱.
+
+---
+
+### `admin_ui/`
+
+PyQt6 관제 데스크톱 앱. `ros2 run admin_ui admin_ui` 로 실행.
+
+```
+admin_ui/
+├── package.xml
+├── setup.py
+├── setup.cfg
+├── resource/admin_ui
+├── assets/
+│   └── .gitkeep                  ← (shop_map.png 등 맵 이미지 추가 예정)
+├── admin_ui/
+│   ├── __init__.py
+│   ├── main.py                   ← QApplication + QMainWindow 진입점
+│   ├── main_window.py            ← 전체 레이아웃 조립 (splitter 기반)
+│   │                                - MapWidget (좌상)
+│   │                                - RobotCardPanel (우상)
+│   │                                - CameraDebugPanel (우중, 기본 닫힘)
+│   │                                - StaffCallPanel (하좌)
+│   │                                - EventLogPanel (하우)
+│   ├── tcp_client.py             ← TCP 클라이언트 (채널 B, QThread)
+│   │                                - 수신 루프 → pyqtSignal로 Qt 메인 스레드 전달
+│   │                                - send_cmd(payload: dict) 헬퍼
+│   ├── map_widget.py             ← MapWidget (QLabel + QPixmap)
+│   │                                - shop_map.png 오버레이
+│   │                                - 로봇 아이콘 (yaw 방향, is_locked_return 테두리)
+│   │                                - 오프라인: × 표시, 마지막 위치 유지
+│   │                                - 클릭 → 월드 좌표 변환 → admin_goto 마커
+│   ├── robot_card.py             ← RobotCard 위젯 (로봇 1대)
+│   │                                - 모드 뱃지, 배터리 바, 좌표, 활성 사용자
+│   │                                - 상태 전환 버튼 ([대기]/[추종]/[복귀]) 활성화 규칙
+│   │                                - [강제 종료] / [이동 명령] / [잠금 해제] 버튼
+│   ├── camera_panel.py           ← CameraDebugPanel (QWidget)
+│   │                                - QThread에서 GET /camera/<robot_id> MJPEG 수신
+│   │                                - QLabel에 프레임 표시 (QPixmap)
+│   │                                - status bbox 필드로 바운딩박스 QPainter 오버레이
+│   │                                - 로봇 선택 드롭다운, [닫기] 버튼
+│   ├── robot_detail_dialog.py    ← RobotDetailDialog (QDialog)
+│   │                                - 로봇 상세 정보 팝업
+│   ├── staff_panel.py            ← StaffCallPanel (QListWidget 기반)
+│   │                                - LOCKED/HALTED 이벤트 항목 추가
+│   │                                - [잠금 해제]/[초기화] → staff_resolved 전송
+│   │                                - "✓ 처리됨" 회색 처리
+│   └── event_log_panel.py        ← EventLogPanel (QTableWidget)
+│                                    - 이벤트 색상 구분 (SESSION_START/LOCKED/HALTED 등)
+│                                    - 필터 버튼 [전체]/[스태프호출]/[세션]/[이벤트]
+│                                    - 최대 200건. 행 클릭 → 로봇 카드 하이라이트
+└── test/
+    └── test_admin_ui.py
+```
+
+**핵심 파일:**
+- `tcp_client.py` — QThread 기반 수신 루프. `pyqtSignal` 발행으로 UI 갱신 보장(thread-safe).
+- `camera_panel.py` — `GET /camera/<robot_id>` MJPEG 스트림을 별도 QThread로 수신 후 `QPixmap`으로 표시.
 
 ---
 
@@ -513,18 +540,8 @@ scripts/
 ├── run_ai.sh                     ← [노트북] ai_server Docker 단독 실행
 ├── seed.sh                       ← DB 시딩 대화형 스크립트 (reset / replace / 기본)
 ├── generate_product_qr.py        ← 상품 QR 코드 이미지 생성 스크립트
+├── visualize_nav_graph.py        ← RMF Nav Graph 시각화 스크립트
 ├── _ros_env.sh                   ← ROS 환경변수 공통 설정 (source 용)
 ├── .zshrc.pinky                  ← Pi 5 전용 zshrc 설정
-├── index.md                      ← 스크립트 사용법 및 tmux 세션 구성 상세
-├── qr_codes/                     ← 생성된 QR 코드 PNG 이미지들
-└── db/
-    ├── schema.sql                ← 전체 DDL (CREATE TABLE IF NOT EXISTS)
-    │                                USER, CARD, ZONE, PRODUCT, BOUNDARY_CONFIG,
-    │                                ROBOT, STAFF_CALL_LOG, EVENT_LOG,
-    │                                SESSION, CART, CART_ITEM
-    ├── seed_data.sql             ← 기본 데이터 (ZONE, PRODUCT, BOUNDARY_CONFIG,
-    │                                ROBOT #54/#18, USER test01/test02, CARD)
-    ├── fill_product_embeddings.py ← 상품 임베딩 벡터 DB 삽입 스크립트
-    └── README.md
+└── index.md                      ← 스크립트 사용법 및 tmux 세션 구성 상세
 ```
-
