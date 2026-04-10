@@ -138,9 +138,19 @@
       <button id="btn-mic" class="btn-mic" onclick="toggleMic()" aria-label="음성 검색">🎤</button>
     </div>
     <div id="find-result" class="search-result"></div>
-    <div class="btn-group">
-      <button class="btn btn-primary" onclick="submitFind()">검색</button>
-      <button class="btn btn-outline" onclick="closeFindPanel()">닫기</button>
+    
+    <!-- 지도 미리보기 프리뷰 영역 (Placeholder) -->
+    <div id="find-map-preview" class="map-preview-small hidden">
+      <div class="map-placeholder-content">
+        <span class="map-icon">📍</span>
+        <span class="map-text">안내 경로 탐색 중...</span>
+      </div>
+    </div>
+
+    <!-- 기존 버튼 그룹을 재사용 (상황에 따라 글자/기능 변경) -->
+    <div class="btn-group" style="margin-top: 14px;">
+      <button id="btn-find-primary" class="btn btn-primary" onclick="submitFind()">검색</button>
+      <button id="btn-find-secondary" class="btn btn-outline" onclick="closeFindPanel()">닫기</button>
     </div>
   </div>
 </div>
