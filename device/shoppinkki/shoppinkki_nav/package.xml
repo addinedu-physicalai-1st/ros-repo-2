@@ -17,6 +17,9 @@
   <depend>action_msgs</depend>
   <depend>shoppinkki_interfaces</depend>
   <depend>shoppinkki_core</depend>
+  <depend>py_trees</depend>
+  <depend>py_trees_ros</depend>
+  <depend>py_trees_ros_interfaces</depend>
 
   <!-- pip: requests -->
 
