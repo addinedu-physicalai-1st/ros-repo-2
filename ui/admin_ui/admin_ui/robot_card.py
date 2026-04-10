@@ -42,6 +42,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -81,6 +82,7 @@ class RobotCard(QFrame):
     command_requested = pyqtSignal(str, dict)
     card_clicked = pyqtSignal(str)       # robot_id
     goto_mode_activated = pyqtSignal(str)  # robot_id or '' (cancel)
+    teleport_mode_activated = pyqtSignal(str)  # robot_id or '' (cancel)
 
     def __init__(self, robot_id: str, parent=None):
         super().__init__(parent)
@@ -88,6 +90,7 @@ class RobotCard(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._current_state: dict = {}
         self._goto_pending = False  # 맵 클릭 대기 상태
+        self._teleport_pending = False  # 순간이동 맵 클릭 대기 상태
 
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
@@ -153,8 +156,7 @@ class RobotCard(QFrame):
             trans_layout.addWidget(btn)
         layout.addLayout(trans_layout)
 
-        # 관제 명령 버튼 행
-        cmd_layout = QHBoxLayout()
+        # 관제/유틸 버튼 (3x2 그리드)
         self._btn_force_terminate = QPushButton('강제 종료')
         self._btn_force_terminate.setToolTip('force_terminate')
         self._btn_force_terminate.setStyleSheet('color: #c0392b; font-weight: bold;')
@@ -169,21 +171,41 @@ class RobotCard(QFrame):
         self._btn_staff_resolved.setStyleSheet('color: #8e44ad; font-weight: bold;')
         self._btn_staff_resolved.clicked.connect(self._on_staff_resolved)
 
-        for btn in (self._btn_force_terminate, self._btn_admin_goto, self._btn_staff_resolved):
-            cmd_layout.addWidget(btn)
-        layout.addLayout(cmd_layout)
-
-        # 위치 초기화 버튼 행
-        init_layout = QHBoxLayout()
+        self._btn_teleport = QPushButton('순간 이동')
+        self._btn_teleport.setToolTip('admin_teleport (맵 클릭 후 즉시 순간이동)')
+        self._btn_teleport.setStyleSheet('color: #d35400; font-weight: bold;')
+        self._btn_teleport.clicked.connect(self._on_teleport)
         self._btn_init_pose = QPushButton('위치 초기화')
         self._btn_init_pose.setToolTip('AMCL 초기 위치 설정 (CHARGING·IDLE 상태에서만 활성화)')
         self._btn_init_pose.setStyleSheet('color: #2980b9;')
         self._btn_init_pose.clicked.connect(self._on_init_pose)
-        init_layout.addStretch()
-        init_layout.addWidget(self._btn_init_pose)
-        layout.addLayout(init_layout)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(6)
+        # 1행: 강제종료 | 이동명령 | 잠금해제
+        grid.addWidget(self._btn_force_terminate, 0, 0)
+        grid.addWidget(self._btn_admin_goto, 0, 1)
+        grid.addWidget(self._btn_staff_resolved, 0, 2)
+        # 2행: 순간이동 | (빈칸) | 위치 초기화
+        grid.addWidget(self._btn_teleport, 1, 0)
+        grid.addWidget(QLabel(''), 1, 1)
+        grid.addWidget(self._btn_init_pose, 1, 2)
+        layout.addLayout(grid)
 
         self._update_button_states()
+
+    def _on_teleport(self):
+        """[순간 이동] 버튼 클릭 — 맵 클릭 대기 모드 진입/취소."""
+        self.set_goto_pending(False)
+        if self._teleport_pending:
+            self._teleport_pending = False
+            self._btn_teleport.setText('순간 이동')
+            self.teleport_mode_activated.emit('')
+        else:
+            self._teleport_pending = True
+            self._btn_teleport.setText('취소')
+            self.teleport_mode_activated.emit(self._robot_id)
 
     def update_state(self, state: dict):
         """상태 딕셔너리로 카드 갱신."""
@@ -240,6 +262,14 @@ class RobotCard(QFrame):
             self._btn_admin_goto.setStyleSheet('')
         self._update_button_states()
 
+    def set_teleport_pending(self, pending: bool):
+        """순간이동 맵 클릭 대기 상태 설정."""
+        self._teleport_pending = pending
+        if pending:
+            self._btn_teleport.setText('취소')
+        else:
+            self._btn_teleport.setText('순간 이동')
+
     def _update_button_states(self):
         mode = self._current_state.get('mode', 'OFFLINE')
         is_locked_return = self._current_state.get('is_locked_return', False)
@@ -250,6 +280,8 @@ class RobotCard(QFrame):
         self._btn_force_terminate.setEnabled(mode not in _FORCE_TERMINATE_DISABLED)
         # admin_goto: IDLE이면 항상 활성 (맵 클릭 대기 모드 진입/취소)
         self._btn_admin_goto.setEnabled(mode == 'IDLE')
+        # admin_teleport: 시뮬 관제 기능 (안전 위해 IDLE에서만)
+        self._btn_teleport.setEnabled(mode == 'IDLE')
         # staff_resolved: HALTED 또는 is_locked_return
         self._btn_staff_resolved.setEnabled(
             mode == 'HALTED' or is_locked_return

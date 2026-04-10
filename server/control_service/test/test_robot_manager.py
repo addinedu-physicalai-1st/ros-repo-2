@@ -93,6 +93,14 @@ class TestAdminCmd:
                                    'robot_id': '54', 'x': 1.0, 'y': 0.5, 'theta': 0.0})
         assert any(c[1]['cmd'] == 'admin_goto' for c in cmds)
 
+    def test_admin_teleport_rejected_when_not_wired(self):
+        admin_msgs = []
+        rm = make_rm()
+        rm.push_to_admin = admin_msgs.append
+        rm.handle_admin_cmd('54', {'cmd': 'admin_teleport', 'robot_id': '54',
+                                   'x': 0.1, 'y': 0.2, 'theta': 0.0})
+        assert any(m.get('type') == 'teleport_rejected' for m in admin_msgs)
+
 
 class TestBboxUpdate:
     def test_bbox_stored(self):
