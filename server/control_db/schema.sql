@@ -3,6 +3,8 @@
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
+DROP TABLE IF EXISTS fleet_lane CASCADE;
+DROP TABLE IF EXISTS fleet_waypoint CASCADE;
 DROP TABLE IF EXISTS cart_item CASCADE;
 DROP TABLE IF EXISTS cart CASCADE;
 DROP TABLE IF EXISTS session CASCADE;
@@ -130,3 +132,21 @@ CREATE TABLE cart_item (
 );
 
 CREATE INDEX idx_cart_item_cart ON cart_item(cart_id);
+
+CREATE TABLE fleet_waypoint (
+    idx            INT PRIMARY KEY,
+    name           VARCHAR(50)      NOT NULL,
+    x              DOUBLE PRECISION NOT NULL,
+    y              DOUBLE PRECISION NOT NULL,
+    zone_id        INT REFERENCES zone(zone_id),
+    is_charger     BOOLEAN NOT NULL DEFAULT FALSE,
+    is_parking     BOOLEAN NOT NULL DEFAULT FALSE,
+    pickup_zone    BOOLEAN NOT NULL DEFAULT FALSE,
+    holding_point  BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE fleet_lane (
+    from_idx INT NOT NULL REFERENCES fleet_waypoint(idx),
+    to_idx   INT NOT NULL REFERENCES fleet_waypoint(idx),
+    PRIMARY KEY (from_idx, to_idx)
+);

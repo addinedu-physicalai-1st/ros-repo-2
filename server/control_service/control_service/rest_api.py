@@ -76,6 +76,33 @@ def create_app(robot_manager: 'RobotManager',
             return jsonify({'error': 'no parking available'}), 404
         return jsonify(_zone_dict(zone))
 
+    # ── Fleet graph ────────────────────────────
+
+    @app.get('/fleet/graph')
+    def fleet_graph():
+        waypoints = db.get_fleet_waypoints()
+        lanes = db.get_fleet_lanes()
+        return jsonify({
+            'waypoints': [
+                {
+                    'idx': w['idx'],
+                    'name': w['name'],
+                    'x': float(w['x']),
+                    'y': float(w['y']),
+                    'zone_id': w['zone_id'],
+                    'is_charger': w['is_charger'],
+                    'is_parking': w['is_parking'],
+                    'pickup_zone': w['pickup_zone'],
+                    'holding_point': w['holding_point'],
+                }
+                for w in waypoints
+            ],
+            'lanes': [
+                {'from': l['from_idx'], 'to': l['to_idx']}
+                for l in lanes
+            ],
+        })
+
     # ── Boundary ──────────────────────────────
 
     @app.get('/boundary')

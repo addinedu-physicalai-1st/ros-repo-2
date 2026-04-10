@@ -277,6 +277,18 @@ def get_all_zones() -> List[Dict]:
         return cur.fetchall()
 
 
+def get_fleet_waypoints() -> List[Dict]:
+    with _cursor() as cur:
+        cur.execute('SELECT * FROM fleet_waypoint ORDER BY idx')
+        return cur.fetchall()
+
+
+def get_fleet_lanes() -> List[Dict]:
+    with _cursor() as cur:
+        cur.execute('SELECT * FROM fleet_lane ORDER BY from_idx, to_idx')
+        return cur.fetchall()
+
+
 def get_parking_slots() -> List[Dict]:
     """Return ZONE rows for parking slots 140, 141."""
     with _cursor() as cur:

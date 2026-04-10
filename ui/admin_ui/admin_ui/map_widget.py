@@ -183,6 +183,10 @@ class MapWidget(QLabel):
         self._img_h: int = 0  # 원본 PNG 높이 (회전 전)
         self._img_w: int = 0  # 원본 PNG 너비 (회전 전)
 
+        # Fleet graph 데이터
+        self._fleet_waypoints: list[dict] = []
+        self._fleet_lanes: list[dict] = []
+
         # 로봇 상태
         self._robot_states: dict[str, dict] = {}
         self._robot_color_map: dict[str, QColor] = {}
@@ -313,6 +317,12 @@ class MapWidget(QLabel):
         self._goto_theta = theta
         self.update()
 
+    def set_fleet_graph(self, waypoints: list[dict], lanes: list[dict]):
+        """Fleet nav graph 데이터 설정 (REST /fleet/graph 응답)."""
+        self._fleet_waypoints = waypoints
+        self._fleet_lanes = lanes
+        self.update()
+
     def clear_goto_marker(self):
         """목적지 마커 제거."""
         self._goto_marker = None
@@ -382,6 +392,67 @@ class MapWidget(QLabel):
             ]
             self._color_idx += 1
         return self._robot_color_map[robot_id]
+
+    def _draw_fleet_graph(self, p: QPainter):
+        """Fleet nav graph 렌더링: 레인(선) + 웨이포인트(마커+이름)."""
+        if not self._fleet_waypoints:
+            return
+
+        # 인덱스 → 픽셀 좌표 매핑
+        wp_px: dict[int, tuple[int, int]] = {}
+        for w in self._fleet_waypoints:
+            px, py = self._world_to_pixel(w['x'], w['y'])
+            wp_px[w['idx']] = (px, py)
+
+        # 레인 (얇은 회색 선)
+        p.setPen(QPen(QColor(150, 150, 150, 100), 1))
+        for lane in self._fleet_lanes:
+            f = wp_px.get(lane['from'])
+            t = wp_px.get(lane['to'])
+            if f and t:
+                p.drawLine(f[0], f[1], t[0], t[1])
+
+        # 웨이포인트 마커
+        font = QFont()
+        font.setPointSize(7)
+        font.setBold(True)
+        p.setFont(font)
+        fm = p.fontMetrics()
+
+        for w in self._fleet_waypoints:
+            px, py = wp_px[w['idx']]
+            r = 6  # 마커 반지름 (px)
+            has_zone = w.get('zone_id') is not None
+
+            # 색상: pickup_zone=파랑, charger=초록, holding=주황, 통로=회색
+            if w.get('pickup_zone'):
+                fill = QColor(52, 152, 219, 180)
+                border = QColor(41, 128, 185)
+            elif w.get('is_charger'):
+                fill = QColor(46, 204, 113, 180)
+                border = QColor(39, 174, 96)
+            elif w.get('holding_point'):
+                fill = QColor(230, 126, 34, 180)
+                border = QColor(211, 84, 0)
+            else:
+                fill = QColor(149, 165, 166, 140)
+                border = QColor(127, 140, 141)
+
+            p.setBrush(fill)
+            p.setPen(QPen(border, 1.5))
+            p.drawEllipse(px - r, py - r, r * 2, r * 2)
+
+            # 이름 레이블
+            name = w['name']
+            tw = fm.horizontalAdvance(name)
+            th = fm.height()
+            tx = px - tw // 2
+            ty = py + r + 3
+            p.setBrush(QColor(0, 0, 0, 140))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawRoundedRect(tx - 2, ty - 1, tw + 4, th + 2, 3, 3)
+            p.setPen(QColor('#ffffff'))
+            p.drawText(tx, ty + fm.ascent(), name)
 
     def _draw_robot(self, p: QPainter, robot_id: str, state: dict):
         pos_x = state.get('pos_x', 0.0)
@@ -554,6 +625,8 @@ class MapWidget(QLabel):
             font.setPointSize(14)
             p.setFont(font)
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, '맵 이미지 없음')
+
+        self._draw_fleet_graph(p)
 
         for rid, st in self._robot_states.items():
             self._draw_robot(p, rid, st)

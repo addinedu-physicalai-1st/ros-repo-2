@@ -11,10 +11,10 @@ INSERT INTO zone (zone_id, zone_name, zone_type, waypoint_x, waypoint_y, waypoin
 (7,   '베이커리', 'product',  0.622, -0.300,  0.0),
 (8,   '음식',     'product',  0.624, -0.606,  0.0),
 (100, '화장실',   'special',  0.812, -1.606,  1.5708),
-(110, '입구',     'special', -0.056, -0.007,  0.0),
-(120, '출구',     'special', -0.056, -1.617,  0.0),
-(140, '충전소_18(P1)','special', -0.056, -0.606, 0.0),
-(141, '충전소_54(P2)','special', -0.056, -0.899, 0.0),
+(110, '입구',     'special', 0.0, -0.007,  0.0),
+(120, '출구',     'special', 0.0, -1.617,  0.0),
+(140, '충전소_18(P1)','special', 0.0, -0.606, 0.0),
+(141, '충전소_54(P2)','special', 0.0, -0.899, 0.0),
 (150, '결제 구역','special',  0.186, -1.614,  1.5708)
 ON CONFLICT (zone_id) DO UPDATE SET
     zone_name      = EXCLUDED.zone_name,
@@ -121,3 +121,83 @@ INSERT INTO card (user_id, card_alias) VALUES
 ('test01', '신한카드 1234'),
 ('test02', '국민카드 5678')
 ON CONFLICT (user_id, card_alias) DO NOTHING;
+
+-- FLEET_WAYPOINT (shop_nav_graph.yaml 28개 버텍스)
+INSERT INTO fleet_waypoint (idx, name, x, y, zone_id, is_charger, is_parking, pickup_zone, holding_point) VALUES
+-- 왼쪽 복도 (x=0.0)
+( 0, '입구1',          0.0,   -0.007, 110,  false, false, false, false),
+( 1, '입구2',          0.0,   -0.300, NULL, false, false, false, false),
+( 2, 'P1',             0.0,   -0.606, 140,  true,  true,  false, false),
+( 3, 'P2',             0.0,   -0.899, 141,  true,  true,  false, false),
+( 4, '출구2',          0.0,   -1.402, NULL, false, false, false, false),
+( 5, '출구1',          0.0,   -1.617, 120,  false, false, false, false),
+-- 위쪽 복도 (y=-0.007)
+( 6, '가전제품1',      0.489, -0.007, 1,    false, false, true,  false),
+( 7, '가전제품2',      0.749, -0.007, 1,    false, false, true,  false),
+( 8, '과자1',          0.950, -0.007, 2,    false, false, true,  false),
+( 9, '과자_해산물',    1.151, -0.007, NULL, false, false, false, false),
+-- 오른쪽 복도 (x=1.151)
+(10, '해산물2',        1.151, -0.300, 3,    false, false, true,  false),
+(11, '육류1',          1.151, -0.606, 4,    false, false, true,  false),
+(12, '육류2',          1.151, -0.899, 4,    false, false, true,  false),
+(13, '채소1',          1.151, -1.224, 5,    false, false, true,  false),
+(14, '채소_화장실',    1.151, -1.606, NULL, false, false, false, false),
+-- 아래쪽 복도
+(15, '화장실2',        0.812, -1.606, 100,  false, false, true,  false),
+(16, '결제구역1',      0.186, -1.614, 150,  false, false, false, true),
+(17, '결제구역2',      0.183, -1.402, 150,  false, false, false, true),
+-- 내부 1열 (y=-0.300)
+(18, '빵1',            0.494, -0.300, 7,    false, false, true,  false),
+(19, '빵2',            0.749, -0.300, 7,    false, false, true,  false),
+-- 내부 2열 (y=-0.606)
+(20, '가공식품1',      0.774, -0.606, 8,    false, false, true,  false),
+(21, '가공식품2',      0.473, -0.606, 8,    false, false, true,  false),
+-- 내부 3열 (y=-0.899)
+(22, '음료1',          0.704, -0.899, 6,    false, false, true,  false),
+(23, '음료2',          0.715, -1.197, 6,    false, false, true,  false),
+-- 통로 waypoint
+(24, '로비',            0.245, -0.007, NULL, false, false, false, false),
+(25, '1열_입구',        0.245, -0.300, NULL, false, false, false, false),
+(26, '2열_입구',        0.245, -0.606, NULL, false, false, false, false),
+(27, '3열_입구',        0.245, -0.899, NULL, false, false, false, false)
+ON CONFLICT (idx) DO UPDATE SET
+    name          = EXCLUDED.name,
+    x             = EXCLUDED.x,
+    y             = EXCLUDED.y,
+    zone_id       = EXCLUDED.zone_id,
+    is_charger    = EXCLUDED.is_charger,
+    is_parking    = EXCLUDED.is_parking,
+    pickup_zone   = EXCLUDED.pickup_zone,
+    holding_point = EXCLUDED.holding_point;
+
+-- FLEET_LANE (shop_nav_graph.yaml 레인 — 단방향 쌍)
+INSERT INTO fleet_lane (from_idx, to_idx) VALUES
+-- 외곽 루프 — 왼쪽 복도
+(0,1),(1,0),(1,2),(2,1),(2,3),(3,2),(3,4),(4,3),(4,5),(5,4),
+-- 외곽 루프 — 위쪽 복도
+(0,24),(24,0),(24,6),(6,24),(6,7),(7,6),(7,8),(8,7),(8,9),(9,8),
+-- 외곽 루프 — 오른쪽 복도
+(9,10),(10,9),(10,11),(11,10),(11,12),(12,11),(12,13),(13,12),(13,14),(14,13),
+-- 외곽 루프 — 아래쪽 복도
+(14,15),(15,14),(15,16),(16,15),(16,5),(5,16),
+-- 내부 1열 (y=-0.300)
+(1,25),(25,1),(25,18),(18,25),(18,19),(19,18),(19,10),(10,19),
+-- 내부 2열 (y=-0.606)
+(2,26),(26,2),(26,21),(21,26),(21,20),(20,21),(20,11),(11,20),
+-- 내부 3열 (y=-0.899)
+(3,27),(27,3),(27,22),(22,27),(22,12),(12,22),
+-- 수직 통로 (로비↔1열↔2열↔3열)
+(24,25),(25,24),(25,26),(26,25),(26,27),(27,26),
+-- y≈-1.2
+(23,13),(13,23),
+-- y=-1.402
+(4,17),(17,4),
+-- 6↔18 수직 연결
+(6,18),(18,6),
+-- 7↔19 수직, 20↔22 수직
+(7,19),(19,7),(20,22),(22,20),
+-- 음료2 → 화장실2
+(23,15),(15,23),
+-- 결제구역 수직 연결
+(16,17),(17,16)
+ON CONFLICT (from_idx, to_idx) DO NOTHING;

@@ -35,7 +35,9 @@ TCP 메시지 처리 (message_received 시그널 연결):
     map_widget.map_clicked → 대기 중인 로봇에 admin_goto 즉시 전송
 """
 
+import json
 import time
+import urllib.request
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction
@@ -98,6 +100,7 @@ class MainWindow(QMainWindow):
         self.resize(1400, 900)
 
         self._build_ui()
+        self._fetch_fleet_graph()
         self._start_tcp()
 
         # OFFLINE 감지 타이머 (5초 주기)
@@ -212,6 +215,23 @@ class MainWindow(QMainWindow):
         # 상태 바
         self.setStatusBar(QStatusBar())
         self.statusBar().showMessage('준비')
+
+    # ------------------------------------------------------------------
+    # Fleet graph 데이터 fetch
+    # ------------------------------------------------------------------
+
+    def _fetch_fleet_graph(self):
+        """REST /fleet/graph에서 nav graph fetch → map_widget에 전달."""
+        url = f'{self._rest_base}/fleet/graph'
+        try:
+            with urllib.request.urlopen(url, timeout=3) as resp:
+                data = json.loads(resp.read())
+            self._map_widget.set_fleet_graph(
+                data.get('waypoints', []),
+                data.get('lanes', []),
+            )
+        except Exception:
+            pass  # 서버 미기동 시 무시
 
     # ------------------------------------------------------------------
     # TCP 클라이언트
