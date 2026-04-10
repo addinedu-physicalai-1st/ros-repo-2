@@ -74,6 +74,7 @@ class RobotManager:
         # Inject after construction
         self.publish_cmd:      Optional[Callable[[str, dict], None]] = None
         self.publish_init_pose: Optional[Callable[[str], None]] = None
+        self.teleport_entity: Optional[Callable[[str, float, float, float], bool]] = None
         self.push_to_admin:    Optional[Callable[[dict], None]] = None
         self.push_to_web:      Optional[Callable[[str, dict], None]] = None
 
@@ -236,6 +237,36 @@ class RobotManager:
             else:
                 logger.warning('publish_init_pose not wired; init_pose dropped for robot=%s',
                                robot_id)
+
+        elif cmd == 'admin_teleport':
+            # Simulation-only: set Gazebo entity pose immediately.
+            x = float(payload.get('x', 0.0))
+            y = float(payload.get('y', 0.0))
+            theta = float(payload.get('theta', 0.0))
+            if not self.teleport_entity:
+                self._push_admin({
+                    'type': 'teleport_rejected',
+                    'robot_id': robot_id,
+                    'reason': 'teleport not available (no Gazebo bridge)',
+                })
+                return
+            ok = False
+            try:
+                ok = bool(self.teleport_entity(robot_id, x, y, theta))
+            except Exception:
+                logger.exception('admin_teleport failed (robot=%s)', robot_id)
+            if not ok:
+                self._push_admin({
+                    'type': 'teleport_rejected',
+                    'robot_id': robot_id,
+                    'reason': 'teleport failed',
+                })
+            else:
+                self._push_admin({
+                    'type': 'teleport_done',
+                    'robot_id': robot_id,
+                    'x': x, 'y': y, 'theta': theta,
+                })
 
         elif cmd in ('mode', 'resume_tracking', 'navigate_to', 'start_session'):
             self._relay_to_pi(robot_id, payload)
