@@ -168,8 +168,23 @@ function updatePanelVisibility(mode) {
   // [대기하기] / [따라가기] 버튼 전환
   const btnWait   = document.getElementById("btn-wait");
   const btnFollow = document.getElementById("btn-follow");
-  const showWait = !followDisabled && (mode === "TRACKING" || mode === "TRACKING_CHECKOUT");
-  if (btnWait)   btnWait.style.display   = showWait ? "" : "none";
+
+  const isGuiding = (mode === "GUIDING" || mode === "SEARCHING");
+  const showWait = isGuiding || (!followDisabled && (mode === "TRACKING" || mode === "TRACKING_CHECKOUT"));
+
+  if (btnWait) {
+    btnWait.style.display = showWait ? "" : "none";
+    if (isGuiding) {
+      btnWait.innerHTML = "⏸ 안내 중단";
+      btnWait.onclick = () => {
+        socket.emit("resume_tracking", {});
+        showToast("상품 안내를 중단합니다.");
+      };
+    } else {
+      btnWait.innerHTML = "⏸ 대기하기";
+      btnWait.onclick = () => socket.emit("mode", { value: "WAITING" });
+    }
+  }
   if (btnFollow) btnFollow.style.display = (mode === "WAITING") ? "" : "none";
 }
 
@@ -238,36 +253,97 @@ function sessionEnd() {
 function openFindPanel() {
   const overlay = document.getElementById("find-overlay");
   if (overlay) overlay.classList.remove("hidden");
-  const input = document.getElementById("find-input");
-  if (input) { input.value = ""; input.focus(); }
-  const resultEl = document.getElementById("find-result");
-  if (resultEl) resultEl.textContent = "";
+  _resetFindPanelState();
 }
 
 function closeFindPanel() {
   const overlay = document.getElementById("find-overlay");
   if (overlay) overlay.classList.add("hidden");
+  _resetFindPanelState();
 }
 
 function submitFind() {
   const input = document.getElementById("find-input");
   const name = input ? input.value.trim() : "";
   if (!name) return;
+
+  const resultEl = document.getElementById("find-result");
+  const btnPrimary = document.getElementById("btn-find-primary");
+  const btnSecondary = document.getElementById("btn-find-secondary");
+
+  if (resultEl) {
+    resultEl.innerHTML = `<span class="spinner-small"></span> AI가 답변을 준비 중입니다...`;
+  }
+  if (btnPrimary) btnPrimary.disabled = true;
+  if (btnSecondary) btnSecondary.disabled = true;
+
   socket.emit("find_product", { name });
 }
 
 function showFindProductResult(data) {
   const resultEl = document.getElementById("find-result");
+  const btnPrimary = document.getElementById("btn-find-primary");
+  const btnSecondary = document.getElementById("btn-find-secondary");
+  const mapPreview = document.getElementById("find-map-preview");
+
+  if (btnPrimary) btnPrimary.disabled = false;
+  if (btnSecondary) btnSecondary.disabled = false;
+
   if (data.error) {
     if (resultEl) resultEl.textContent = data.error;
     return;
   }
+
   if (resultEl) {
-    // AI의 친절한 답변(answer)이 있으면 우선 출력, 없으면 기존 기본 문구 사용
     resultEl.textContent = data.answer || `"${data.zone_name}"으로 안내합니다.`;
   }
-  // 긴 답변을 읽을 수 있도록 닫기 지연 시간을 2.5초로 연장
-  setTimeout(closeFindPanel, 2500);
+
+  // 버튼 텍스트 및 기능 전환
+  if (btnPrimary) {
+    btnPrimary.innerHTML = "🚀 안내 시작하기";
+    btnPrimary.onclick = () => startNavigationFromSearch(data.zone_id, data.zone_name);
+  }
+  if (btnSecondary) {
+    btnSecondary.innerHTML = "🔍 더 물어보기";
+    btnSecondary.onclick = () => continueSearching();
+  }
+
+  // 지도 미리보기 영역 표시 (Placeholder)
+  if (mapPreview) mapPreview.classList.remove("hidden");
+}
+
+function startNavigationFromSearch(zoneId, zoneName) {
+  if (!zoneId) return;
+  socket.emit("navigate_to", { zone_id: zoneId });
+  showToast(`"${zoneName}"으로 안내를 시작합니다.`);
+  closeFindPanel();
+}
+
+function continueSearching() {
+  _resetFindPanelState();
+}
+
+function _resetFindPanelState() {
+  const input = document.getElementById("find-input");
+  const resultEl = document.getElementById("find-result");
+  const btnPrimary = document.getElementById("btn-find-primary");
+  const btnSecondary = document.getElementById("btn-find-secondary");
+  const mapPreview = document.getElementById("find-map-preview");
+
+  if (input) { input.value = ""; input.focus(); }
+  if (resultEl) resultEl.textContent = "";
+  if (mapPreview) mapPreview.classList.add("hidden");
+
+  if (btnPrimary) {
+    btnPrimary.disabled = false;
+    btnPrimary.innerHTML = "검색";
+    btnPrimary.onclick = submitFind;
+  }
+  if (btnSecondary) {
+    btnSecondary.disabled = false;
+    btnSecondary.innerHTML = "닫기";
+    btnSecondary.onclick = closeFindPanel;
+  }
 }
 
 // ── QR 스캔 패널 ───────────────────────────────────────────────
