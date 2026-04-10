@@ -138,6 +138,7 @@ CREATE TABLE fleet_waypoint (
     name           VARCHAR(50)      NOT NULL,
     x              DOUBLE PRECISION NOT NULL,
     y              DOUBLE PRECISION NOT NULL,
+    theta          DOUBLE PRECISION NOT NULL DEFAULT 0,
     zone_id        INT REFERENCES zone(zone_id),
     is_charger     BOOLEAN NOT NULL DEFAULT FALSE,
     is_parking     BOOLEAN NOT NULL DEFAULT FALSE,

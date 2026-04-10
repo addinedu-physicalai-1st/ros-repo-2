@@ -414,10 +414,12 @@ class MapWidget(QLabel):
 
         # 웨이포인트 마커
         font = QFont()
-        font.setPointSize(7)
+        font.setPointSize(11)
         font.setBold(True)
         p.setFont(font)
         fm = p.fontMetrics()
+
+        label_rects: list[tuple] = []  # 겹침 감지용
 
         for w in self._fleet_waypoints:
             px, py = wp_px[w['idx']]
@@ -442,15 +444,50 @@ class MapWidget(QLabel):
             p.setPen(QPen(border, 1.5))
             p.drawEllipse(px - r, py - r, r * 2, r * 2)
 
-            # 이름 레이블
+            # 방향 화살표 (pickup_zone인 경우 항상 표시)
+            theta = w.get('theta', 0)
+            if w.get('pickup_zone') or w.get('is_charger') or abs(theta) > 0.01:
+                screen_angle = -(theta - math.pi / 2)
+                arrow_len = r * 2.5
+                ax = px + arrow_len * math.cos(screen_angle)
+                ay = py + arrow_len * math.sin(screen_angle)
+                p.setPen(QPen(border.darker(120), 2))
+                p.drawLine(px, py, int(ax), int(ay))
+                # 화살촉
+                hs = 5
+                p.setBrush(border.darker(120))
+                p.setPen(Qt.PenStyle.NoPen)
+                p.drawPolygon(QPolygonF([
+                    QPointF(ax, ay),
+                    QPointF(ax - hs * math.cos(screen_angle - 0.5),
+                            ay - hs * math.sin(screen_angle - 0.5)),
+                    QPointF(ax - hs * math.cos(screen_angle + 0.5),
+                            ay - hs * math.sin(screen_angle + 0.5)),
+                ]))
+
+            # 이름 레이블 (겹침 감지 → 위/아래 자동 배치)
             name = w['name']
             tw = fm.horizontalAdvance(name)
             th = fm.height()
             tx = px - tw // 2
+            # 기본: 아래
             ty = py + r + 3
+            label_rect = (tx - 2, ty - 1, tw + 4, th + 2)
+            # 기존 라벨과 겹치면 위로 배치
+            for prev in label_rects:
+                if (label_rect[0] < prev[0] + prev[2] and
+                    label_rect[0] + label_rect[2] > prev[0] and
+                    label_rect[1] < prev[1] + prev[3] and
+                    label_rect[1] + label_rect[3] > prev[1]):
+                    ty = py - r - th - 3
+                    label_rect = (tx - 2, ty - 1, tw + 4, th + 2)
+                    break
+            label_rects.append(label_rect)
+
             p.setBrush(QColor(0, 0, 0, 140))
             p.setPen(Qt.PenStyle.NoPen)
-            p.drawRoundedRect(tx - 2, ty - 1, tw + 4, th + 2, 3, 3)
+            p.drawRoundedRect(label_rect[0], label_rect[1],
+                              label_rect[2], label_rect[3], 3, 3)
             p.setPen(QColor('#ffffff'))
             p.drawText(tx, ty + fm.ascent(), name)
 

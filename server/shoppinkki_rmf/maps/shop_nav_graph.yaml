@@ -19,6 +19,8 @@
 #  15=화장실2  16=결제구역1 17=결제구역2
 #  18=빵1     19=빵2     20=가공식품1 21=가공식품2 22=음료1  23=음료2
 #  24=로비  25=1열_입구  26=2열_입구  27=3열_입구
+#  28=1열_출구  29=2열_출구  30=3열_출구  31=4열_중간
+#  32=3열_중간  33=4열_입구  34=하단_중간  35=하단_입구  36=하단_복도  37=결제구역2_입구
 
 building_name: "ShopPinkki Miniature Mart"
 levels:
@@ -30,7 +32,7 @@ levels:
       - [0.0, -0.606, {name: "P1",          is_parking_spot: true, is_charger: true}]          # 2
       - [0.0, -0.899, {name: "P2",          is_parking_spot: true, is_charger: true}]          # 3
       - [0.0, -1.402, {name: "출구2"}]                                                          # 4
-      - [0.0, -1.617, {name: "출구1"}]                                                          # 5
+      - [0.0, -1.597, {name: "출구1"}]                                                          # 5
       # 위쪽 복도 (y=-0.007)
       - [ 0.489, -0.007, {name: "가전제품1",   pickup_zone: true}]                              # 6
       - [ 0.749, -0.007, {name: "가전제품2",   pickup_zone: true}]                              # 7
@@ -41,36 +43,45 @@ levels:
       - [ 1.151, -0.606, {name: "육류1",       pickup_zone: true}]                              # 11
       - [ 1.151, -0.899, {name: "육류2",       pickup_zone: true}]                              # 12
       - [ 1.151, -1.224, {name: "채소1",       pickup_zone: true}]                              # 13
-      - [ 1.151, -1.606, {name: "채소_화장실"}]                                                 # 14  (15번 y축)
+      - [ 1.151, -1.586, {name: "채소_화장실"}]                                                 # 14  (15번 y축)
       # 아래쪽 복도
-      - [ 0.812, -1.606, {name: "화장실2",     pickup_zone: true}]                              # 15
-      - [ 0.186, -1.614, {name: "결제구역1",   is_holding_point: true}]                         # 16
+      - [ 0.812, -1.586, {name: "화장실2",     pickup_zone: true}]                              # 15
+      - [ 0.186, -1.594, {name: "결제구역1",   is_holding_point: true}]                         # 16
       - [ 0.183, -1.402, {name: "결제구역2",   is_holding_point: true}]                         # 17
       # 내부 1열 (y=-0.300)
       - [ 0.494, -0.300, {name: "빵1",         pickup_zone: true}]                              # 18
       - [ 0.749, -0.300, {name: "빵2",         pickup_zone: true}]                              # 19  (7번 y축)
       # 내부 2열 (y=-0.606)
-      - [ 0.774, -0.606, {name: "가공식품1",   pickup_zone: true}]                              # 20
-      - [ 0.473, -0.606, {name: "가공식품2",   pickup_zone: true}]                              # 21
+      - [ 0.749, -0.606, {name: "가공식품1",   pickup_zone: true}]                              # 20
+      - [ 0.494, -0.606, {name: "가공식품2",   pickup_zone: true}]                              # 21
       # 내부 3열 (y=-0.899)
-      - [ 0.704, -0.899, {name: "음료1",       pickup_zone: true}]                              # 22
-      - [ 0.715, -1.197, {name: "음료2",       pickup_zone: true}]                              # 23
+      - [ 0.749, -0.899, {name: "음료1",       pickup_zone: true}]                              # 22
+      - [ 0.749, -1.224, {name: "음료2",       pickup_zone: true}]                              # 23
       # 통로 waypoint
       - [ 0.245, -0.007, {name: "로비"}]                                                        # 24
       - [ 0.245, -0.300, {name: "1열_입구"}]                                                    # 25
       - [ 0.245, -0.606, {name: "2열_입구"}]                                                    # 26
       - [ 0.245, -0.899, {name: "3열_입구"}]                                                    # 27
+      - [ 0.950, -0.300, {name: "1열_출구"}]                                                    # 28
+      - [ 0.950, -0.606, {name: "2열_출구"}]                                                    # 29
+      - [ 0.950, -0.899, {name: "3열_출구"}]                                                    # 30
+      - [ 0.950, -1.224, {name: "4열_중간"}]                                                    # 31
+      - [ 0.494, -0.899, {name: "3열_중간"}]                                                    # 32
+      - [ 0.494, -1.224, {name: "4열_입구"}]                                                    # 33
+      - [ 0.494, -1.137, {name: "하단_중간"}]                                                   # 34
+      - [ 0.245, -1.137, {name: "하단_입구"}]                                                   # 35
+      - [ 0.0,   -1.137, {name: "하단_복도"}]                                                   # 36
+      - [ 0.494, -1.402, {name: "결제구역2_입구"}]                                                   # 37
+      - [ 0.494, -1.590, {name: "결제구역1_입구"}]                                                   # 38
 
     lanes:
       # ── 외곽 루프 — 왼쪽 복도 ────────────────────────────────────────────────
       - [0,  1,  {is_bidirectional: false}]
       - [1,  0,  {is_bidirectional: false}]
-      - [1,  2,  {is_bidirectional: false}]
-      - [2,  1,  {is_bidirectional: false}]
       - [2,  3,  {is_bidirectional: false}]
       - [3,  2,  {is_bidirectional: false}]
-      - [3,  4,  {is_bidirectional: false}]
-      - [4,  3,  {is_bidirectional: false}]
+      - [36, 4,  {is_bidirectional: false}]
+      - [4,  36, {is_bidirectional: false}]
       - [4,  5,  {is_bidirectional: false}]
       - [5,  4,  {is_bidirectional: false}]
       # ── 외곽 루프 — 위쪽 복도 ────────────────────────────────────────────────
@@ -98,8 +109,10 @@ levels:
       # ── 외곽 루프 — 아래쪽 복도 ──────────────────────────────────────────────
       - [14, 15, {is_bidirectional: false}]
       - [15, 14, {is_bidirectional: false}]
-      - [15, 16, {is_bidirectional: false}]
-      - [16, 15, {is_bidirectional: false}]
+      - [15, 38, {is_bidirectional: false}]
+      - [38, 15, {is_bidirectional: false}]
+      - [38, 16, {is_bidirectional: false}]
+      - [16, 38, {is_bidirectional: false}]
       - [16, 5,  {is_bidirectional: false}]
       - [5,  16, {is_bidirectional: false}]
       # ── 내부 수평 통로 — 1열 y=-0.300 ────────────────────────────────────────
@@ -109,8 +122,10 @@ levels:
       - [18, 25, {is_bidirectional: false}]
       - [18, 19, {is_bidirectional: false}]
       - [19, 18, {is_bidirectional: false}]
-      - [19, 10, {is_bidirectional: false}]
-      - [10, 19, {is_bidirectional: false}]
+      - [19, 28, {is_bidirectional: false}]
+      - [28, 19, {is_bidirectional: false}]
+      - [28, 10, {is_bidirectional: false}]
+      - [10, 28, {is_bidirectional: false}]
       # ── 내부 수평 통로 — 2열 y=-0.606 ────────────────────────────────────────
       - [2,  26, {is_bidirectional: false}]
       - [26, 2,  {is_bidirectional: false}]
@@ -118,28 +133,68 @@ levels:
       - [21, 26, {is_bidirectional: false}]
       - [21, 20, {is_bidirectional: false}]
       - [20, 21, {is_bidirectional: false}]
-      - [20, 11, {is_bidirectional: false}]
-      - [11, 20, {is_bidirectional: false}]
+      - [20, 29, {is_bidirectional: false}]
+      - [29, 20, {is_bidirectional: false}]
+      - [29, 11, {is_bidirectional: false}]
+      - [11, 29, {is_bidirectional: false}]
       # ── 내부 수평 통로 — 3열 y=-0.899 ────────────────────────────────────────
       - [3,  27, {is_bidirectional: false}]
       - [27, 3,  {is_bidirectional: false}]
-      - [27, 22, {is_bidirectional: false}]
-      - [22, 27, {is_bidirectional: false}]
-      - [22, 12, {is_bidirectional: false}]
-      - [12, 22, {is_bidirectional: false}]
-      # ── 수직 통로 (로비↔1열↔2열↔3열) ─────────────────────────────────────────
+      - [27, 32, {is_bidirectional: false}]
+      - [32, 27, {is_bidirectional: false}]
+      - [32, 22, {is_bidirectional: false}]
+      - [22, 32, {is_bidirectional: false}]
+      - [22, 30, {is_bidirectional: false}]
+      - [30, 22, {is_bidirectional: false}]
+      - [30, 12, {is_bidirectional: false}]
+      - [12, 30, {is_bidirectional: false}]
+      # ── 내부 수평 통로 — 4열 y=-1.224 ────────────────────────────────────────
+      - [23, 33, {is_bidirectional: false}]
+      - [33, 23, {is_bidirectional: false}]
+      - [33, 31, {is_bidirectional: false}]
+      - [31, 33, {is_bidirectional: false}]
+      - [31, 13, {is_bidirectional: false}]
+      - [13, 31, {is_bidirectional: false}]
+      # ── 수직 통로 중 (가공식품2↔3열↔4열) ─────────────────────────────────────
+      - [21, 32, {is_bidirectional: false}]
+      - [32, 21, {is_bidirectional: false}]
+      - [32, 34, {is_bidirectional: false}]
+      - [34, 32, {is_bidirectional: false}]
+      - [34, 33, {is_bidirectional: false}]
+      - [33, 34, {is_bidirectional: false}]
+      # ── 하단 수평 (하단_복도↔하단_입구↔하단_중간) ────────────────────────────
+      - [36, 35, {is_bidirectional: false}]
+      - [35, 36, {is_bidirectional: false}]
+      - [35, 34, {is_bidirectional: false}]
+      - [34, 35, {is_bidirectional: false}]
+      # ── 하단_입구↔3열_입구 수직 ──────────────────────────────────────────────
+      - [27, 35, {is_bidirectional: false}]
+      - [35, 27, {is_bidirectional: false}]
+      # ── 수직 통로 좌 (로비↔1열↔2열↔3열) ──────────────────────────────────────
       - [24, 25, {is_bidirectional: false}]
       - [25, 24, {is_bidirectional: false}]
       - [25, 26, {is_bidirectional: false}]
       - [26, 25, {is_bidirectional: false}]
       - [26, 27, {is_bidirectional: false}]
       - [27, 26, {is_bidirectional: false}]
-      # ── 내부 수평 통로 — y≈-1.2 ──────────────────────────────────────────────
-      - [23, 13, {is_bidirectional: false}]
-      - [13, 23, {is_bidirectional: false}]
+      # ── 수직 통로 우 (과자1↔1열↔2열↔3열↔4열) ────────────────────────────────
+      - [8,  28, {is_bidirectional: false}]
+      - [28, 8,  {is_bidirectional: false}]
+      - [28, 29, {is_bidirectional: false}]
+      - [29, 28, {is_bidirectional: false}]
+      - [29, 30, {is_bidirectional: false}]
+      - [30, 29, {is_bidirectional: false}]
+      - [30, 31, {is_bidirectional: false}]
+      - [31, 30, {is_bidirectional: false}]
       # ── 내부 수평 통로 — y=-1.402 ────────────────────────────────────────────
       - [4,  17, {is_bidirectional: false}]
       - [17, 4,  {is_bidirectional: false}]
+      - [33, 37, {is_bidirectional: false}]
+      - [37, 33, {is_bidirectional: false}]
+      - [37, 17, {is_bidirectional: false}]
+      - [17, 37, {is_bidirectional: false}]
+      - [37, 38, {is_bidirectional: false}]
+      - [38, 37, {is_bidirectional: false}]
       # ── 6↔18 수직 연결 ───────────────────────��──────────────────────────
       - [6,  18, {is_bidirectional: false}]
       - [18, 6,  {is_bidirectional: false}]

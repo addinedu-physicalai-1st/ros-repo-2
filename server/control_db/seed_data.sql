@@ -10,12 +10,12 @@ INSERT INTO zone (zone_id, zone_name, zone_type, waypoint_x, waypoint_y, waypoin
 (6,   '음료',     'product',  0.704, -0.899,  0.0),
 (7,   '베이커리', 'product',  0.622, -0.300,  0.0),
 (8,   '음식',     'product',  0.624, -0.606,  0.0),
-(100, '화장실',   'special',  0.812, -1.606,  1.5708),
+(100, '화장실',   'special',  0.812, -1.586,  1.5708),
 (110, '입구',     'special', 0.0, -0.007,  0.0),
-(120, '출구',     'special', 0.0, -1.617,  0.0),
+(120, '출구',     'special', 0.0, -1.597,  0.0),
 (140, '충전소_18(P1)','special', 0.0, -0.606, 0.0),
 (141, '충전소_54(P2)','special', 0.0, -0.899, 0.0),
-(150, '결제 구역','special',  0.186, -1.614,  1.5708)
+(150, '결제 구역','special',  0.186, -1.594,  1.5708)
 ON CONFLICT (zone_id) DO UPDATE SET
     zone_name      = EXCLUDED.zone_name,
     zone_type      = EXCLUDED.zone_type,
@@ -123,47 +123,59 @@ INSERT INTO card (user_id, card_alias) VALUES
 ON CONFLICT (user_id, card_alias) DO NOTHING;
 
 -- FLEET_WAYPOINT (shop_nav_graph.yaml 28개 버텍스)
-INSERT INTO fleet_waypoint (idx, name, x, y, zone_id, is_charger, is_parking, pickup_zone, holding_point) VALUES
+INSERT INTO fleet_waypoint (idx, name, x, y, theta, zone_id, is_charger, is_parking, pickup_zone, holding_point) VALUES
 -- 왼쪽 복도 (x=0.0)
-( 0, '입구1',          0.0,   -0.007, 110,  false, false, false, false),
-( 1, '입구2',          0.0,   -0.300, NULL, false, false, false, false),
-( 2, 'P1',             0.0,   -0.606, 140,  true,  true,  false, false),
-( 3, 'P2',             0.0,   -0.899, 141,  true,  true,  false, false),
-( 4, '출구2',          0.0,   -1.402, NULL, false, false, false, false),
-( 5, '출구1',          0.0,   -1.617, 120,  false, false, false, false),
+( 0, '입구1',          0.0,   -0.007, 0,       110,  false, false, false, false),
+( 1, '입구2',          0.0,   -0.300, 0,       NULL, false, false, false, false),
+( 2, 'P1',             0.0,   -0.606, 3.1416,  140,  true,  true,  false, false),  -- 서쪽(-x)
+( 3, 'P2',             0.0,   -0.899, 3.1416,  141,  true,  true,  false, false),  -- 서쪽(-x)
+( 4, '출구2',          0.0,   -1.402, 0,       NULL, false, false, false, false),
+( 5, '출구1',          0.0,   -1.597, 0,       120,  false, false, false, false),
 -- 위쪽 복도 (y=-0.007)
-( 6, '가전제품1',      0.489, -0.007, 1,    false, false, true,  false),
-( 7, '가전제품2',      0.749, -0.007, 1,    false, false, true,  false),
-( 8, '과자1',          0.950, -0.007, 2,    false, false, true,  false),
-( 9, '과자_해산물',    1.151, -0.007, NULL, false, false, false, false),
+( 6, '가전제품1',      0.489, -0.007, -1.5708, 1,    false, false, true,  false),
+( 7, '가전제품2',      0.749, -0.007, -1.5708, 1,    false, false, true,  false),
+( 8, '과자1',          0.950, -0.007, -1.5708, 2,    false, false, true,  false),
+( 9, '과자_해산물',    1.151, -0.007, 0,       NULL, false, false, false, false),
 -- 오른쪽 복도 (x=1.151)
-(10, '해산물2',        1.151, -0.300, 3,    false, false, true,  false),
-(11, '육류1',          1.151, -0.606, 4,    false, false, true,  false),
-(12, '육류2',          1.151, -0.899, 4,    false, false, true,  false),
-(13, '채소1',          1.151, -1.224, 5,    false, false, true,  false),
-(14, '채소_화장실',    1.151, -1.606, NULL, false, false, false, false),
+(10, '해산물2',        1.151, -0.300, 3.1416,  3,    false, false, true,  false),  -- 서쪽(-x)
+(11, '육류1',          1.151, -0.606, 3.1416,  4,    false, false, true,  false),  -- 서쪽(-x)
+(12, '육류2',          1.151, -0.899, 3.1416,  4,    false, false, true,  false),  -- 서쪽(-x)
+(13, '채소1',          1.151, -1.224, 3.1416,  5,    false, false, true,  false),  -- 서쪽(-x)
+(14, '채소_화장실',    1.151, -1.586, 0,       NULL, false, false, false, false),
 -- 아래쪽 복도
-(15, '화장실2',        0.812, -1.606, 100,  false, false, true,  false),
-(16, '결제구역1',      0.186, -1.614, 150,  false, false, false, true),
-(17, '결제구역2',      0.183, -1.402, 150,  false, false, false, true),
+(15, '화장실2',        0.812, -1.586, 1.5708,  100,  false, false, true,  false),  -- 북쪽(+y)
+(16, '결제구역1',      0.186, -1.594, 0,       150,  false, false, false, true),
+(17, '결제구역2',      0.183, -1.402, 0,       150,  false, false, false, true),
 -- 내부 1열 (y=-0.300)
-(18, '빵1',            0.494, -0.300, 7,    false, false, true,  false),
-(19, '빵2',            0.749, -0.300, 7,    false, false, true,  false),
+(18, '빵1',            0.494, -0.300, 1.5708,  7,    false, false, true,  false),  -- 북쪽(+y)
+(19, '빵2',            0.749, -0.300, 1.5708,  7,    false, false, true,  false),  -- 북쪽(+y)
 -- 내부 2열 (y=-0.606)
-(20, '가공식품1',      0.774, -0.606, 8,    false, false, true,  false),
-(21, '가공식품2',      0.473, -0.606, 8,    false, false, true,  false),
+(20, '가공식품1',      0.749, -0.606, -1.5708, 8,    false, false, true,  false),
+(21, '가공식품2',      0.494, -0.606, -1.5708, 8,    false, false, true,  false),
 -- 내부 3열 (y=-0.899)
-(22, '음료1',          0.704, -0.899, 6,    false, false, true,  false),
-(23, '음료2',          0.715, -1.197, 6,    false, false, true,  false),
+(22, '음료1',          0.749, -0.899, 1.5708,  6,    false, false, true,  false),  -- 북쪽(+y)
+(23, '음료2',          0.749, -1.224, -1.5708, 6,    false, false, true,  false),  -- 남쪽(-y)
 -- 통로 waypoint
-(24, '로비',            0.245, -0.007, NULL, false, false, false, false),
-(25, '1열_입구',        0.245, -0.300, NULL, false, false, false, false),
-(26, '2열_입구',        0.245, -0.606, NULL, false, false, false, false),
-(27, '3열_입구',        0.245, -0.899, NULL, false, false, false, false)
+(24, '로비',            0.245, -0.007, 0,       NULL, false, false, false, false),
+(25, '1열_입구',        0.245, -0.300, 0,       NULL, false, false, false, false),
+(26, '2열_입구',        0.245, -0.606, 0,       NULL, false, false, false, false),
+(27, '3열_입구',        0.245, -0.899, 0,       NULL, false, false, false, false),
+(28, '1열_출구',        0.950, -0.300, 0,       NULL, false, false, false, false),
+(29, '2열_출구',        0.950, -0.606, 0,       NULL, false, false, false, false),
+(30, '3열_출구',        0.950, -0.899, 0,       NULL, false, false, false, false),
+(31, '4열_중간',        0.950, -1.224, 0,       NULL, false, false, false, false),
+(32, '3열_중간',        0.494, -0.899, 0,       NULL, false, false, false, false),
+(33, '4열_입구',        0.494, -1.224, 0,       NULL, false, false, false, false),
+(34, '하단_중간',       0.494, -1.137, 0,       NULL, false, false, false, false),
+(35, '하단_입구',       0.245, -1.137, 0,       NULL, false, false, false, false),
+(36, '하단_복도',       0.0,   -1.137, 0,       NULL, false, false, false, false),
+(37, '결제구역2_입구',  0.494, -1.402, 0,       NULL, false, false, false, false),
+(38, '결제구역1_입구',  0.494, -1.590, 0,       NULL, false, false, false, false)
 ON CONFLICT (idx) DO UPDATE SET
     name          = EXCLUDED.name,
     x             = EXCLUDED.x,
     y             = EXCLUDED.y,
+    theta         = EXCLUDED.theta,
     zone_id       = EXCLUDED.zone_id,
     is_charger    = EXCLUDED.is_charger,
     is_parking    = EXCLUDED.is_parking,
@@ -173,25 +185,35 @@ ON CONFLICT (idx) DO UPDATE SET
 -- FLEET_LANE (shop_nav_graph.yaml 레인 — 단방향 쌍)
 INSERT INTO fleet_lane (from_idx, to_idx) VALUES
 -- 외곽 루프 — 왼쪽 복도
-(0,1),(1,0),(1,2),(2,1),(2,3),(3,2),(3,4),(4,3),(4,5),(5,4),
+(0,1),(1,0),(2,3),(3,2),(36,4),(4,36),(4,5),(5,4),
 -- 외곽 루프 — 위쪽 복도
 (0,24),(24,0),(24,6),(6,24),(6,7),(7,6),(7,8),(8,7),(8,9),(9,8),
 -- 외곽 루프 — 오른쪽 복도
 (9,10),(10,9),(10,11),(11,10),(11,12),(12,11),(12,13),(13,12),(13,14),(14,13),
 -- 외곽 루프 — 아래쪽 복도
-(14,15),(15,14),(15,16),(16,15),(16,5),(5,16),
+(14,15),(15,14),(15,38),(38,15),(38,16),(16,38),(16,5),(5,16),
+-- 하단_출구↔결제_입구 수직
+(37,38),(38,37),
 -- 내부 1열 (y=-0.300)
-(1,25),(25,1),(25,18),(18,25),(18,19),(19,18),(19,10),(10,19),
+(1,25),(25,1),(25,18),(18,25),(18,19),(19,18),(19,28),(28,19),(28,10),(10,28),
 -- 내부 2열 (y=-0.606)
-(2,26),(26,2),(26,21),(21,26),(21,20),(20,21),(20,11),(11,20),
+(2,26),(26,2),(26,21),(21,26),(21,20),(20,21),(20,29),(29,20),(29,11),(11,29),
 -- 내부 3열 (y=-0.899)
-(3,27),(27,3),(27,22),(22,27),(22,12),(12,22),
--- 수직 통로 (로비↔1열↔2열↔3열)
+(3,27),(27,3),(27,32),(32,27),(32,22),(22,32),(22,30),(30,22),(30,12),(12,30),
+-- 내부 4열 (y=-1.224)
+(23,33),(33,23),(33,31),(31,33),(31,13),(13,31),
+-- 수직 통로 중 (가공식품2↔3열↔하단↔4열)
+(21,32),(32,21),(32,34),(34,32),(34,33),(33,34),
+-- 하단 수평 (하단_복도↔하단_입구↔하단_중간)
+(36,35),(35,36),(35,34),(34,35),
+-- 하단_입구↔3열_입구 수직
+(27,35),(35,27),
+-- 수직 통로 좌 (로비↔1열↔2열↔3열)
 (24,25),(25,24),(25,26),(26,25),(26,27),(27,26),
--- y≈-1.2
-(23,13),(13,23),
+-- 수직 통로 우 (과자1↔1열↔2열↔3열↔4열)
+(8,28),(28,8),(28,29),(29,28),(29,30),(30,29),(30,31),(31,30),
 -- y=-1.402
-(4,17),(17,4),
+(4,17),(17,4),(33,37),(37,33),(37,17),(17,37),
 -- 6↔18 수직 연결
 (6,18),(18,6),
 -- 7↔19 수직, 20↔22 수직
