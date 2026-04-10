@@ -50,6 +50,16 @@ except ImportError:
     _PERCEPTION_AVAILABLE = False
 
 try:
+    from shoppinkki_nav.bt_tracking import create_tracking_tree
+    from shoppinkki_nav.bt_searching import create_searching_tree
+    from shoppinkki_nav.bt_waiting import create_waiting_tree
+    from shoppinkki_nav.bt_guiding import create_guiding_tree
+    from shoppinkki_nav.bt_returning import create_returning_tree
+    _NAV_BT_AVAILABLE = True
+except ImportError:
+    _NAV_BT_AVAILABLE = False
+
+try:
     from pinkylib import Camera as PinkyCamera
     _PINKYLIB_AVAILABLE = True
 except ImportError:
@@ -84,35 +94,69 @@ class ShoppinkiMainNode(Node):
         # ── Hardware controller ────────────────
         self.hw = HWController(node=self, robot_id=ROBOT_ID)
 
-        # ── BT stubs (replaced by real BTs in shoppinkki_nav) ──────────
-        # Import lazily so the node boots even without shoppinkki_nav built
-        from shoppinkki_interfaces import MockNavBT
-        self._bt_tracking = MockNavBT()
-        self._bt_searching = MockNavBT()
-        self._bt_waiting = MockNavBT()
-        self._bt_guiding = MockNavBT()
-        self._bt_returning = MockNavBT()
+        # ── DollDetector (BT보다 먼저 생성 — BT1/BT2가 참조) ──────
+        YOLO_HOST = os.environ.get('YOLO_HOST', '127.0.0.1')
+        YOLO_PORT = int(os.environ.get('YOLO_PORT', '5005'))
+        if _PERCEPTION_AVAILABLE:
+            self.doll_detector = DollDetector(
+                yolo_host=YOLO_HOST, yolo_port=YOLO_PORT)
+            self.get_logger().info(
+                f'DollDetector 초기화 (YOLO {YOLO_HOST}:{YOLO_PORT})')
+        else:
+            self.doll_detector = None
+            self.get_logger().warning('shoppinkki_perception 미설치 — DollDetector 비활성화')
+
+        # ── RobotPublisher (BT가 /cmd_vel 발행에 사용) ────────
+        from .robot_publisher import RobotPublisher
+        self._robot_publisher = RobotPublisher(node=self, robot_id=ROBOT_ID)
+
+        # ── LiDAR 스캔 캐시 (장애물 회피용) ───────────────────
+        from sensor_msgs.msg import LaserScan
+        self._latest_scan: list = []
+        self.create_subscription(
+            LaserScan, f'/robot_{ROBOT_ID}/scan', self._scan_callback,
+            QoSProfile(
+                reliability=QoSReliabilityPolicy.BEST_EFFORT,
+                history=QoSHistoryPolicy.KEEP_LAST, depth=1))
+
+        # ── py_trees BT 생성 (BT1~BT5) ─────────────────────
+        import py_trees
+        if _NAV_BT_AVAILABLE and self.doll_detector is not None:
+            self._bt_tracking = create_tracking_tree(
+                doll_detector=self.doll_detector,
+                publisher=self._robot_publisher,
+                get_scan=self._get_forward_scan,
+            )
+            self._bt_searching = create_searching_tree(
+                doll_detector=self.doll_detector,
+                publisher=self._robot_publisher,
+                get_scan=self._get_forward_scan,
+            )
+            self._bt_waiting = create_waiting_tree(
+                publisher=self._robot_publisher,
+                get_scan=self._get_forward_scan,
+            )
+            self._bt_guiding = create_guiding_tree(
+                publisher=self._robot_publisher,
+            )
+            self._bt_returning = create_returning_tree(
+                publisher=self._robot_publisher,
+            )
+            self.get_logger().info('BT1~BT5: py_trees Behaviour 연결 완료')
+        else:
+            self._bt_tracking = py_trees.behaviours.Running(name='MockBT1')
+            self._bt_searching = py_trees.behaviours.Running(name='MockBT2')
+            self._bt_waiting = py_trees.behaviours.Running(name='MockBT3')
+            self._bt_guiding = py_trees.behaviours.Running(name='MockBT4')
+            self._bt_returning = py_trees.behaviours.Running(name='MockBT5')
+            self.get_logger().warning('BT1~BT5: py_trees Mock (nav/perception 미설치)')
 
         # ── Nav2 action client (admin_goto / navigate_to) ─────
-        # Nav2는 항상 robot_<id> namespace로 실행됨 (실물/시뮬 동일)
         self._nav2_client = None
         if _NAV2_AVAILABLE:
             nav2_action = f'robot_{ROBOT_ID}/navigate_to_pose'
             self._nav2_client = ActionClient(self, NavigateToPose, nav2_action)
             self.get_logger().info(f'Nav2 action client ready ({nav2_action})')
-
-            # BT5 (RETURNING): Nav2 기반 실제 구현으로 교체
-            charger_zone_id = CHARGER_ZONE_IDS.get(ROBOT_ID)
-            charger_zone = self._zones.get(charger_zone_id) if charger_zone_id else None
-            if charger_zone:
-                from .bt_returning import Nav2ReturningBT
-                self._bt_returning = Nav2ReturningBT(
-                    node=self, action_client=self._nav2_client,
-                    charger_x=charger_zone['x'], charger_y=charger_zone['y'],
-                    charger_yaw=charger_zone['theta'])
-                self.get_logger().info(
-                    'BT5 RETURNING: charger (%.3f, %.3f)' % (
-                        charger_zone['x'], charger_zone['y']))
         else:
             self.get_logger().warning('nav2_msgs not available — admin_goto disabled')
 
@@ -127,18 +171,7 @@ class ShoppinkiMainNode(Node):
             on_arrived=self._on_arrived,
             on_nav_failed=self._on_nav_failed,
         )
-
-        # ── DollDetector ──────────────────────
-        YOLO_HOST = os.environ.get('YOLO_HOST', '127.0.0.1')
-        YOLO_PORT = int(os.environ.get('YOLO_PORT', '5005'))
-        if _PERCEPTION_AVAILABLE:
-            self.doll_detector = DollDetector(
-                yolo_host=YOLO_HOST, yolo_port=YOLO_PORT)
-            self.get_logger().info(
-                f'DollDetector 초기화 (YOLO {YOLO_HOST}:{YOLO_PORT})')
-        else:
-            self.doll_detector = None
-            self.get_logger().warning('shoppinkki_perception 미설치 — DollDetector 비활성화')
+        self.bt_runner.setup(node=self)
 
         # ── Cmd handler ───────────────────────
         self.cmd_handler = CmdHandler(
@@ -167,16 +200,6 @@ class ShoppinkiMainNode(Node):
         self.create_subscription(
             String, f'/robot_{ROBOT_ID}/cmd',
             self._cmd_callback, 10)
-
-        # ── Nav2 action client (admin_goto / navigate_to) ─────
-        # 멀티로봇 환경에서 Nav2는 /robot_<id>/navigate_to_pose 로 실행됨
-        self._nav2_client = None
-        if _NAV2_AVAILABLE:
-            nav2_action = f'robot_{ROBOT_ID}/navigate_to_pose'
-            self._nav2_client = ActionClient(self, NavigateToPose, nav2_action)
-            self.get_logger().info(f'Nav2 action client ready ({nav2_action})')
-        else:
-            self.get_logger().warning('nav2_msgs not available — admin_goto disabled')
 
         # ── Timers ────────────────────────────
         self.create_timer(0.1, self._bt_tick_callback)    # 10 Hz BT tick
@@ -230,6 +253,14 @@ class ShoppinkiMainNode(Node):
     # ──────────────────────────────────────────
     # ROS callbacks
     # ──────────────────────────────────────────
+
+    def _scan_callback(self, msg) -> None:
+        """LiDAR 스캔 캐시 갱신 (BT1/BT2 장애물 회피용)."""
+        self._latest_scan = list(msg.ranges)
+
+    def _get_forward_scan(self) -> list:
+        """BT에 전달할 LiDAR 거리 리스트."""
+        return self._latest_scan
 
     def _amcl_callback(self, msg: PoseWithCovarianceStamped) -> None:
         """AMCL 추정 위치를 내부 상태에 반영."""
@@ -468,6 +499,7 @@ class ShoppinkiMainNode(Node):
                     self.get_logger().debug(f'snapshot 발행 (bbox conf={bbox.get("confidence", 0):.2f})')
 
             elif state in ('TRACKING', 'TRACKING_CHECKOUT'):
+                self.hw.display_frame(frame)
                 if self.doll_detector is not None:
                     self.doll_detector.run(frame)
 

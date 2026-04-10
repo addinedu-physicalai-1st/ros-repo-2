@@ -1,23 +1,24 @@
-"""BT 1: TRACKING / TRACKING_CHECKOUT
+"""BT 1: TRACKING / TRACKING_CHECKOUT  (py_trees 기반)
 
-P-Control follower + RPLiDAR obstacle avoidance (parallel).
+P-Control follower + RPLiDAR obstacle avoidance.
 
-Design:
-    - doll_detector.get_latest() provides the current Detection or None.
-    - publisher.publish_cmd_vel() sends velocity commands.
-    - get_scan() optional callable returning a list of forward distances (m).
-      If None, obstacle avoidance is disabled.
-    - Returns FAILURE after N_MISS_FRAMES consecutive misses → BT Runner
-      triggers enter_searching().
+트리 구조:
+    BT1_Tracking (Selector)
+    ├─ FollowDoll (Sequence)
+    │  ├─ CheckDetection       ← get_latest() != None → SUCCESS
+    │  ├─ ComputeVelocity      ← P-Control linear_x, angular_z 계산
+    │  └─ ObstacleAvoidance    ← LiDAR 감속 + cmd_vel 발행
+    └─ HandleMiss              ← miss_count 증가, N_MISS_FRAMES 초과 시 FAILURE
 """
 
 from __future__ import annotations
 
 import logging
-import math
 from typing import Callable, List, Optional
 
-from shoppinkki_interfaces import BTStatus, DollDetectorInterface, RobotPublisherInterface
+import py_trees
+
+from shoppinkki_interfaces import DollDetectorInterface, RobotPublisherInterface
 
 try:
     from shoppinkki_core.config import (
@@ -30,7 +31,7 @@ try:
         N_MISS_FRAMES,
         TARGET_AREA,
     )
-except ImportError:  # standalone / test fallback
+except ImportError:
     KP_ANGLE = 0.002
     KP_DIST = 0.0001
     TARGET_AREA = 40000
@@ -43,102 +44,156 @@ except ImportError:  # standalone / test fallback
 logger = logging.getLogger(__name__)
 
 
-class BTTracking:
-    """Behavior Tree for TRACKING and TRACKING_CHECKOUT states (BT1).
+# ── Shared state (Behaviour 간 데이터 전달) ──────────────────
 
-    Parameters
-    ----------
-    doll_detector:
-        DollDetectorInterface — provides get_latest() Detection or None.
-    publisher:
-        RobotPublisherInterface — publishes /cmd_vel.
-    get_scan:
-        Optional callable returning a list[float] of LiDAR distances.
-        Index 0 = front, ordered by angle increment.
-        Typically the forward arc (±30°) subset is passed.
+class _TrackingCtx:
+    """BT1 내부 Behaviour 간 공유 컨텍스트."""
+
+    def __init__(self, detector, publisher, get_scan):
+        self.detector = detector
+        self.publisher = publisher
+        self.get_scan = get_scan
+        self.miss_count: int = 0
+        # ComputeVelocity → ObstacleAvoidance 로 전달
+        self.linear_x: float = 0.0
+        self.angular_z: float = 0.0
+
+
+# ── Leaf Behaviours ──────────────────────────────────────────
+
+class CheckDetection(py_trees.behaviour.Behaviour):
+    """인형 감지 여부 확인.
+
+    감지됨 → SUCCESS (miss_count 리셋)
+    미감지 → FAILURE (FollowDoll Sequence 탈출 → HandleMiss 로)
     """
 
-    def __init__(
-        self,
-        doll_detector: DollDetectorInterface,
-        publisher: RobotPublisherInterface,
-        get_scan: Optional[Callable[[], List[float]]] = None,
-    ) -> None:
-        self._detector = doll_detector
-        self._pub = publisher
-        self._get_scan = get_scan
-        self._miss_count: int = 0
-        self._running: bool = False
+    def __init__(self, name: str, ctx: _TrackingCtx) -> None:
+        super().__init__(name)
+        self._ctx = ctx
 
-    # ── NavBTInterface ────────────────────────
-
-    def start(self) -> None:
-        self._miss_count = 0
-        self._running = True
-        logger.info('BTTracking: started')
-
-    def stop(self) -> None:
-        self._running = False
-        self._pub.publish_cmd_vel(0.0, 0.0)
-        logger.info('BTTracking: stopped')
-
-    def tick(self) -> BTStatus:
-        if not self._running:
-            return BTStatus.RUNNING
-
-        det = self._detector.get_latest()
-
+    def update(self) -> py_trees.common.Status:
+        det = self._ctx.detector.get_latest()
         if det is not None:
-            # Reset miss counter
-            self._miss_count = 0
+            self._ctx.miss_count = 0
+            return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.FAILURE
 
-            # ── P-Control ─────────────────────
-            # error_area > 0: doll 이 너무 멀리 있음 → 앞으로 이동
-            # error_area < 0: doll 이 너무 가까이 있음 → 멈춤 (도망 금지)
-            error_area = TARGET_AREA - det.area
-            linear_x = KP_DIST * error_area
-            linear_x = max(0.0, min(LINEAR_X_MAX, linear_x))  # 후진(도망) 금지
 
-            error_cx = det.cx - IMAGE_WIDTH / 2.0
-            angular_z = -KP_ANGLE * error_cx  # negative: right cx → turn right
-            angular_z = max(-ANGULAR_Z_MAX, min(ANGULAR_Z_MAX, angular_z))
+class ComputeVelocity(py_trees.behaviour.Behaviour):
+    """P-Control 속도 계산.
 
-            # ── Obstacle avoidance (post-processing) ───
-            linear_x = self._apply_obstacle_avoidance(linear_x)
+    bbox 크기(area) → linear_x (거리 제어)
+    bbox 중심(cx)   → angular_z (방향 제어)
+    """
 
-            self._pub.publish_cmd_vel(linear_x, angular_z)
-            return BTStatus.RUNNING
+    def __init__(self, name: str, ctx: _TrackingCtx) -> None:
+        super().__init__(name)
+        self._ctx = ctx
 
-        else:
-            # Detection lost
-            self._miss_count += 1
-            self._pub.publish_cmd_vel(0.0, 0.0)
+    def update(self) -> py_trees.common.Status:
+        det = self._ctx.detector.get_latest()
+        if det is None:
+            return py_trees.common.Status.FAILURE
 
-            if self._miss_count >= N_MISS_FRAMES:
-                logger.info('BTTracking: %d consecutive misses → FAILURE', self._miss_count)
-                return BTStatus.FAILURE
+        error_area = TARGET_AREA - det.area
+        self._ctx.linear_x = KP_DIST * error_area
+        self._ctx.linear_x = max(0.0, min(LINEAR_X_MAX, self._ctx.linear_x))
 
-            return BTStatus.RUNNING
+        error_cx = det.cx - IMAGE_WIDTH / 2.0
+        self._ctx.angular_z = -KP_ANGLE * error_cx
+        self._ctx.angular_z = max(-ANGULAR_Z_MAX, min(ANGULAR_Z_MAX, self._ctx.angular_z))
 
-    # ── Private helpers ───────────────────────
+        return py_trees.common.Status.SUCCESS
 
-    def _apply_obstacle_avoidance(self, linear_x: float) -> float:
-        """Attenuate forward velocity if an obstacle is closer than MIN_DIST."""
-        if self._get_scan is None or linear_x <= 0.0:
-            return linear_x
-        try:
-            distances = self._get_scan()
-            if not distances:
-                return linear_x
-            min_fwd = min(d for d in distances if d > 0.01)  # ignore 0-readings
-            if min_fwd < MIN_DIST:
-                # Scale linearly: 0 at 0 m, full speed at MIN_DIST
-                factor = max(0.0, min_fwd / MIN_DIST)
-                return linear_x * factor
-        except Exception as e:
-            logger.debug('BTTracking: scan error: %s', e)
-        return linear_x
 
-    @staticmethod
-    def _clamp(value: float, lo: float, hi: float) -> float:
-        return max(lo, min(hi, value))
+class ObstacleAvoidance(py_trees.behaviour.Behaviour):
+    """LiDAR 장애물 감속 + cmd_vel 발행.
+
+    전방 장애물이 MIN_DIST 이내이면 linear_x를 비례 감속.
+    최종 속도를 cmd_vel 로 발행 → RUNNING (추종 지속).
+    """
+
+    def __init__(self, name: str, ctx: _TrackingCtx) -> None:
+        super().__init__(name)
+        self._ctx = ctx
+
+    def update(self) -> py_trees.common.Status:
+        linear_x = self._ctx.linear_x
+        angular_z = self._ctx.angular_z
+
+        # LiDAR 감속
+        if self._ctx.get_scan is not None and linear_x > 0.0:
+            try:
+                distances = self._ctx.get_scan()
+                if distances:
+                    min_fwd = min(d for d in distances if d > 0.01)
+                    if min_fwd < MIN_DIST:
+                        factor = max(0.0, min_fwd / MIN_DIST)
+                        linear_x *= factor
+            except Exception as e:
+                logger.debug('ObstacleAvoidance: scan error: %s', e)
+
+        self._ctx.publisher.publish_cmd_vel(linear_x, angular_z)
+        return py_trees.common.Status.RUNNING
+
+    def terminate(self, new_status: py_trees.common.Status) -> None:
+        self._ctx.publisher.publish_cmd_vel(0.0, 0.0)
+
+
+class HandleMiss(py_trees.behaviour.Behaviour):
+    """미감지 처리.
+
+    miss_count 증가 + 정지.
+    N_MISS_FRAMES 초과 → FAILURE (BTRunner 가 SEARCHING 전환)
+    아직 여유 있음 → RUNNING (재감지 대기)
+    """
+
+    def __init__(self, name: str, ctx: _TrackingCtx) -> None:
+        super().__init__(name)
+        self._ctx = ctx
+
+    def update(self) -> py_trees.common.Status:
+        self._ctx.miss_count += 1
+        self._ctx.publisher.publish_cmd_vel(0.0, 0.0)
+
+        if self._ctx.miss_count >= N_MISS_FRAMES:
+            logger.info('HandleMiss: %d consecutive misses → FAILURE',
+                        self._ctx.miss_count)
+            return py_trees.common.Status.FAILURE
+
+        return py_trees.common.Status.RUNNING
+
+
+# ── Tree factory ─────────────────────────────────────────────
+
+def create_tracking_tree(
+    doll_detector: DollDetectorInterface,
+    publisher: RobotPublisherInterface,
+    get_scan: Optional[Callable[[], List[float]]] = None,
+) -> py_trees.behaviour.Behaviour:
+    """BT1 트리를 생성하여 반환.
+
+    BT1_Tracking (Selector, memory=False)
+    ├─ FollowDoll (Sequence, memory=False)
+    │  ├─ CheckDetection
+    │  ├─ ComputeVelocity
+    │  └─ ObstacleAvoidance
+    └─ HandleMiss
+    """
+    ctx = _TrackingCtx(doll_detector, publisher, get_scan)
+
+    follow = py_trees.composites.Sequence(name='FollowDoll', memory=False)
+    follow.add_children([
+        CheckDetection('CheckDetection', ctx),
+        ComputeVelocity('ComputeVelocity', ctx),
+        ObstacleAvoidance('ObstacleAvoidance', ctx),
+    ])
+
+    root = py_trees.composites.Selector(name='BT1_Tracking', memory=False)
+    root.add_children([
+        follow,
+        HandleMiss('HandleMiss', ctx),
+    ])
+
+    return root
