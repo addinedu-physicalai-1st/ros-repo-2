@@ -101,3 +101,56 @@ class TestBboxUpdate:
         state = rm.get_state('54')
         assert state.bbox is not None
         assert state.bbox['cx'] == 320
+
+
+class TestWebReturn:
+    """쇼핑 종료(return): TRACKING 계열에서만 Pi로 RETURNING 릴레이."""
+
+    @pytest.mark.parametrize('mode', ['TRACKING', 'TRACKING_CHECKOUT', 'WAITING'])
+    def test_return_relays_returning_when_shopping_mode(self, mode):
+        with patch('control_service.robot_manager.db') as mock_db:
+            mock_db.get_all_robots.return_value = [
+                {'robot_id': '54', 'current_mode': mode, 'pos_x': 0.0,
+                 'pos_y': 0.0, 'battery_level': 100, 'is_locked_return': 0,
+                 'active_user_id': None},
+            ]
+            mock_db.update_robot.return_value = None
+            mock_db.log_event.return_value = None
+            mock_db.log_staff_call.return_value = 1
+            mock_db.get_active_session_by_robot.return_value = None
+
+            rm = RobotManager()
+            rm.start()
+            rm.publish_cmd = MagicMock()
+            rm.push_to_admin = MagicMock()
+            rm.push_to_web = MagicMock()
+
+            rm.handle_web_cmd('54', {'cmd': 'return', 'robot_id': '54'})
+
+            rm.publish_cmd.assert_called_once()
+            _rid, payload = rm.publish_cmd.call_args[0]
+            assert _rid == '54'
+            assert payload.get('cmd') == 'mode'
+            assert payload.get('value') == 'RETURNING'
+
+    def test_return_skips_pi_when_idle(self):
+        with patch('control_service.robot_manager.db') as mock_db:
+            mock_db.get_all_robots.return_value = [
+                {'robot_id': '54', 'current_mode': 'IDLE', 'pos_x': 0.0,
+                 'pos_y': 0.0, 'battery_level': 100, 'is_locked_return': 0,
+                 'active_user_id': None},
+            ]
+            mock_db.update_robot.return_value = None
+            mock_db.log_event.return_value = None
+            mock_db.log_staff_call.return_value = 1
+            mock_db.get_active_session_by_robot.return_value = None
+
+            rm = RobotManager()
+            rm.start()
+            rm.publish_cmd = MagicMock()
+            rm.push_to_admin = MagicMock()
+            rm.push_to_web = MagicMock()
+
+            rm.handle_web_cmd('54', {'cmd': 'return', 'robot_id': '54'})
+
+            rm.publish_cmd.assert_not_called()

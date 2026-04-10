@@ -23,6 +23,10 @@ from shoppinkki_core.config import ROBOT_TIMEOUT_SEC
 
 logger = logging.getLogger(__name__)
 
+# 쇼핑 종료(return) 시 Pi로 mode=RETURNING 릴레이 가능한 SM 상태.
+# shoppinkki_core.cmd_handler._handle_mode 과 동일 집합을 유지할 것.
+_RETURN_RELAY_MODES = frozenset({'TRACKING', 'TRACKING_CHECKOUT', 'WAITING'})
+
 
 # ──────────────────────────────────────────────
 # Data class
@@ -285,16 +289,35 @@ class RobotManager:
                         db.update_robot(robot_id, active_user_id=None)
                 except Exception:
                     logger.exception('Failed to end session on return (robot=%s)', robot_id)
-                # 2) Pi에 RETURNING 모드 전환 명령 전달 (Pi가 status를 RETURNING으로 publish)
+                # 2) Pi SM이 RETURNING 전이를 받을 수 있는 상태일 때만 릴레이·낙관적 갱신
+                with self._lock:
+                    st = self._states.get(robot_id)
+                cached_mode = st.mode if st is not None else 'OFFLINE'
+                if cached_mode not in _RETURN_RELAY_MODES:
+                    logger.info(
+                        'return: skip Pi RETURNING (robot=%s cached_mode=%s; '
+                        'need TRACKING/TRACKING_CHECKOUT/WAITING)',
+                        robot_id, cached_mode,
+                    )
+                    return
                 payload = dict(payload)
                 payload.pop('cmd', None)
                 payload_to_pi = {
                     'cmd': 'mode',
                     'value': 'RETURNING',
                 }
-                # 기존 필드는 남겨도 CmdHandler가 무시하므로 안전 (robot_id 등)
                 payload_to_pi.update(payload)
                 self._relay_to_pi(robot_id, payload_to_pi)
+                # 3) 관제 UI·REST용 메모리/DB 즉시 반영 (Pi status 수신 전 지연 방지)
+                with self._lock:
+                    st = self._get_or_create(robot_id)
+                    prev_mode = st.mode
+                    st.mode = 'RETURNING'
+                if prev_mode != 'RETURNING':
+                    db.update_robot(robot_id, current_mode='RETURNING')
+                with self._lock:
+                    st = self._states[robot_id]
+                self._push_status(robot_id, st)
                 return
             self._relay_to_pi(robot_id, payload)
         else:
