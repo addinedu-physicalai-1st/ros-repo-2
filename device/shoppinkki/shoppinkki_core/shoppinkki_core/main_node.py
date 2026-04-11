@@ -450,7 +450,7 @@ class ShoppinkiMainNode(Node):
 
         self.get_logger().info(f'카메라 루프 시작')
 
-        _CAM_STATES = {'IDLE', 'TRACKING', 'TRACKING_CHECKOUT'}
+        _CAM_STATES = {'IDLE', 'TRACKING', 'TRACKING_CHECKOUT', 'SEARCHING'}
 
         while rclpy.ok():
             state = self.sm.state
@@ -498,7 +498,7 @@ class ShoppinkiMainNode(Node):
                     self._snapshot_pub.publish(msg)
                     self.get_logger().debug(f'snapshot 발행 (bbox conf={bbox.get("confidence", 0):.2f})')
 
-            elif state in ('TRACKING', 'TRACKING_CHECKOUT'):
+            elif state in ('TRACKING', 'TRACKING_CHECKOUT', 'SEARCHING'):
                 self.hw.display_frame(frame)
                 if self.doll_detector is not None:
                     self.doll_detector.run(frame)
