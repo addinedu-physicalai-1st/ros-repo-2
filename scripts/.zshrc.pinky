@@ -136,8 +136,8 @@ if [ -z "$TMUX" ]; then
                 export GIT_COMMITTER_NAME="Minsung"; export GIT_COMMITTER_EMAIL="a20751651@gmail.com"
                 break ;;
             "Woolim")
-                export GIT_AUTHOR_NAME="Woolim"; export GIT_AUTHOR_EMAIL="woolimi91@naver.com"
-                export GIT_COMMITTER_NAME="Woolim"; export GIT_COMMITTER_EMAIL="woolimi91@naver.com"
+                export GIT_AUTHOR_NAME="Woolim"; export GIT_AUTHOR_EMAIL="woolimi91@naver.GIT_COMMITTER_EMAIL"
+                export GIT_COMMITTER_NAME="Woolim"; export GIT_COMMITTER_EMAIL="woolimi91@naver.GIT_COMMITTER_EMAIL"
                 break ;;
             *)
                 echo "Invalid option '$REPLY'. Please choose a number from the list."
