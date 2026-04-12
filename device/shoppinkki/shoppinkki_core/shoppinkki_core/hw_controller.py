@@ -194,9 +194,6 @@ class HWController:
         except ImportError:
             return None
 
-    # LCD 해상도 — 320x240 Landscape (하드웨어 240x320 가로 거치)
-    LCD_W, LCD_H = 320, 240
-
     def _lcd_show(self, target_landscape):
         """PIL 이미지를 LCD에 표시."""
         lcd = self._get_lcd()
