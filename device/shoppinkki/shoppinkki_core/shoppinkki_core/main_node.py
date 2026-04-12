@@ -139,8 +139,23 @@ class ShoppinkiMainNode(Node):
             self._bt_guiding = create_guiding_tree(
                 publisher=self._robot_publisher,
             )
+            charger_zone_id = CHARGER_ZONE_IDS.get(ROBOT_ID)
+            charger_zone = self._zones.get(charger_zone_id) if charger_zone_id else None
+
+            def _get_parking_slot(z=charger_zone):
+                if z is None:
+                    return None
+                return {
+                    'zone_id': z.get('zone_id', charger_zone_id),
+                    'waypoint_x': z['x'],
+                    'waypoint_y': z['y'],
+                    'waypoint_theta': z.get('theta', 0.0),
+                }
+
             self._bt_returning = create_returning_tree(
                 publisher=self._robot_publisher,
+                robot_id=ROBOT_ID,
+                get_parking_slot=_get_parking_slot,
             )
             self.get_logger().info('BT1~BT5: py_trees Behaviour 연결 완료')
         else:
@@ -157,6 +172,17 @@ class ShoppinkiMainNode(Node):
             nav2_action = f'robot_{ROBOT_ID}/navigate_to_pose'
             self._nav2_client = ActionClient(self, NavigateToPose, nav2_action)
             self.get_logger().info(f'Nav2 action client ready ({nav2_action})')
+
+            # Nav2 콜백 연결
+            if hasattr(self._bt_guiding, '_send_nav_goal'):
+                self._bt_guiding._send_nav_goal = self._send_nav_goal_guiding
+                self.get_logger().info('BT4 GUIDING: Nav2 connected (collision ON)')
+            if hasattr(self._bt_returning, '_send_nav_goal'):
+                self._bt_returning._send_nav_goal = self._send_nav_goal
+                self.get_logger().info('BT5 RETURNING: Nav2 send_nav_goal connected')
+            if hasattr(self._bt_returning, '_set_nav2_mode'):
+                self._bt_returning._set_nav2_mode = self._set_nav2_mode
+                self.get_logger().info('BT5 RETURNING: Nav2 mode switcher connected')
         else:
             self.get_logger().warning('nav2_msgs not available — admin_goto disabled')
 
@@ -184,6 +210,7 @@ class ShoppinkiMainNode(Node):
             on_enter_registration=self._on_enter_registration,
             on_enter_simulation=self._on_enter_simulation,
             on_registration_confirm=self._on_registration_confirm,
+            on_navigate_cancel=self._on_navigate_cancel,
         )
 
         # ── ROS publishers ────────────────────
@@ -283,6 +310,21 @@ class ShoppinkiMainNode(Node):
             return
         self.bt_runner.tick()
 
+    def _get_live_pose(self) -> tuple[float, float, float]:
+        """TF에서 실시간 위치 조회 (후진 도킹용)."""
+        try:
+            t = self._tf_buffer.lookup_transform(
+                'map', self._base_frame, rclpy.time.Time())
+            x = t.transform.translation.x
+            y = t.transform.translation.y
+            q = t.transform.rotation
+            yaw = math.atan2(
+                2.0 * (q.w * q.z + q.x * q.y),
+                1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+            return (x, y, yaw)
+        except Exception:
+            return (self._pos_x, self._pos_y, self._yaw)
+
     def _update_pos_from_tf(self) -> None:
         """TF에서 map → base_footprint 변환을 조회하여 위치·방향 갱신."""
         try:
@@ -355,11 +397,14 @@ class ShoppinkiMainNode(Node):
     def _on_start_session(self, user_id: str) -> None:
         self.get_logger().info('Session started: user=%s' % user_id)
 
+    def _on_navigate_cancel(self) -> None:
+        """fleet adapter에서 navigate_cancel 수신 — BT4 goal 취소."""
+        if hasattr(self._bt_guiding, 'cancel_nav'):
+            self._bt_guiding.cancel_nav()
+        self.get_logger().info('navigate_cancel: BT4 stopped')
+
     def _on_navigate_to(self, zone_id: int, x: float, y: float, theta: float) -> None:
-        self.get_logger().info('navigate_to zone=%d (%.2f, %.2f, %.2f)',
-                               zone_id, x, y, theta)
-        # BT4 (bt_guiding) receives the goal via its own Nav2 client
-        # Here we just log; BT4 reads the goal from a shared data object
+        self.get_logger().info(f'navigate_to zone={zone_id} ({x:.2f}, {y:.2f}, {theta:.2f})')
         if hasattr(self._bt_guiding, 'set_goal'):
             self._bt_guiding.set_goal(x, y, theta)
 
@@ -385,6 +430,89 @@ class ShoppinkiMainNode(Node):
         self.follow_disabled = True
         self.bt_runner.follow_disabled = True
         self.sm.enter_tracking()
+
+    _current_nav2_mode: str = ''
+
+    def _set_nav2_mode(self, mode: str) -> None:
+        """Nav2 파라미터를 GUIDING/RETURNING 모드에 맞게 동적 전환.
+
+        모드가 같으면 스킵. 유일한 차이: allow_reversing (returning=true).
+        """
+        if mode == self._current_nav2_mode:
+            return
+        self._current_nav2_mode = mode
+
+        import subprocess
+        ns = f'robot_{ROBOT_ID}'
+        reversing = 'true' if mode == 'returning' else 'false'
+
+        try:
+            subprocess.run(
+                ['ros2', 'param', 'set', f'/{ns}/controller_server',
+                 'FollowPath.allow_reversing', reversing],
+                capture_output=True, timeout=3)
+        except Exception as e:
+            self.get_logger().warning('set_nav2_mode: %s' % e)
+        self.get_logger().info('Nav2 mode → %s (reversing=%s)' % (mode, reversing))
+
+    def _send_nav_goal_guiding(self, x: float, y: float, theta: float) -> bool:
+        """GUIDING 모드: collision detection ON, 벽에서 떨어진 경로."""
+        self._set_nav2_mode('guiding')
+        return self._send_nav_goal(x, y, theta)
+
+    def _send_nav_goal_returning(self, x: float, y: float, theta: float) -> bool:
+        """RETURNING 모드: collision detection OFF, 벽까지 도달 가능."""
+        self._set_nav2_mode('returning')
+        return self._send_nav_goal(x, y, theta)
+
+    def _send_nav_goal(self, x: float, y: float, theta: float) -> bool:
+        """Nav2 NavigateToPose 동기 호출 — BT4/BT5 콜백용 (threading.Event 기반)."""
+        if self._nav2_client is None or not self._nav2_client.server_is_ready():
+            self.get_logger().warning('send_nav_goal: Nav2 not ready')
+            return False
+
+        goal_msg = NavigateToPose.Goal()
+        goal_msg.pose = PoseStamped()
+        goal_msg.pose.header.frame_id = 'map'
+        goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
+        goal_msg.pose.pose.position.x = x
+        goal_msg.pose.pose.position.y = y
+        goal_msg.pose.pose.orientation.z = math.sin(theta / 2.0)
+        goal_msg.pose.pose.orientation.w = math.cos(theta / 2.0)
+
+        self.get_logger().info('send_nav_goal: (%.2f, %.2f, θ=%.2f)' % (x, y, theta))
+
+        done_event = threading.Event()
+        result_holder: list = [None]
+
+        def _goal_response(future):
+            goal_handle = future.result()
+            if goal_handle is None or not goal_handle.accepted:
+                self.get_logger().warning('send_nav_goal: goal rejected')
+                done_event.set()
+                return
+            result_holder.append(goal_handle)
+            goal_handle.get_result_async().add_done_callback(_result_response)
+
+        def _result_response(future):
+            result_holder[0] = future.result()
+            done_event.set()
+
+        self._nav2_client.send_goal_async(goal_msg).add_done_callback(_goal_response)
+        done_event.wait(timeout=120.0)
+
+        result = result_holder[0]
+        if result is None:
+            self.get_logger().warning('send_nav_goal: timeout or rejected')
+            return False
+
+        from action_msgs.msg import GoalStatus
+        if result.status == GoalStatus.STATUS_SUCCEEDED:
+            self.get_logger().info('send_nav_goal: succeeded')
+            return True
+        else:
+            self.get_logger().warning('send_nav_goal: failed (status=%d)' % result.status)
+            return False
 
     def _on_admin_goto(self, x: float, y: float, theta: float) -> None:
         self.get_logger().info('admin_goto: (%.2f, %.2f, %.2f)' % (x, y, theta))

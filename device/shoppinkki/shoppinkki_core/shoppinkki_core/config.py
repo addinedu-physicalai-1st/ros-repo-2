@@ -30,8 +30,8 @@ CHARGING_COMPLETE_THRESHOLD: int = 80  # battery % above which CHARGING → IDLE
 # ── Charger zone IDs (DB zone 테이블 참조) ─────────
 # robot_id → zone_id  (seed_data.sql 기준)
 CHARGER_ZONE_IDS: dict[str, int] = {
-    '54': 141,   # 충전소_54(P2)
-    '18': 140,   # 충전소_18(P1)
+    '54': 141,   # 충전소_54(P2) — zone 141, (0.0, -0.899)
+    '18': 140,   # 충전소_18(P1) — zone 140, (0.0, -0.606)
 }
 
 # ── Robot connectivity ────────────────────────

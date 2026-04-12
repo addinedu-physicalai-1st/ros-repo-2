@@ -66,6 +66,7 @@ class CmdHandler:
         on_enter_registration: Optional[Callable[[], None]] = None,
         on_enter_simulation: Optional[Callable[[], None]] = None,
         on_registration_confirm: Optional[Callable[[dict], None]] = None,
+        on_navigate_cancel: Optional[Callable[[], None]] = None,
     ) -> None:
         self.sm = sm
         self._on_navigate_to = on_navigate_to
@@ -76,6 +77,7 @@ class CmdHandler:
         self._on_enter_registration = on_enter_registration
         self._on_enter_simulation = on_enter_simulation
         self._on_registration_confirm = on_registration_confirm
+        self._on_navigate_cancel = on_navigate_cancel
 
     def handle(self, raw: str) -> None:
         """Parse raw JSON string and dispatch to the appropriate handler."""
@@ -150,7 +152,8 @@ class CmdHandler:
     def _handle_navigate_to(self, payload: dict) -> None:
         """TRACKING / TRACKING_CHECKOUT → GUIDING."""
         state = self.sm.state
-        if state not in ('TRACKING', 'TRACKING_CHECKOUT'):
+        if state not in ('TRACKING', 'TRACKING_CHECKOUT', 'IDLE', 'WAITING',
+                         'GUIDING', 'CHARGING'):
             logger.warning('navigate_to ignored in state=%s', state)
             return
 
@@ -179,6 +182,15 @@ class CmdHandler:
         if self._on_delete_item:
             self._on_delete_item(int(item_id))
 
+    def _handle_return_to_charger(self, payload: dict) -> None:
+        """→ RETURNING (테스트/강제 복귀용)."""
+        state = self.sm.state
+        if state not in ('TRACKING', 'TRACKING_CHECKOUT', 'WAITING',
+                         'LOCKED', 'GUIDING', 'SEARCHING', 'IDLE'):
+            logger.warning('return_to_charger ignored in state=%s', state)
+            return
+        self.sm.enter_returning()
+
     def _handle_force_terminate(self, payload: dict) -> None:
         """Any active state → CHARGING (admin forced)."""
         self.sm.handle_force_terminate()
@@ -186,6 +198,14 @@ class CmdHandler:
     def _handle_staff_resolved(self, payload: dict) -> None:
         """HALTED / CHARGING(locked) → reset is_locked_return + end session."""
         self.sm.handle_staff_resolved()
+
+    def _handle_navigate_cancel(self, payload: dict) -> None:
+        """현재 Nav2 goal 취소. fleet adapter stop/replan 시 호출."""
+        if self.sm.state != 'GUIDING':
+            return
+        if self._on_navigate_cancel:
+            self._on_navigate_cancel()
+        logger.info('navigate_cancel: BT4 goal cancelled')
 
     def _handle_admin_goto(self, payload: dict) -> None:
         """IDLE only: send Nav2 goal directly (admin test move)."""
@@ -249,8 +269,10 @@ class CmdHandler:
         'mode':                  _handle_mode,
         'resume_tracking':       _handle_resume_tracking,
         'navigate_to':           _handle_navigate_to,
+        'navigate_cancel':       _handle_navigate_cancel,
         'payment_success':       _handle_payment_success,
         'delete_item':           _handle_delete_item,
+        'return_to_charger':     _handle_return_to_charger,
         'force_terminate':       _handle_force_terminate,
         'staff_resolved':        _handle_staff_resolved,
         'admin_goto':            _handle_admin_goto,

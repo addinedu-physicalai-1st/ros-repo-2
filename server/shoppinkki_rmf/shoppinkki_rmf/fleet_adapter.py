@@ -25,6 +25,7 @@ from typing import Dict, Optional
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
+from tf2_ros import Buffer, TransformListener
 
 import rmf_adapter as adpt
 import rmf_adapter.easy_full_control as efc
@@ -69,7 +70,7 @@ class RobotAdapter:
         self._x = 0.0
         self._y = 0.0
         self._yaw = 0.0
-        self._battery = 1.0
+        self._battery = 0.95  # 95%에서 시작, 주기적 업데이트로 충전 시뮬레이션
         self._mode = 'CHARGING'
 
         self._handle: Optional[efc.EasyRobotUpdateHandle] = None
@@ -78,16 +79,41 @@ class RobotAdapter:
         self._nav_cancel = threading.Event()
         self._nav_thread: Optional[threading.Thread] = None
 
+        # RMF activity tracking — navigate 중일 때 identifier 보관
+        self._activity_id = None
+        self._activity_lock = threading.Lock()
+
+        # 모드 기반 도착 감지
+        self._nav_execution = None
+        self._nav_executing = False
+
     # ── 상태 수신 ──────────────────────────────────────────────────────────────
 
     def on_status(self, data: dict) -> None:
         """/robot_<id>/status JSON 수신 시 호출."""
+        old_x, old_y = self._x, self._y
         self._x = float(data.get('pos_x', self._x))
         self._y = float(data.get('pos_y', self._y))
         self._yaw = float(data.get('yaw', self._yaw))
+        # 위치 변화가 크면 로그
+        if abs(self._x - old_x) > 0.01 or abs(self._y - old_y) > 0.01:
+            logger.info('[%s] 위치 업데이트: (%.3f,%.3f) → (%.3f,%.3f)',
+                        self.robot_id, old_x, old_y, self._x, self._y)
         batt_pct = float(data.get('battery', self._battery * 100))
         self._battery = max(0.0, min(1.0, batt_pct / 100.0))
+        old_mode = self._mode
         self._mode = data.get('mode', self._mode)
+
+        # 모드 기반 도착 감지: GUIDING → WAITING 전이 = Nav2 goal 완료
+        if self._nav_executing and old_mode == 'GUIDING' and self._mode == 'WAITING':
+            logger.info('[%s] 모드 전이 감지: GUIDING→WAITING → 도착 완료', self.robot_id)
+            self._nav_executing = False
+            self._nav_cancel.set()
+            with self._activity_lock:
+                self._activity_id = None
+            if self._nav_execution is not None:
+                self._nav_execution.finished()
+                self._nav_execution = None
 
         with self._handle_lock:
             if self._handle is not None:
@@ -98,13 +124,16 @@ class RobotAdapter:
                     battery_soc=self._battery,
                 )
                 try:
-                    self._handle.update(state, None)
+                    with self._activity_lock:
+                        activity = self._activity_id
+                    self._handle.update(state, activity)
                 except Exception as e:
                     logger.debug('[%s] handle.update 오류: %s', self.robot_id, e)
 
     def set_handle(self, handle) -> None:
         with self._handle_lock:
             self._handle = handle
+        logger.info('[%s] RMF handle 등록 완료', self.robot_id)
 
     @property
     def position(self):
@@ -115,13 +144,45 @@ class RobotAdapter:
     def make_callbacks(self) -> efc.RobotCallbacks:
 
         def navigate(dest: efc.Destination, execution: efc.CommandExecution) -> None:
-            self._cancel_nav()
             x, y = dest.xy
             yaw = dest.yaw
             zone_idx = dest.graph_index
 
+            # REST API로 실시간 위치 조회 (TF/status보다 확실)
+            self._refresh_position()
+
+            dx = self._x - float(x)
+            dy = self._y - float(y)
+            dist = math.sqrt(dx * dx + dy * dy)
+            logger.info('[%s] navigate: 현재(%.3f,%.3f) → 목표(%.3f,%.3f) dist=%.3f',
+                        self.robot_id, self._x, self._y, float(x), float(y), dist)
+            if dist <= self.ARRIVE_DIST_M:
+                logger.info('[%s] 이미 도착 (dist=%.3f) → 즉시 완료', self.robot_id, dist)
+                execution.finished()
+                return
+
+            # 이미 같은 목적지로 이동 중이면 execution만 교체하고 스킵
+            if self._nav_executing and hasattr(self, '_nav_goal'):
+                gx, gy = self._nav_goal
+                if math.sqrt((gx - float(x))**2 + (gy - float(y))**2) < 0.05:
+                    logger.info('[%s] 같은 목적지 이동 중 → 스킵', self.robot_id)
+                    self._nav_execution = execution
+                    with self._activity_lock:
+                        self._activity_id = execution.identifier
+                    return
+
+            self._cancel_nav()
             logger.info('[%s] navigate → (%.3f, %.3f, yaw=%.2f) idx=%s',
                         self.robot_id, x, y, yaw, zone_idx)
+
+            # RMF activity 추적 시작
+            with self._activity_lock:
+                self._activity_id = execution.identifier
+
+            # 모드 기반 도착 감지 활성화
+            self._nav_execution = execution
+            self._nav_executing = True
+            self._nav_goal = (float(x), float(y))
 
             self._send_cmd({
                 'cmd': 'navigate_to',
@@ -131,18 +192,19 @@ class RobotAdapter:
                 'theta': round(float(yaw), 4),
             })
 
+            # 타임아웃 백업
             self._nav_cancel.clear()
             self._nav_thread = threading.Thread(
                 target=self._wait_arrive,
-                args=(float(x), float(y), float(yaw), execution.finished),
+                args=(float(x), float(y), float(yaw), execution),
                 daemon=True,
             )
             self._nav_thread.start()
 
         def stop(activity) -> None:
-            self._cancel_nav()
-            logger.info('[%s] stop → WAITING', self.robot_id)
-            self._send_cmd({'cmd': 'mode', 'value': 'WAITING'})
+            # RMF replan 시 호출됨 — 로봇을 실제로 멈추지 않음
+            # navigate()에서 목적지가 바뀔 때만 cancel 처리
+            logger.debug('[%s] stop 호출 (무시 — navigate에서 처리)', self.robot_id)
 
         def action_executor(category: str, desc, execution) -> None:
             logger.info('[%s] action: %s', self.robot_id, category)
@@ -155,6 +217,21 @@ class RobotAdapter:
         )
 
     # ── 내부 헬퍼 ──────────────────────────────────────────────────────────────
+
+    def _refresh_position(self) -> None:
+        """control_service REST API로 현재 위치 조회."""
+        try:
+            resp = requests.get(
+                f'{self._rest_base}/robots', timeout=2.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                robot_data = data.get(self.robot_id)
+                if robot_data:
+                    self._x = float(robot_data.get('pos_x', self._x))
+                    self._y = float(robot_data.get('pos_y', self._y))
+                    self._mode = robot_data.get('mode', self._mode)
+        except Exception:
+            pass
 
     def _send_cmd(self, payload: dict) -> None:
         url = f'{self._rest_base}/robot/{self.robot_id}/cmd'
@@ -173,145 +250,128 @@ class RobotAdapter:
 
     def _wait_arrive(
         self, gx: float, gy: float, gyaw: float,
-        done_cb, timeout_s: float = 120.0
+        execution, timeout_s: float = 120.0
     ) -> None:
+        """타임아웃 백업. 주 감지는 on_status의 모드 전이."""
         deadline = time.monotonic() + timeout_s
+
         while not self._nav_cancel.is_set():
+            # 모드 감지가 이미 완료했으면 종료
+            if not self._nav_executing:
+                return
+
+            if not execution.okay():
+                logger.info('[%s] RMF execution 취소됨 — 중단', self.robot_id)
+                self._send_cmd({'cmd': 'navigate_cancel'})
+                self._nav_executing = False
+                with self._activity_lock:
+                    self._activity_id = None
+                return
+
+            self._refresh_position()
             dx = self._x - gx
             dy = self._y - gy
             dist = math.sqrt(dx * dx + dy * dy)
             dyaw = abs(((self._yaw - gyaw + math.pi) % (2 * math.pi)) - math.pi)
 
             if dist <= self.ARRIVE_DIST_M and dyaw <= self.ARRIVE_YAW_RAD:
-                logger.info('[%s] 도착 (dist=%.3f, dyaw=%.3f)',
+                logger.info('[%s] 위치 기반 도착 (dist=%.3f, dyaw=%.3f)',
                             self.robot_id, dist, dyaw)
-                done_cb()
+                self._nav_executing = False
+                self._nav_execution = None
+                with self._activity_lock:
+                    self._activity_id = None
+                execution.finished()
                 return
 
             if time.monotonic() >= deadline:
                 logger.warning('[%s] navigate timeout', self.robot_id)
-                done_cb()
+                self._nav_executing = False
+                self._nav_execution = None
+                with self._activity_lock:
+                    self._activity_id = None
+                execution.finished()
                 return
 
-            time.sleep(0.5)
+            time.sleep(1.0)
 
 
-# ── Fleet Adapter ROS 노드 ──────────────────────────────────────────────────────
+# ── Status Bridge ROS 노드 ──────────────────────────────────────────────────────
 
-class PinkyFleetAdapter(Node):
-    """두 Pinky 로봇을 RMF에 등록하는 메인 노드."""
+class StatusBridgeNode(Node):
+    """robot status 토픽을 구독해서 RobotAdapter로 전달하는 ROS 노드.
 
-    def __init__(self, config: dict, config_file: str, nav_graph_path: str) -> None:
-        super().__init__('pinky_fleet_adapter')
+    /robot_<id>/status 토픽이 없는 경우에도 주기적으로 RMF handle에
+    현재 위치/배터리를 보고하여 충전 대기 상태가 영원히 걸리지 않도록 한다.
+    """
 
-        fleet_cfg = config.get('rmf_fleet', {})
-        ctrl_cfg = config.get('control_service', {})
-        ctrl_host = ctrl_cfg.get('host', '127.0.0.1')
-        ctrl_port = int(ctrl_cfg.get('http_port', 8081))
-
-        # 로봇 어댑터 + status 구독
-        self._robots: Dict[str, RobotAdapter] = {}
-        for robot_name, robot_cfg in fleet_cfg.get('robots', {}).items():
-            # robot_name 포맷: "pinky_54" → id = "54"
-            rid = robot_name.replace('pinky_', '')
-            robot = RobotAdapter(rid, ctrl_host, ctrl_port)
-            self._robots[rid] = robot
+    def __init__(self, robots: Dict[str, RobotAdapter]) -> None:
+        super().__init__('pinky_status_bridge')
+        self._robots = robots
+        for rid in robots:
+            # shoppinkki_core status (mode, battery)
             self.create_subscription(
                 String, f'/robot_{rid}/status',
                 lambda msg, rid=rid: self._on_status(rid, msg),
                 10,
             )
+        # TF listener (map → base_footprint 위치 추적)
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(self._tf_buffer, self)
 
-        # RMF Adapter + EasyFleet 초기화
-        self._adapter = None
-        self._easy_fleet = None
-        self._init_rmf(fleet_cfg, config_file, nav_graph_path)
-
+        # RMF에 상태 보고 + TF 위치 업데이트 (2Hz)
+        self.create_timer(0.5, self._periodic_update)
         self.get_logger().info(
-            f'PinkyFleetAdapter 준비: {list(self._robots.keys())}'
+            f'StatusBridge 구독: status + TF for {list(robots.keys())}'
         )
-
-    # ── RMF 초기화 ─────────────────────────────────────────────────────────────
-
-    def _init_rmf(self, fleet_cfg: dict, config_file: str, nav_graph_path: str) -> None:
-        try:
-            fleet_name = fleet_cfg.get('name', 'pinky_fleet')
-
-            # nav_graph에서 waypoint 이름 → 좌표 사전 구축
-            self._waypoint_coords = _parse_waypoint_coords(nav_graph_path)
-
-            # FleetConfiguration — from_config_files 방식 (NumPy 호환)
-            fleet_config = efc.FleetConfiguration.from_config_files(
-                config_file, nav_graph_path
-            )
-            if fleet_config is None:
-                self.get_logger().error('FleetConfiguration 로드 실패')
-                return
-
-            # Adapter 생성 (rmf_traffic_schedule 필요)
-            self._adapter = adpt.Adapter.make(fleet_name)
-            if self._adapter is None:
-                self.get_logger().error(
-                    'Adapter.make 실패 — rmf_traffic_schedule 실행 여부 확인')
-                return
-
-            self._easy_fleet = self._adapter.add_easy_fleet(fleet_config)
-            self._adapter.start()
-            self.get_logger().info(f'RMF Adapter 시작: {fleet_name}')
-
-            # 로봇 등록
-            for rid, robot in self._robots.items():
-                robot_name = f'pinky_{rid}'
-                robot_cfg = fleet_cfg.get('robots', {}).get(robot_name, {})
-                charger = robot_cfg.get('charger', 'P1')
-                yaw = float(robot_cfg.get('initial_orientation', 1.5708))
-                self._register_robot(rid, robot_name, charger, yaw)
-
-        except Exception as e:
-            self.get_logger().error(f'RMF 초기화 실패: {e}')
-
-    # ── 로봇 등록 ───────────────────────────────────────────────────────────────
-
-    def _register_robot(
-        self, robot_id: str, robot_name: str, charger: str, initial_yaw: float
-    ) -> None:
-        import numpy as np
-        robot = self._robots[robot_id]
-
-        # nav_graph에서 충전소 waypoint 좌표 조회
-        coords = self._waypoint_coords.get(charger)
-        if coords is None:
-            self.get_logger().warning(
-                f'충전소 waypoint "{charger}" 를 nav_graph에서 찾지 못함 — (0,0) 사용')
-            init_x, init_y = 0.0, 0.0
-        else:
-            init_x, init_y = coords
-            self.get_logger().info(
-                f'[{robot_name}] 초기 위치: {charger} = ({init_x:.3f}, {init_y:.3f})')
-
-        state = efc.RobotState(
-            map='L1',
-            position=np.array([init_x, init_y, initial_yaw]),
-            battery_soc=1.0,
-        )
-        robot_config = efc.RobotConfiguration(compatible_chargers=[charger])
-        callbacks = robot.make_callbacks()
-
-        handle = self._easy_fleet.add_robot(
-            robot_name, state, robot_config, callbacks
-        )
-        robot.set_handle(handle)
-
-        self.get_logger().info(f'로봇 등록: {robot_name} (charger={charger})')
-
-    # ── ROS 콜백 ────────────────────────────────────────────────────────────────
 
     def _on_status(self, robot_id: str, msg: String) -> None:
         try:
             data = json.loads(msg.data)
             self._robots[robot_id].on_status(data)
         except Exception as e:
-            self.get_logger().warning(f'status 파싱 오류: {e}')
+            self.get_logger().warning(f'[{robot_id}] status 파싱 오류: {e}')
+
+    def _periodic_update(self) -> None:
+        """TF lookup + RMF handle 업데이트 (2Hz)."""
+        import numpy as np
+        from rclpy.time import Time
+
+        for rid, robot in self._robots.items():
+            # TF lookup: map → robot_XX/base_footprint
+            try:
+                t = self._tf_buffer.lookup_transform(
+                    'map', f'robot_{rid}/base_footprint', Time())
+                robot._x = t.transform.translation.x
+                robot._y = t.transform.translation.y
+                qz = t.transform.rotation.z
+                qw = t.transform.rotation.w
+                robot._yaw = 2.0 * math.atan2(qz, qw)
+            except Exception:
+                pass  # TF 아직 준비 안 됨
+
+            # 충전 시뮬레이션
+            if robot._battery < 1.0:
+                old = robot._battery
+                robot._battery = min(1.0, robot._battery + 0.005)
+                if int(old * 100) != int(robot._battery * 100):
+                    self.get_logger().info(
+                        f'[{rid}] battery: {old:.1%} → {robot._battery:.1%}')
+
+            with robot._handle_lock:
+                if robot._handle is None:
+                    continue
+                try:
+                    state = efc.RobotState(
+                        map='L1',
+                        position=np.array([robot._x, robot._y, robot._yaw]),
+                        battery_soc=robot._battery,
+                    )
+                    with robot._activity_lock:
+                        activity = robot._activity_id
+                    robot._handle.update(state, activity)
+                except Exception as e:
+                    self.get_logger().warning(f'[{rid}] update 오류: {e}')
 
 
 # ── 진입점 ─────────────────────────────────────────────────────────────────────
@@ -322,11 +382,11 @@ def main(args=None) -> None:
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     )
 
-    # rclcpp를 먼저 초기화해야 adpt.Adapter.make()가 동작함
+    # rclcpp 초기화 (Adapter.make 필요) 후 rclpy 초기화
     adpt.init_rclcpp()
     rclpy.init(args=args)
 
-    # config_file 파라미터
+    # config_file 파라미터 읽기
     tmp = rclpy.create_node('_rmf_param_reader')
     tmp.declare_parameter('config_file', '')
     config_file = tmp.get_parameter('config_file').get_parameter_value().string_value
@@ -350,22 +410,92 @@ def main(args=None) -> None:
         rclpy.shutdown()
         return
 
-    # nav graph 경로
+    fleet_cfg = config.get('rmf_fleet', {})
+    ctrl_cfg = config.get('control_service', {})
+    ctrl_host = ctrl_cfg.get('host', '127.0.0.1')
+    ctrl_port = int(ctrl_cfg.get('http_port', 8081))
+
+    # nav_graph 경로
     try:
         from ament_index_python.packages import get_package_share_directory
         pkg = get_package_share_directory('shoppinkki_rmf')
     except Exception:
         pkg = os.path.join(os.path.dirname(__file__), '..', '..')
     nav_graph_path = os.path.join(pkg, 'maps', 'shop_nav_graph.yaml')
+    waypoint_coords = _parse_waypoint_coords(nav_graph_path)
 
-    node = PinkyFleetAdapter(config, config_file, nav_graph_path)
+    # RobotAdapter 생성
+    robots: Dict[str, RobotAdapter] = {}
+    for robot_name, robot_cfg in fleet_cfg.get('robots', {}).items():
+        rid = robot_name.replace('pinky_', '')
+        robots[rid] = RobotAdapter(rid, ctrl_host, ctrl_port)
+
+    # StatusBridge 노드
+    bridge_node = StatusBridgeNode(robots)
+
+    # RMF EasyFullControl 초기화
+    fleet_name = fleet_cfg.get('name', 'pinky_fleet')
+    fleet_config = efc.FleetConfiguration.from_config_files(
+        config_file, nav_graph_path
+    )
+    if fleet_config is None:
+        logger.error('FleetConfiguration 로드 실패')
+        rclpy.shutdown()
+        return
+
+    adapter = adpt.Adapter.make(fleet_name)
+    if adapter is None:
+        logger.error('Adapter.make 실패 — rmf_traffic_schedule 실행 여부 확인')
+        rclpy.shutdown()
+        return
+
+    easy_fleet = adapter.add_easy_fleet(fleet_config)
+
+    # 로봇 등록 (add_robot 5번째 인자 = handle 비동기 콜백)
+    for robot_name, robot_cfg in fleet_cfg.get('robots', {}).items():
+        rid = robot_name.replace('pinky_', '')
+        robot = robots[rid]
+        charger = robot_cfg.get('charger', 'P1')
+        yaw = float(robot_cfg.get('initial_orientation', 0.0))
+
+        coords = waypoint_coords.get(charger, (0.0, 0.0))
+        init_x, init_y = coords
+        # RobotAdapter 위치도 초기화 (status 수신 전까지 사용)
+        robot._x = init_x
+        robot._y = init_y
+        robot._yaw = yaw
+        logger.info('[%s] 초기 위치: %s = (%.3f, %.3f)', robot_name, charger, init_x, init_y)
+
+        import numpy as np
+        state = efc.RobotState(
+            map='L1',
+            position=np.array([init_x, init_y, yaw]),
+            battery_soc=0.95,
+        )
+        robot_config = efc.RobotConfiguration(compatible_chargers=[charger])
+        callbacks = robot.make_callbacks()
+
+        handle = easy_fleet.add_robot(robot_name, state, robot_config, callbacks)
+        robots[rid].set_handle(handle)
+
+    adapter.start()
+    logger.info('RMF Adapter 시작: %s (로봇: %s)', fleet_name, list(robots.keys()))
+
+    # bridge_node를 별도 스레드에서 spin (adapter 내부 스레드와 분리)
+    spin_thread = threading.Thread(
+        target=rclpy.spin, args=(bridge_node,), daemon=True
+    )
+    spin_thread.start()
 
     try:
-        rclpy.spin(node)
+        # main thread는 여기서 대기
+        while rclpy.ok():
+            time.sleep(1.0)
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
+        adapter.stop()
+        bridge_node.destroy_node()
         rclpy.shutdown()
 
 
