@@ -74,6 +74,9 @@ class RobotManager:
         # Inject after construction
         self.publish_cmd:      Optional[Callable[[str, dict], None]] = None
         self.publish_init_pose: Optional[Callable[[str], None]] = None
+        self.publish_initialpose_at: Optional[
+            Callable[[str, float, float, float], None]
+        ] = None
         self.teleport_entity: Optional[Callable[[str, float, float, float], bool]] = None
         self.push_to_admin:    Optional[Callable[[dict], None]] = None
         self.push_to_web:      Optional[Callable[[str, dict], None]] = None
@@ -239,27 +242,42 @@ class RobotManager:
                                robot_id)
 
         elif cmd == 'admin_teleport':
-            # Simulation-only: set Gazebo entity pose immediately.
+            # Position adjustment from Admin UI map click.
+            # - Simulation: Gazebo pose + AMCL sync
+            # - Real robot: AMCL-only relocalization (no physical teleport)
             x = float(payload.get('x', 0.0))
             y = float(payload.get('y', 0.0))
             theta = float(payload.get('theta', 0.0))
-            if not self.teleport_entity:
-                self._push_admin({
-                    'type': 'teleport_rejected',
-                    'robot_id': robot_id,
-                    'reason': 'teleport not available (no Gazebo bridge)',
-                })
-                return
             ok = False
-            try:
-                ok = bool(self.teleport_entity(robot_id, x, y, theta))
-            except Exception:
-                logger.exception('admin_teleport failed (robot=%s)', robot_id)
+            apply_mode = ''
+
+            # 1) Try simulation path first (Gazebo SetEntityPose + AMCL sync in ros_node)
+            if self.teleport_entity:
+                try:
+                    ok = bool(self.teleport_entity(robot_id, x, y, theta))
+                    if ok:
+                        apply_mode = 'sim_pose_and_amcl'
+                except Exception:
+                    logger.exception('admin_teleport failed (robot=%s)', robot_id)
+
+            # 2) Fallback for real robot (or when Gazebo bridge is unavailable):
+            #    publish map-frame initialpose only.
+            if not ok and self.publish_initialpose_at:
+                try:
+                    self.publish_initialpose_at(robot_id, x, y, theta)
+                    ok = True
+                    apply_mode = 'amcl_only'
+                except Exception:
+                    logger.exception(
+                        'admin_teleport fallback(initialpose) failed (robot=%s)',
+                        robot_id,
+                    )
+
             if not ok:
                 self._push_admin({
                     'type': 'teleport_rejected',
                     'robot_id': robot_id,
-                    'reason': 'teleport failed',
+                    'reason': 'position adjustment failed',
                 })
             else:
                 # Teleport 즉시 반영: 다음 /status 수신 전에도 UI가 위치를 갱신할 수 있도록
@@ -275,6 +293,7 @@ class RobotManager:
                     'type': 'teleport_done',
                     'robot_id': robot_id,
                     'x': x, 'y': y, 'theta': theta,
+                    'apply_mode': apply_mode,
                 })
 
         elif cmd in ('mode', 'resume_tracking', 'navigate_to', 'start_session'):

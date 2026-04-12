@@ -87,6 +87,7 @@ class ControlServiceNode:
         # Wire callbacks into robot_manager
         robot_manager.publish_cmd = self.publish_cmd
         robot_manager.publish_init_pose = self.publish_init_pose
+        robot_manager.publish_initialpose_at = self.publish_initialpose_at
         robot_manager.teleport_entity = self.teleport_entity
 
         try:
@@ -119,6 +120,11 @@ class ControlServiceNode:
 
         x, y, yaw = pose_data
         self._publish_initialpose(rid, x, y, yaw)
+
+    def publish_initialpose_at(self, robot_id: str, x: float, y: float, yaw: float) -> None:
+        """Publish map-frame initialpose at explicit pose (real/sim common path)."""
+        rid = robot_id.strip()
+        self._publish_initialpose(rid, float(x), float(y), float(yaw))
 
     def _publish_initialpose(self, robot_id: str, x: float, y: float, yaw: float) -> None:
         """Publish /robot_<id>/initialpose with explicit map-frame pose."""
