@@ -205,6 +205,27 @@ class RobotManager:
         })
         logger.debug('snapshot → web robot=%s', robot_id)
 
+    def on_customer_event(self, robot_id: str, payload: dict) -> None:
+        """Pi /robot_<id>/customer_event — 결제 구역 진입 등 고객 UI 이벤트."""
+        et = payload.get('type')
+        if et == 'checkout_zone_enter':
+            session = db.get_active_session_by_robot(robot_id)
+            if not session:
+                logger.debug('checkout_zone_enter: no session robot=%s', robot_id)
+                return
+            cart = db.get_cart_by_session(session['session_id'])
+            if not cart:
+                logger.debug('checkout_zone_enter: no cart robot=%s', robot_id)
+                return
+            if not db.has_unpaid_items(cart['cart_id']):
+                logger.info('checkout_zone_enter: no unpaid items robot=%s', robot_id)
+                return
+            self._push_web(robot_id, {
+                'type': 'checkout_zone_enter',
+                'robot_id': robot_id,
+            })
+            logger.info('checkout_zone_enter → web robot=%s', robot_id)
+
     # ──────────────────────────────────────────
     # Commands from Admin (channel B, via tcp_server)
     # ──────────────────────────────────────────

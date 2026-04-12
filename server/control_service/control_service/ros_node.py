@@ -5,6 +5,7 @@ Subscribes:
     /robot_<id>/alarm     (std_msgs/String JSON)
     /robot_<id>/cart      (std_msgs/String JSON)
     /robot_<id>/snapshot  (std_msgs/String JSON) — 인형 감지 스냅샷
+    /robot_<id>/customer_event (std_msgs/String JSON) — 결제 구역 진입 등
 
 Publishes:
     /robot_<id>/cmd         (std_msgs/String JSON)
@@ -74,6 +75,9 @@ class ControlServiceNode:
                     inner_self.create_subscription(
                         String, f'/robot_{rid}/snapshot',
                         lambda msg, r=rid: self._on_snapshot(r, msg.data), 10)
+                    inner_self.create_subscription(
+                        String, f'/robot_{rid}/customer_event',
+                        lambda msg, r=rid: self._on_customer_event(r, msg.data), 10)
                     # Publish cmd
                     self._publishers[rid] = inner_self.create_publisher(
                         String, f'/robot_{rid}/cmd', 10)
@@ -276,3 +280,9 @@ class ControlServiceNode:
             self._rm.on_snapshot(robot_id, json.loads(raw))
         except Exception as e:
             logger.error('on_snapshot error: %s', e)
+
+    def _on_customer_event(self, robot_id: str, raw: str) -> None:
+        try:
+            self._rm.on_customer_event(robot_id, json.loads(raw))
+        except Exception as e:
+            logger.error('on_customer_event error: %s', e)

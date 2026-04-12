@@ -21,6 +21,13 @@ let _currentItems = [];
  * 장바구니 항목 배열로 UI를 갱신한다.
  * @param {Array<{id: number, name: string, price: number, quantity: number, is_paid: boolean}>} items
  */
+/**
+ * 결제 모달 열기 직전에 호출 — 메인 카트와 동일한 `_currentItems`로 결제용 리스트를 다시 그린다.
+ */
+function syncCheckoutModalFromCart() {
+  updateCart(_currentItems);
+}
+
 function updateCart(items) {
   _currentItems = items || [];
 
