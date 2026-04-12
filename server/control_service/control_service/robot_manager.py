@@ -81,8 +81,6 @@ class RobotManager:
         self.adjust_position_in_sim: Optional[
             Callable[[str, float, float, float], bool]
         ] = None
-        # Backward-compat alias. Prefer `adjust_position_in_sim`.
-        self.teleport_entity: Optional[Callable[[str, float, float, float], bool]] = None
         self.push_to_admin:    Optional[Callable[[dict], None]] = None
         self.push_to_web:      Optional[Callable[[str, dict], None]] = None
 
@@ -246,10 +244,10 @@ class RobotManager:
                 logger.warning('publish_init_pose not wired; init_pose dropped for robot=%s',
                                robot_id)
 
-        elif cmd in ('admin_position_adjustment', 'admin_teleport'):
+        elif cmd == 'admin_position_adjustment':
             # Position adjustment from Admin UI map click.
             # - Simulation: Gazebo pose + AMCL sync
-            # - Real robot: AMCL-only relocalization (no physical teleport)
+            # - Real robot: AMCL-only relocalization (no physical model move)
             x = float(payload.get('x', 0.0))
             y = float(payload.get('y', 0.0))
             theta = float(payload.get('theta', 0.0))
@@ -257,7 +255,7 @@ class RobotManager:
             apply_mode = ''
 
             # 1) Try simulation path first (Gazebo SetEntityPose + AMCL sync in ros_node)
-            sim_adjust = self.adjust_position_in_sim or self.teleport_entity
+            sim_adjust = self.adjust_position_in_sim
             if sim_adjust:
                 try:
                     ok = bool(sim_adjust(robot_id, x, y, theta))

@@ -27,7 +27,7 @@ class MockStatusBridge:
     def current_mode(self):
         return self._mode
 
-    def teleport(self, x, y, yaw, mode=None):
+    def update_pose(self, x, y, yaw, mode=None):
         self._x, self._y, self._yaw = x, y, yaw
         if mode:
             self._mode = mode
@@ -120,7 +120,7 @@ class TestPinkyCommandHandle(unittest.TestCase):
 
         # 0.5s 후 CHARGING 상태로 전환
         time.sleep(0.5)
-        bridge.teleport(0.2, 0.2, 1.5708, mode='CHARGING')
+        bridge.update_pose(0.2, 0.2, 1.5708, mode='CHARGING')
 
         fired = done.wait(timeout=5.0)
         self.assertTrue(fired, 'dock done_callback 이 호출되지 않음')
