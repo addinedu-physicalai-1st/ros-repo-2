@@ -31,7 +31,8 @@
                   버튼 클릭 → 맵 클릭 대기 모드 진입/취소 토글
                   맵 클릭은 MainWindow에서 처리하여 admin_goto 전송
     [잠금 해제] → staff_resolved   (is_locked_return=True 또는 HALTED)
-    [위치 재조정] → admin_position_adjustment 맵 클릭 (IDLE만)
+    [위치 재조정] → admin_position_adjustment 맵 클릭
+                  (IDLE / TRACKING / TRACKING_CHECKOUT; 후자는 확인 대화상자)
     [위치 초기화] → init_pose      (CHARGING·IDLE만, Gazebo/AMCL 초기 위치 설정)
 
 시그널:
@@ -77,6 +78,7 @@ _RETURNING_MODES = {'TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'SEARCHING'}
 _INIT_POSE_MODES = {'CHARGING', 'IDLE'}
 # admin_position_adjustment — 맵 좌표 기준 위치 재조정 (시뮬/실물 공통)
 _POSITION_ADJUSTMENT_BTN_LABEL = '위치 재조정'
+_POSITION_ADJUSTMENT_MODES = frozenset({'IDLE', 'TRACKING', 'TRACKING_CHECKOUT'})
 
 
 class RobotCard(QFrame):
@@ -176,7 +178,8 @@ class RobotCard(QFrame):
 
         self._btn_position_adjustment = QPushButton(_POSITION_ADJUSTMENT_BTN_LABEL)
         self._btn_position_adjustment.setToolTip(
-            '맵 클릭 후 위치 재조정 실행 (admin_position_adjustment)'
+            '맵 클릭 후 위치 재조정 (admin_position_adjustment). '
+            'TRACKING 계열에서는 확인 후 AMCL/Gazebo 좌표 반영'
         )
         self._btn_position_adjustment.setStyleSheet('color: #d35400; font-weight: bold;')
         self._btn_position_adjustment.clicked.connect(self._on_position_adjustment)
@@ -208,6 +211,21 @@ class RobotCard(QFrame):
             self._btn_position_adjustment.setText(_POSITION_ADJUSTMENT_BTN_LABEL)
             self.position_adjustment_mode_activated.emit('')
         else:
+            mode = self._current_state.get('mode', 'OFFLINE')
+            if mode in ('TRACKING', 'TRACKING_CHECKOUT'):
+                reply = QMessageBox.question(
+                    self,
+                    '위치 재조정 (추종·쇼핑 중)',
+                    f'Robot #{self._robot_id} — 현재 상태: {mode}\n\n'
+                    '맵에서 선택한 좌표로 로컬라이제이션을 바꿉니다 '
+                    '(시뮬: Gazebo 자세 + AMCL, 실물: initialpose). '
+                    '이후에도 이 추정이 유지됩니다.\n\n'
+                    '추종·Nav2·장애물 회피와 어긋날 수 있습니다. 계속하시겠습니까?',
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
             self._position_adjustment_pending = True
             self._btn_position_adjustment.setText('취소')
             self.position_adjustment_mode_activated.emit(self._robot_id)
@@ -285,8 +303,8 @@ class RobotCard(QFrame):
         self._btn_force_terminate.setEnabled(mode not in _FORCE_TERMINATE_DISABLED)
         # admin_goto: IDLE이면 항상 활성 (맵 클릭 대기 모드 진입/취소)
         self._btn_admin_goto.setEnabled(mode == 'IDLE')
-        # admin_position_adjustment: 위치 재조정 (안전 위해 IDLE에서만)
-        self._btn_position_adjustment.setEnabled(mode == 'IDLE')
+        # admin_position_adjustment: IDLE 또는 TRACKING / TRACKING_CHECKOUT
+        self._btn_position_adjustment.setEnabled(mode in _POSITION_ADJUSTMENT_MODES)
         # staff_resolved: HALTED 또는 is_locked_return
         self._btn_staff_resolved.setEnabled(
             mode == 'HALTED' or is_locked_return
