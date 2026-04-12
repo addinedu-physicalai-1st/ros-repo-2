@@ -45,7 +45,7 @@ if ! command -v tmux &>/dev/null; then
     echo ""
     echo "tmux 가 없습니다. 아래 명령어를 터미널 각각에서 실행하세요."
     echo ""
-    echo "  [1] control_service : $TMUX_SRC && $ROS_ENV && cd $ROS_WS && env python3 $ROS_WS/install/control_service/lib/control_service/main"
+    echo "  [1] control_service : $TMUX_SRC && $ROS_ENV && cd $ROS_WS && python3 $ROS_WS/install/control_service/lib/control_service/main"
     [ "$NO_AI" = false ] && \
     echo "  [2] AI 서버         : bash $SCRIPTS_DIR/run_ai.sh"
     echo ""
@@ -70,10 +70,10 @@ tmux send-keys -t "${SESSION}:pg" \
 
 # 창 1: control_service
 tmux new-window -t "${SESSION}" -n "control"
-# ros2 run 은 POSIX 에서 스크립트 shebang(보통 /usr/bin/python3)을 쓰므로 conda pip 가 무시됨.
-# PATH 앞선 conda python 으로 동일 엔트리 스크립트를 실행한다.
+# ros2 run 은 shebang(/usr/bin/python3) 을 쓰므로 conda pip 가 무시됨 → python3 직접 호출
+# macOS SIP 가 /usr/bin/env 경유 시 DYLD_LIBRARY_PATH 를 제거하므로 env 사용 금지
 tmux send-keys -t "${SESSION}:control" \
-    "$TMUX_SRC && $ROS_ENV && cd $ROS_WS && env python3 $ROS_WS/install/control_service/lib/control_service/main" Enter
+    "$TMUX_SRC && $ROS_ENV && cd $ROS_WS && python3 $ROS_WS/install/control_service/lib/control_service/main" Enter
 
 # 창 2: AI 서버
 if [ "$NO_AI" = false ]; then

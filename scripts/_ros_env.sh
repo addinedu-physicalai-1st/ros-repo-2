@@ -4,7 +4,6 @@
 # 지원 환경:
 #   macOS  + conda (RoboStack)
 #   Ubuntu + apt   (/opt/ros/jazzy)
-#   Ubuntu + conda (RoboStack)
 #
 # 사용법 (다른 스크립트에서):
 #   source "$(dirname "$0")/_ros_env.sh"    # bash/zsh 모두 동작
@@ -30,7 +29,6 @@ export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-14}"
 TMUX_ROS_ENV="export ROS_DOMAIN_ID=${ROS_DOMAIN_ID}"
 
 # ── 1. conda env 탐색 ─────────────────────────────────────────────────────────
-# ROS 가 apt 로 설치되었든 conda(RoboStack) 로 설치되었든,
 # conda env 가 존재하면 activate 하여 pip 패키지를 사용할 수 있도록 한다.
 CONDA_BIN=""
 CMAKE_EXTRA_PATH=""
@@ -142,7 +140,7 @@ fi
 
 if [ -z "$ROS_SETUP_FILE" ]; then
     echo "[_ros_env] ⚠️  ROS 2 환경을 찾을 수 없습니다." >&2
-    echo "           conda(RoboStack) 또는 apt 로 ROS 2 Jazzy 를 설치하세요." >&2
+    echo "           apt 로 ROS 2 Jazzy 를 설치하거나 macOS 에서 conda(RoboStack) 를 사용하세요." >&2
 else
     # shellcheck disable=SC1090
     . "$ROS_SETUP_FILE"
