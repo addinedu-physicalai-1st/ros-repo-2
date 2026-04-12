@@ -10,6 +10,7 @@ GET  /zone/parking/available          → available parking slot
 GET  /boundary                        → all boundary configs
 GET  /events?limit=<n>                → recent event log
 
+POST /robot/<robot_id>/cmd             → RMF fleet_adapter 명령 수신
 POST /session                         → create session
 GET  /session/robot/<robot_id>        → active session by robot_id
 GET  /session/<id>                    → get session
@@ -75,6 +76,19 @@ def create_app(robot_manager: 'RobotManager',
         if not zone:
             return jsonify({'error': 'no parking available'}), 404
         return jsonify(_zone_dict(zone))
+
+    # ── Robot command (RMF fleet_adapter 용) ────
+
+    @app.post('/robot/<robot_id>/cmd')
+    def robot_cmd(robot_id: str):
+        """RMF fleet_adapter에서 navigate_to, mode 등 명령 수신."""
+        payload = request.get_json(silent=True) or {}
+        if not payload.get('cmd'):
+            return jsonify({'error': 'cmd required'}), 400
+        logger.info('[REST] /robot/%s/cmd → %s', robot_id, payload)
+        if robot_manager.publish_cmd:
+            robot_manager.publish_cmd(robot_id, payload)
+        return jsonify({'ok': True})
 
     # ── Fleet graph ────────────────────────────
 

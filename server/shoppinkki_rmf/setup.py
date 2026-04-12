@@ -26,6 +26,8 @@ setup(
     entry_points={
         'console_scripts': [
             'fleet_adapter = shoppinkki_rmf.fleet_adapter:main',
+            'building_map_publisher = shoppinkki_rmf.building_map_publisher:main',
+            'navgraph_marker_publisher = shoppinkki_rmf.navgraph_marker_publisher:main',
         ],
     },
 )

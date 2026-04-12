@@ -35,17 +35,23 @@ rmf_fleet:
   recharge_threshold: 0.05
   recharge_soc:       1.0
   account_for_battery_drain: false
-  finishing_request: "charge"
+  finishing_request: "nothing"
   skip_rotation_commands: true
+
+  task_capabilities:
+    loop: true
+    delivery: false
+    patrol: true
+    responsive_wait: true
 
   # 로봇 목록 (charger = initial_waypoint 이름)
   robots:
     pinky_54:
-      charger: "P1"
-      initial_orientation: 1.5708   # 90° (북쪽)
-    pinky_18:
       charger: "P2"
-      initial_orientation: 1.5708
+      initial_orientation: 0.0
+    pinky_18:
+      charger: "P1"
+      initial_orientation: 0.0
 
 # Control Service 연결 (fleet_adapter → control_service REST API)
 control_service:

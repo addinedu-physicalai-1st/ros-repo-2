@@ -89,13 +89,13 @@ class TaskDispatcher:
         logger.info('[TaskDispatcher] robot_%s dock (RETURNING) 제출', robot_id)
 
         def _run():
-            slot = self._query_parking_slot() or {'zone_id': 140, 'x': 0.20, 'y': 0.20, 'theta': 1.5708}
+            slot = self._query_parking_slot() or {'zone_id': 140, 'x': 0.0, 'y': -0.606, 'theta': 0.0}
             payload = {
                 'cmd': 'navigate_to',
                 'zone_id': slot['zone_id'],
-                'x': slot.get('x', 0.20),
-                'y': slot.get('y', 0.20),
-                'theta': slot.get('theta', 1.5708),
+                'x': slot.get('x', 0.0),
+                'y': slot.get('y', -0.606),
+                'theta': slot.get('theta', 0.0),
             }
             self._post_cmd(robot_id, payload, done_callback)
 

@@ -166,7 +166,9 @@ def make_robot_actions(robot: dict, delay: float) -> list:
              name='waypoint_follower', output='screen', parameters=sim_params),
         Node(package='nav2_velocity_smoother', executable='velocity_smoother',
              name='velocity_smoother', output='screen', parameters=sim_params,
-             remappings=[('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel')]),
+             remappings=[('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel_smoothed')]),
+        Node(package='nav2_collision_monitor', executable='collision_monitor',
+             name='collision_monitor', output='screen', parameters=sim_params),
 
         # ── 단일 lifecycle_manager: 리스트 순서대로 순차 activate ──
         Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',
@@ -179,7 +181,7 @@ def make_robot_actions(robot: dict, delay: float) -> list:
                      'controller_server', 'smoother_server',  # navigation 이후
                      'planner_server', 'behavior_server',
                      'bt_navigator', 'waypoint_follower',
-                     'velocity_smoother',
+                     'velocity_smoother', 'collision_monitor',
                  ],
              }]),
     ])

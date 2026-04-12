@@ -3,14 +3,17 @@
 Sequence:
     1. Keepout Filter 활성화
     2. 주차 슬롯 조회 (REST)
-    3. Nav2 로 이동
-    4. Keepout Filter 비활성화
-    5. SUCCESS → enter_charging
+    3. 열 입구 노드까지 이동 (충돌 감지 ON)
+    4. 충돌 감지 OFF → cmd_vel 후진으로 충전소 도킹
+    5. Keepout Filter 비활성화
+    6. SUCCESS → enter_charging
 """
 
 from __future__ import annotations
 
 import logging
+import math
+import threading
 from enum import Enum, auto
 from typing import Callable, Optional
 
@@ -20,40 +23,65 @@ from shoppinkki_interfaces import RobotPublisherInterface
 
 logger = logging.getLogger(__name__)
 
+# 로봇별 열 입구 노드 좌표 (3열_입구, 2열_입구 등)
+# robot_id → (x, y, theta)
+ROW_ENTRANCE_NODES: dict[str, tuple[float, float, float]] = {
+    '54': (0.245, -0.899, 0.0),   # 3열_입구 (P2와 같은 y)
+    '18': (0.245, -0.606, 0.0),   # 2열_입구 (P1과 같은 y)
+}
+
+
 
 class _Phase(Enum):
     INIT = auto()
     KEEPOUT_ON = auto()
     GET_SLOT = auto()
-    NAVIGATING = auto()
+    NAVIGATING = auto()   # 열 입구까지 (충돌 감지 ON)
+    DOCKING = auto()      # 후진으로 충전소까지 (충돌 감지 OFF)
     DONE = auto()
     FAILED = auto()
 
 
 class ReturnToCharger(py_trees.behaviour.Behaviour):
-    """충전소 복귀 — 내부 phase 기반 시퀀스."""
+    """충전소 복귀 — 열 입구 → 후진 도킹."""
 
     def __init__(
         self,
         name: str = 'ReturnToCharger',
         publisher: RobotPublisherInterface = None,
+        robot_id: str = '54',
         get_parking_slot: Optional[Callable[[], Optional[dict]]] = None,
         send_nav_goal: Optional[Callable[[float, float, float], bool]] = None,
+        set_nav2_mode: Optional[Callable[[str], None]] = None,
         set_keepout_filter: Optional[Callable[[bool], None]] = None,
         on_nav_failed: Optional[Callable[[], None]] = None,
     ) -> None:
         super().__init__(name)
         self._pub = publisher
+        self._robot_id = robot_id
         self._get_parking_slot = get_parking_slot
         self._send_nav_goal = send_nav_goal
+        self._set_nav2_mode = set_nav2_mode
         self._set_keepout_filter = set_keepout_filter
         self._on_nav_failed = on_nav_failed
         self._phase = _Phase.INIT
         self._slot: Optional[dict] = None
+        self._nav_thread: Optional[threading.Thread] = None
+        self._nav_done: bool = False
+        self._nav_success: bool = False
+        self._dock_thread: Optional[threading.Thread] = None
+        self._dock_done: bool = False
+        self._dock_success: bool = False
 
     def initialise(self) -> None:
         self._phase = _Phase.INIT
         self._slot = None
+        self._nav_thread = None
+        self._nav_done = False
+        self._nav_success = False
+        self._dock_thread = None
+        self._dock_done = False
+        self._dock_success = False
         logger.info('ReturnToCharger: started')
 
     def update(self) -> py_trees.common.Status:
@@ -73,6 +101,9 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
         if self._phase == _Phase.NAVIGATING:
             return self._tick_navigate()
 
+        if self._phase == _Phase.DOCKING:
+            return self._tick_docking()
+
         if self._phase == _Phase.DONE:
             return py_trees.common.Status.SUCCESS
 
@@ -90,7 +121,7 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
         if self._get_parking_slot is None:
             logger.warning('ReturnToCharger: no slot provider → default P1')
             self._slot = {'zone_id': 140, 'waypoint_x': 0.0,
-                          'waypoint_y': 0.0, 'waypoint_theta': 1.5708}
+                          'waypoint_y': -0.606, 'waypoint_theta': 0.0}
         else:
             try:
                 self._slot = self._get_parking_slot()
@@ -111,38 +142,104 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
         return py_trees.common.Status.RUNNING
 
     def _tick_navigate(self) -> py_trees.common.Status:
+        """1단계: 열 입구 노드까지 이동 (충돌 감지 ON)."""
         if self._send_nav_goal is None or self._slot is None:
-            logger.warning('ReturnToCharger: no nav client → FAILURE')
-            self._set_keepout(False)
-            if self._on_nav_failed:
-                self._on_nav_failed()
-            self._phase = _Phase.FAILED
+            self._fail()
             return py_trees.common.Status.FAILURE
 
-        x = float(self._slot.get('waypoint_x', 0.0))
-        y = float(self._slot.get('waypoint_y', 0.0))
-        theta = float(self._slot.get('waypoint_theta', 1.5708))
+        if self._nav_thread is None:
+            entrance = ROW_ENTRANCE_NODES.get(self._robot_id)
+            if entrance is None:
+                logger.warning('ReturnToCharger: no entrance node for robot %s',
+                               self._robot_id)
+                self._fail()
+                return py_trees.common.Status.FAILURE
 
-        logger.info('ReturnToCharger: navigating to (%.2f, %.2f, θ=%.2f)',
-                    x, y, theta)
-        try:
-            success = self._send_nav_goal(x, y, theta)
-        except Exception as e:
-            logger.error('ReturnToCharger: nav exception: %s', e)
-            success = False
+            ex, ey, etheta = entrance
+            # 입구 노드에서 충전소 반대 방향(+x)을 바라봄 → 후진 시 −x(충전소)로 이동
+            face_charger_theta = 0.0
+            logger.info('ReturnToCharger: [1단계] 열 입구 (%.2f, %.2f) 충돌감지 ON',
+                        ex, ey)
+            if self._set_nav2_mode:
+                self._set_nav2_mode('guiding')
 
-        self._set_keepout(False)
+            def _run():
+                try:
+                    self._nav_success = self._send_nav_goal(
+                        ex, ey, face_charger_theta)
+                except Exception as e:
+                    logger.error('ReturnToCharger: nav exception: %s', e)
+                    self._nav_success = False
+                finally:
+                    self._nav_done = True
 
-        if success:
-            logger.info('ReturnToCharger: arrived at charger → SUCCESS')
+            self._nav_thread = threading.Thread(target=_run, daemon=True)
+            self._nav_thread.start()
+            return py_trees.common.Status.RUNNING
+
+        if not self._nav_done:
+            return py_trees.common.Status.RUNNING
+
+        if self._nav_success:
+            logger.info('ReturnToCharger: 열 입구 도착 → 후진 도킹 시작')
+            self._phase = _Phase.DOCKING
+            return py_trees.common.Status.RUNNING
+        else:
+            logger.warning('ReturnToCharger: 열 입구 이동 실패')
+            self._fail()
+            return py_trees.common.Status.FAILURE
+
+    def _tick_docking(self) -> py_trees.common.Status:
+        """2단계: 충돌 감지 OFF → Nav2로 충전소까지."""
+        if self._send_nav_goal is None or self._slot is None:
+            self._fail()
+            return py_trees.common.Status.FAILURE
+
+        if self._dock_thread is None:
+            charger_x = float(self._slot.get('waypoint_x', 0.0))
+            charger_y = float(self._slot.get('waypoint_y', 0.0))
+            charger_theta = float(self._slot.get('waypoint_theta', 0.0))
+            logger.info('ReturnToCharger: [2단계] Nav2 도킹 → (%.2f, %.2f) 충돌감지 OFF',
+                        charger_x, charger_y)
+            if self._set_nav2_mode:
+                self._set_nav2_mode('returning')
+
+            def _run():
+                try:
+                    self._dock_success = self._send_nav_goal(
+                        charger_x, charger_y, charger_theta)
+                except Exception as e:
+                    logger.error('ReturnToCharger: docking exception: %s', e)
+                    self._dock_success = False
+                finally:
+                    self._set_keepout(False)
+                    self._dock_done = True
+
+            self._dock_thread = threading.Thread(target=_run, daemon=True)
+            self._dock_thread.start()
+            return py_trees.common.Status.RUNNING
+
+        if not self._dock_done:
+            return py_trees.common.Status.RUNNING
+
+        if self._dock_success:
+            logger.info('ReturnToCharger: 충전소 도착 → SUCCESS')
+            if self._set_nav2_mode:
+                self._set_nav2_mode('guiding')
             self._phase = _Phase.DONE
             return py_trees.common.Status.SUCCESS
         else:
-            logger.warning('ReturnToCharger: nav failed → FAILURE')
-            if self._on_nav_failed:
-                self._on_nav_failed()
-            self._phase = _Phase.FAILED
+            logger.warning('ReturnToCharger: 도킹 실패')
+            if self._set_nav2_mode:
+                self._set_nav2_mode('guiding')
+            self._fail()
             return py_trees.common.Status.FAILURE
+
+    def _fail(self) -> None:
+        self._set_keepout(False)
+        if self._on_nav_failed:
+            self._on_nav_failed()
+        self._phase = _Phase.FAILED
 
     def _set_keepout(self, enable: bool) -> None:
         if self._set_keepout_filter is not None:
@@ -154,8 +251,10 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
 
 def create_returning_tree(
     publisher: RobotPublisherInterface,
+    robot_id: str = '54',
     get_parking_slot: Optional[Callable[[], Optional[dict]]] = None,
     send_nav_goal: Optional[Callable[[float, float, float], bool]] = None,
+    set_nav2_mode: Optional[Callable[[str], None]] = None,
     set_keepout_filter: Optional[Callable[[bool], None]] = None,
     on_nav_failed: Optional[Callable[[], None]] = None,
 ) -> py_trees.behaviour.Behaviour:
@@ -163,8 +262,10 @@ def create_returning_tree(
     return ReturnToCharger(
         name='BT5_Returning',
         publisher=publisher,
+        robot_id=robot_id,
         get_parking_slot=get_parking_slot,
         send_nav_goal=send_nav_goal,
+        set_nav2_mode=set_nav2_mode,
         set_keepout_filter=set_keepout_filter,
         on_nav_failed=on_nav_failed,
     )

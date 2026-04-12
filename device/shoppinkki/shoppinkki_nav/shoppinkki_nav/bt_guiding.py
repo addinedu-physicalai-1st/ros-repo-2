@@ -9,6 +9,7 @@ FAILURE → nav_failed event + resume_tracking
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Callable, Optional, Tuple
 
 import py_trees
@@ -38,9 +39,13 @@ class NavigateToZone(py_trees.behaviour.Behaviour):
         self._goal: Optional[Tuple[float, float, float]] = None
         self._zone_name: str = ''
         self._in_progress: bool = False
+        self._nav_success: Optional[bool] = None
+        self._nav_thread: Optional[threading.Thread] = None
 
     def initialise(self) -> None:
         self._in_progress = False
+        self._nav_success = None
+        self._nav_thread = None
         logger.info('NavigateToZone: started (goal=%s zone=%s)',
                      self._goal, self._zone_name)
 
@@ -50,25 +55,36 @@ class NavigateToZone(py_trees.behaviour.Behaviour):
             self._fire_nav_failed()
             return py_trees.common.Status.FAILURE
 
-        if self._in_progress:
-            return py_trees.common.Status.RUNNING
-
         if self._send_nav_goal is None:
             logger.warning('NavigateToZone: no nav client → FAILURE')
             self._fire_nav_failed()
             return py_trees.common.Status.FAILURE
 
-        self._in_progress = True
-        x, y, theta = self._goal
-        try:
-            success = self._send_nav_goal(x, y, theta)
-        except Exception as e:
-            logger.error('NavigateToZone: nav exception: %s', e)
-            success = False
+        # 아직 스레드 시작 전 → 시작
+        if not self._in_progress:
+            self._in_progress = True
+            self._nav_success = None
+            x, y, theta = self._goal
 
-        self._in_progress = False
+            def _run():
+                try:
+                    self._nav_success = self._send_nav_goal(x, y, theta)
+                except Exception as e:
+                    logger.error('NavigateToZone: nav exception: %s', e)
+                    self._nav_success = False
+                finally:
+                    self._in_progress = False
 
-        if success:
+            self._nav_thread = threading.Thread(target=_run, daemon=True)
+            self._nav_thread.start()
+            return py_trees.common.Status.RUNNING
+
+        # 스레드 실행 중
+        if self._in_progress:
+            return py_trees.common.Status.RUNNING
+
+        # 완료
+        if self._nav_success:
             logger.info('NavigateToZone: navigation succeeded')
             if self._on_arrived:
                 self._on_arrived(self._zone_name)
@@ -82,6 +98,14 @@ class NavigateToZone(py_trees.behaviour.Behaviour):
         self._pub.publish_cmd_vel(0.0, 0.0)
 
     # ── Public ────────────────────────────────
+
+    def cancel_nav(self) -> None:
+        """Cancel current navigation goal."""
+        self._in_progress = False
+        self._nav_success = None
+        self._goal = None
+        self._pub.publish_cmd_vel(0.0, 0.0)
+        logger.info('NavigateToZone: navigation cancelled')
 
     def set_goal(self, x: float, y: float, theta: float,
                  zone_name: str = '') -> None:

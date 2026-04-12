@@ -72,7 +72,8 @@ class ShoppinkiSM:
         # ── Guiding ───────────────────────────────────
         # TRACKING / TRACKING_CHECKOUT → GUIDING  (navigate_to cmd)
         {'trigger': 'enter_guiding',
-         'source': ['TRACKING', 'TRACKING_CHECKOUT'],
+         'source': ['TRACKING', 'TRACKING_CHECKOUT', 'IDLE', 'WAITING',
+                    'GUIDING', 'CHARGING'],
          'dest': 'GUIDING'},
 
         # ── Waiting ───────────────────────────────────
@@ -103,7 +104,7 @@ class ShoppinkiSM:
         # 쇼핑 종료(mode=RETURNING): 안내 주행·탐색 중에도 귀환 가능 (BT 전환은 BTRunner가 처리)
         {'trigger': 'enter_returning',
          'source': ['TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'LOCKED',
-                    'GUIDING', 'SEARCHING'],
+                    'GUIDING', 'SEARCHING', 'IDLE'],
          'dest': 'RETURNING'},
 
         # RETURNING → CHARGING  (BT5 Nav2 SUCCESS)

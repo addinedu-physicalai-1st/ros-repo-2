@@ -116,7 +116,7 @@ class BTRunner:
             bt_waiting,
         ])
 
-        # BT4: GUIDING
+        # BT4: GUIDING (memory=True: SUCCESS 후 재실행 방지)
         bt4_seq = py_trees.composites.Sequence(
             name='[GUIDING]', memory=True)
         bt4_seq.add_children([
@@ -124,9 +124,9 @@ class BTRunner:
             bt_guiding,
         ])
 
-        # BT5: RETURNING
+        # BT5: RETURNING (memory=False: 매 tick StateGuard 재평가)
         bt5_seq = py_trees.composites.Sequence(
-            name='[RETURNING]', memory=True)
+            name='[RETURNING]', memory=False)
         bt5_seq.add_children([
             StateGuard('State=RETURNING?', sm, {'RETURNING'}),
             bt_returning,
