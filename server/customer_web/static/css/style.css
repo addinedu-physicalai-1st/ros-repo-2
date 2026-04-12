@@ -557,16 +557,21 @@ html, body {
 
 .map-canvas-wrap {
   flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: auto;
   background: #1e293b;
+  /* 검은 배경(#1e293b)이 맵 주변에 조금 보이도록 여백 */
+  padding: clamp(12px, 3.5vmin, 36px);
+  box-sizing: border-box;
 }
 
 #mapCanvas {
+  width: min(296vw, calc(120vh - 100px));
   max-width: 100%;
-  max-height: 100%;
+  height: auto;
   touch-action: none;
 }
 
@@ -582,13 +587,14 @@ html, body {
 .legend-dot {
   width: 12px;
   height: 12px;
-  border-radius: 50%;
+  border-radius: 2px;
   display: inline-block;
   margin-right: 4px;
+  vertical-align: middle;
 }
 
-.legend-dot.my-robot { background: #3b82f6; }
-.legend-dot.other-robot { background: #94a3b8; }
+.legend-dot.my-robot { background: #0369a1; }
+.legend-dot.other-robot { background: #7dd3fc; opacity: 0.55; }
 
 /* ── 토스트 알림 ──────────────────────────────────── */
 #toast-container {
