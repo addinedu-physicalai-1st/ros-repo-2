@@ -10,14 +10,14 @@ Only active (calls callbacks) when SM is in TRACKING or TRACKING_CHECKOUT.
 In all other states pose updates are silently ignored.
 
 Stand-alone node usage:
-    ros2 run shoppinkki_nav boundary_monitor
+    ros2 run shoppinkki_core boundary_monitor
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, List, Optional
 
 logger = logging.getLogger(__name__)
 

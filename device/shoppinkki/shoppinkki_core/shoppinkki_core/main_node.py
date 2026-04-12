@@ -19,6 +19,7 @@ import math
 import os
 import threading
 import time
+from typing import Optional
 
 import rclpy
 import tf2_ros
@@ -222,6 +223,8 @@ class ShoppinkiMainNode(Node):
             String, f'/robot_{ROBOT_ID}/cart', 10)
         self._snapshot_pub = self.create_publisher(
             String, f'/robot_{ROBOT_ID}/snapshot', 10)
+        self._customer_event_pub = self.create_publisher(
+            String, f'/robot_{ROBOT_ID}/customer_event', 10)
 
         # ── ROS subscribers ───────────────────
         self.create_subscription(
@@ -254,6 +257,28 @@ class ShoppinkiMainNode(Node):
             amcl_qos,
         )
         self.get_logger().info(f'TF + AMCL pose tracking: {amcl_topic}')
+
+        # ── 결제 구역 (BoundaryMonitor) ── REST에서 폴리곤 로드, AMCL로 진입 감지
+        self._boundary_monitor: Optional[object] = None
+        try:
+            from shoppinkki_core.boundary_monitor import (
+                BoundaryMonitor,
+                load_boundaries_from_rest,
+            )
+            _bounds = load_boundaries_from_rest(_cs_host, _cs_port)
+            self._boundary_monitor = BoundaryMonitor(
+                boundaries=_bounds,
+                on_checkout_enter=self._emit_checkout_zone_enter,
+                get_state=lambda: self.sm.state,
+                node=None,
+            )
+            self._boundary_monitor.start()
+            self.get_logger().info(
+                'BoundaryMonitor: %d boundary row(s), checkout active',
+                len(_bounds),
+            )
+        except Exception as e:
+            self.get_logger().warning('BoundaryMonitor unavailable: %s', e)
 
         # ── Internal state ────────────────────
         self._pos_x: float = 0.0
@@ -293,6 +318,16 @@ class ShoppinkiMainNode(Node):
         """AMCL 추정 위치를 내부 상태에 반영."""
         self._pos_x = msg.pose.pose.position.x
         self._pos_y = msg.pose.pose.position.y
+        if self._boundary_monitor is not None:
+            self._boundary_monitor.on_pose_update(self._pos_x, self._pos_y)
+
+    def _emit_checkout_zone_enter(self) -> None:
+        """TRACKING 상태에서 결제 구역 최초 진입 시 control_service로 WebSocket 이벤트 요청."""
+        payload = json.dumps({'type': 'checkout_zone_enter'})
+        msg = String()
+        msg.data = payload
+        self._customer_event_pub.publish(msg)
+        self.get_logger().info('Published customer_event checkout_zone_enter')
 
     def _cmd_callback(self, msg: String) -> None:
         self.cmd_handler.handle(msg.data)

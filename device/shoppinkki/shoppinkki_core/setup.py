@@ -21,6 +21,7 @@ setup(
         'console_scripts': [
             'main_node = shoppinkki_core.main_node:main',
             'ns_bringup = shoppinkki_core.ns_bringup:main',
+            'boundary_monitor = shoppinkki_core.boundary_monitor:main',
         ],
     },
 )

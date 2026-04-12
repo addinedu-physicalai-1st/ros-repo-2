@@ -1,7 +1,6 @@
 """Unit tests for BoundaryMonitor — no ROS needed."""
 
-import pytest
-from shoppinkki_nav.boundary_monitor import Boundary, BoundaryMonitor
+from shoppinkki_core.boundary_monitor import Boundary, BoundaryMonitor
 
 
 def make_checkout_boundary():
