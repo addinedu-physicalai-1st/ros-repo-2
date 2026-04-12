@@ -300,7 +300,8 @@ class RobotManager:
                     'apply_mode': apply_mode,
                 })
 
-        elif cmd in ('mode', 'resume_tracking', 'navigate_to', 'start_session'):
+        elif cmd in ('mode', 'resume_tracking', 'navigate_to', 'start_session',
+                     'demo_force_state'):
             self._relay_to_pi(robot_id, payload)
 
         elif cmd in ('force_terminate', 'staff_resolved'):

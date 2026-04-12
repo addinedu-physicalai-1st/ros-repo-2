@@ -337,3 +337,23 @@ class TestCallbacks:
         reach_tracking(sm)
         sm.enter_halted()
         assert halted == [True]
+
+
+class TestDemoForceState:
+    def test_jumps_and_notifies(self):
+        seen = []
+        sm = make_sm(on_state_changed=seen.append)
+        assert sm.demo_force_state('GUIDING') is True
+        assert sm.state == 'GUIDING'
+        assert seen[-1] == 'GUIDING'
+
+    def test_locked_sets_flag(self):
+        sm = make_sm()
+        assert sm.demo_force_state('LOCKED') is True
+        assert sm.state == 'LOCKED'
+        assert sm.is_locked_return is True
+
+    def test_unknown_state_returns_false(self):
+        sm = make_sm()
+        assert sm.demo_force_state('NOT_A_STATE') is False
+        assert sm.state == 'CHARGING'

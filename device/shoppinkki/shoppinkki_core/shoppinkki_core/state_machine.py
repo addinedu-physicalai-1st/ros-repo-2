@@ -246,6 +246,43 @@ class ShoppinkiSM:
         except MachineError:
             logger.warning('force_terminate ignored in state=%s', self.state)
 
+    def demo_force_state(self, target: str, is_locked_return: Optional[bool] = None) -> bool:
+        """Jump to ``target`` without valid transitions (demo / LED test only).
+
+        Does not run ``on_enter_*`` hooks from normal transitions; calls
+        ``_notify`` so LED/LCD/BT still follow ``on_state_changed``.
+
+        Parameters
+        ----------
+        target:
+            One of :attr:`states`.
+        is_locked_return:
+            If given, sets :attr:`is_locked_return`. Otherwise ``True`` only
+            for ``LOCKED``, else ``False``.
+        """
+        if target not in self.states:
+            logger.warning('demo_force_state: unknown state=%s', target)
+            return False
+        if target == 'TRACKING':
+            self.previous_tracking_state = 'TRACKING'
+        elif target == 'TRACKING_CHECKOUT':
+            self.previous_tracking_state = 'TRACKING_CHECKOUT'
+
+        if is_locked_return is not None:
+            self.is_locked_return = bool(is_locked_return)
+        elif target == 'LOCKED':
+            self.is_locked_return = True
+        elif target == 'RETURNING':
+            pass  # keep previous flag for demo (e.g. locked return stripe)
+        else:
+            self.is_locked_return = False
+
+        self.machine.set_state(target)
+        self._notify(target)
+        logger.warning('DEMO force state → %s (is_locked_return=%s)',
+                       target, self.is_locked_return)
+        return True
+
     @property
     def current_state(self) -> str:
         """Return current state string."""

@@ -32,6 +32,7 @@
                   맵 클릭은 MainWindow에서 처리하여 admin_goto 전송
     [잠금 해제] → staff_resolved   (is_locked_return=True 또는 HALTED)
     [위치 재조정] → admin_position_adjustment 맵 클릭 (IDLE만)
+    [상태 전환] → demo_force_state (시연용 강제 SM 점프)
     [위치 초기화] → init_pose      (CHARGING·IDLE만, Gazebo/AMCL 초기 위치 설정)
 
 시그널:
@@ -46,6 +47,7 @@ from PyQt6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QInputDialog,
     QMessageBox,
     QProgressBar,
     QPushButton,
@@ -77,6 +79,11 @@ _RETURNING_MODES = {'TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'SEARCHING'}
 _INIT_POSE_MODES = {'CHARGING', 'IDLE'}
 # admin_position_adjustment — 맵 좌표 기준 위치 재조정 (시뮬/실물 공통)
 _POSITION_ADJUSTMENT_BTN_LABEL = '위치 재조정'
+# 시연용 강제 SM 점프 (관제 → Pi demo_force_state)
+_STATE_TRANSITION_CHOICES = (
+    'CHARGING', 'IDLE', 'TRACKING', 'TRACKING_CHECKOUT', 'GUIDING',
+    'SEARCHING', 'WAITING', 'LOCKED', 'RETURNING', 'HALTED',
+)
 
 
 class RobotCard(QFrame):
@@ -185,6 +192,13 @@ class RobotCard(QFrame):
         self._btn_init_pose.setStyleSheet('color: #2980b9;')
         self._btn_init_pose.clicked.connect(self._on_init_pose)
 
+        self._btn_state_transition = QPushButton('상태 전환')
+        self._btn_state_transition.setToolTip(
+            '시연용 강제 상태 전환 (demo_force_state)'
+        )
+        self._btn_state_transition.setStyleSheet('color: #16a085; font-weight: bold;')
+        self._btn_state_transition.clicked.connect(self._on_state_transition)
+
         grid = QGridLayout()
         grid.setHorizontalSpacing(8)
         grid.setVerticalSpacing(6)
@@ -192,9 +206,9 @@ class RobotCard(QFrame):
         grid.addWidget(self._btn_force_terminate, 0, 0)
         grid.addWidget(self._btn_admin_goto, 0, 1)
         grid.addWidget(self._btn_staff_resolved, 0, 2)
-        # 2행: 위치 재조정 | (빈칸) | 위치 초기화
+        # 2행: 위치 재조정 | 상태 전환 | 위치 초기화
         grid.addWidget(self._btn_position_adjustment, 1, 0)
-        grid.addWidget(QLabel(''), 1, 1)
+        grid.addWidget(self._btn_state_transition, 1, 1)
         grid.addWidget(self._btn_init_pose, 1, 2)
         layout.addLayout(grid)
 
@@ -339,6 +353,35 @@ class RobotCard(QFrame):
         )
         if reply == QMessageBox.StandardButton.Yes:
             self._send_cmd({'cmd': 'staff_resolved', 'robot_id': self._robot_id})
+
+    def _on_state_transition(self):
+        """시연용 SM 점프 — payload cmd demo_force_state."""
+        reply = QMessageBox.question(
+            self,
+            '상태 전환 (시연)',
+            f'Robot #{self._robot_id}\n\n'
+            '시연용으로 상태 머신을 강제로 바꿉니다 '
+            '(Nav·세션과 어긋날 수 있음).\n\n'
+            '계속할까요?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        choice, ok = QInputDialog.getItem(
+            self,
+            '상태 전환 (시연)',
+            '목표 상태 (target mode):',
+            _STATE_TRANSITION_CHOICES,
+            1,
+            False,
+        )
+        if not ok:
+            return
+        self._send_cmd({
+            'cmd': 'demo_force_state',
+            'robot_id': self._robot_id,
+            'value': choice,
+        })
 
     def _on_init_pose(self):
         reply = QMessageBox.question(

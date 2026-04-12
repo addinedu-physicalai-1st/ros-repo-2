@@ -13,6 +13,7 @@ Supported commands (채널 G):
     enter_registration    → on_enter_registration callback (IDLE only, LCD 카메라 피드 전환)
     enter_simulation      → on_enter_simulation callback (IDLE only, 시뮬레이션 모드)
     registration_confirm  → on_registration_confirm callback (IDLE only, 인형 등록 확인)
+    demo_force_state      → SM demo jump (트리거 없이 점프, 시연·LED 확인용)
 """
 
 from __future__ import annotations
@@ -262,6 +263,16 @@ class CmdHandler:
         else:
             self.sm.enter_tracking()
 
+    def _handle_demo_force_state(self, payload: dict) -> None:
+        """시연용: SM을 트리거 없이 점프 (LED/토픽 확인)."""
+        value = payload.get('value', '')
+        if not value:
+            logger.warning('demo_force_state: missing value')
+            return
+        locked = payload.get('is_locked_return')
+        locked_arg = bool(locked) if locked is not None else None
+        self.sm.demo_force_state(value, is_locked_return=locked_arg)
+
     # ── Dispatch table ────────────────────────
 
     _dispatch: dict[str, Callable] = {
@@ -279,4 +290,5 @@ class CmdHandler:
         'enter_registration':    _handle_enter_registration,
         'enter_simulation':      _handle_enter_simulation,
         'registration_confirm':  _handle_registration_confirm,
+        'demo_force_state':      _handle_demo_force_state,
     }

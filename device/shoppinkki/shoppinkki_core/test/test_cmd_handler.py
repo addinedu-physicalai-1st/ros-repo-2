@@ -196,6 +196,19 @@ class TestAdminGoto:
         assert gotos == []
 
 
+class TestDemoForceStateCmd:
+    def test_jumps_from_charging(self):
+        sm, h = make_handler()
+        cmd(sm, h, cmd='demo_force_state', value='SEARCHING')
+        assert sm.state == 'SEARCHING'
+
+    def test_jumps_from_idle(self):
+        sm, h = make_handler()
+        sm.charging_completed()
+        cmd(sm, h, cmd='demo_force_state', value='SEARCHING')
+        assert sm.state == 'SEARCHING'
+
+
 class TestInvalidInput:
     def test_invalid_json_ignored(self):
         sm, h = make_handler()

@@ -73,6 +73,20 @@ class TestAdminCmd:
         rm.handle_admin_cmd('54', {'cmd': 'mode', 'value': 'WAITING'})
         assert any(c[1]['cmd'] == 'mode' for c in cmds)
 
+    def test_relay_demo_force_state(self):
+        cmds = []
+        rm = make_rm()
+        rm.publish_cmd = lambda rid, p: cmds.append((rid, p))
+        rm.handle_admin_cmd('54', {
+            'cmd': 'demo_force_state',
+            'robot_id': '54',
+            'value': 'TRACKING',
+        })
+        assert cmds == [(
+            '54',
+            {'cmd': 'demo_force_state', 'robot_id': '54', 'value': 'TRACKING'},
+        )]
+
     def test_admin_goto_rejected_when_not_idle(self):
         rejected = []
         rm = make_rm()
