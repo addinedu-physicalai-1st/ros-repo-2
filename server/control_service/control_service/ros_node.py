@@ -89,8 +89,6 @@ class ControlServiceNode:
         robot_manager.publish_init_pose = self.publish_init_pose
         robot_manager.publish_initialpose_at = self.publish_initialpose_at
         robot_manager.adjust_position_in_sim = self.adjust_position_in_sim
-        # Backward compatibility for older call sites
-        robot_manager.teleport_entity = self.adjust_position_in_sim
 
         try:
             from ros_gz_interfaces.srv import SetEntityPose
@@ -251,9 +249,6 @@ class ControlServiceNode:
             logger.exception('position_adjustment: unexpected error')
             return False
 
-    def teleport_entity(self, robot_id: str, x: float, y: float, theta: float) -> bool:
-        """Backward-compatible alias for adjust_position_in_sim()."""
-        return self.adjust_position_in_sim(robot_id, x, y, theta)
 
     def _on_status(self, robot_id: str, raw: str) -> None:
         try:

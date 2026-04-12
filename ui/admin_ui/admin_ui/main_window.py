@@ -277,7 +277,7 @@ class MainWindow(QMainWindow):
             self._handle_event(data)
         elif msg_type == 'admin_goto_rejected':
             self._handle_goto_rejected(data)
-        elif msg_type in ('position_adjustment_rejected', 'teleport_rejected'):
+        elif msg_type == 'position_adjustment_rejected':
             robot_id = str(data.get('robot_id', ''))
             QMessageBox.warning(
                 self,
@@ -285,7 +285,7 @@ class MainWindow(QMainWindow):
                 f'Robot #{robot_id} 위치 재조정이 실패했습니다.\n'
                 f'{data.get("reason", "")}',
             )
-        elif msg_type in ('position_adjustment_done', 'teleport_done'):
+        elif msg_type == 'position_adjustment_done':
             robot_id = str(data.get('robot_id', ''))
             if robot_id:
                 # status 토픽 지연 시에도 위치 재조정 좌표를 UI에 즉시 반영
