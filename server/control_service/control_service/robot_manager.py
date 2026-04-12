@@ -262,6 +262,15 @@ class RobotManager:
                     'reason': 'teleport failed',
                 })
             else:
+                # Teleport 즉시 반영: 다음 /status 수신 전에도 UI가 위치를 갱신할 수 있도록
+                # 캐시 좌표를 먼저 업데이트하고 status를 push한다.
+                with self._lock:
+                    state = self._get_or_create(robot_id)
+                    state.pos_x = x
+                    state.pos_y = y
+                    state.yaw = theta
+                    state.last_seen = datetime.utcnow()
+                self._push_status(robot_id, state)
                 self._push_admin({
                     'type': 'teleport_done',
                     'robot_id': robot_id,

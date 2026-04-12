@@ -285,6 +285,18 @@ class MainWindow(QMainWindow):
             )
         elif msg_type == 'teleport_done':
             robot_id = str(data.get('robot_id', ''))
+            if robot_id:
+                # status 토픽 지연 시에도 순간이동 좌표를 UI에 즉시 반영
+                state = dict(self._robot_states.get(robot_id, {}))
+                state['robot_id'] = robot_id
+                state['pos_x'] = float(data.get('x', state.get('pos_x', 0.0)))
+                state['pos_y'] = float(data.get('y', state.get('pos_y', 0.0)))
+                state['yaw'] = float(data.get('theta', state.get('yaw', 0.0)))
+                self._robot_states[robot_id] = state
+                self._last_status_time[robot_id] = time.monotonic()
+                if robot_id in self._robot_cards:
+                    self._robot_cards[robot_id].update_state(state)
+                self._map_widget.update_robot(robot_id, state)
             self.statusBar().showMessage(
                 f'Robot #{robot_id} 순간 이동 완료'
             )

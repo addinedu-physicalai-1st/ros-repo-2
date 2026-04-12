@@ -111,21 +111,24 @@ class ControlServiceNode:
 
     def publish_init_pose(self, robot_id: str) -> None:
         """AMCL 초기 위치를 /robot_<id>/initialpose 토픽으로 발행."""
-        from geometry_msgs.msg import PoseWithCovarianceStamped
-        from builtin_interfaces.msg import Time
-
         rid = robot_id.strip()
-        pub = self._init_pose_publishers.get(rid)
-        if pub is None:
-            logger.warning('No initialpose publisher for robot_id=%s', robot_id)
-            return
-
         pose_data = _INIT_POSES.get(rid)
         if pose_data is None:
             logger.warning('No init pose defined for robot_id=%s — using (0,0,0)', robot_id)
             pose_data = (0.0, 0.0, 0.0)
 
         x, y, yaw = pose_data
+        self._publish_initialpose(rid, x, y, yaw)
+
+    def _publish_initialpose(self, robot_id: str, x: float, y: float, yaw: float) -> None:
+        """Publish /robot_<id>/initialpose with explicit map-frame pose."""
+        from geometry_msgs.msg import PoseWithCovarianceStamped
+
+        rid = robot_id.strip()
+        pub = self._init_pose_publishers.get(rid)
+        if pub is None:
+            logger.warning('No initialpose publisher for robot_id=%s', robot_id)
+            return
 
         msg = PoseWithCovarianceStamped()
         msg.header.frame_id = 'map'
@@ -146,7 +149,7 @@ class ControlServiceNode:
         msg.pose.covariance = cov
 
         pub.publish(msg)
-        logger.info('→ initialpose robot=%s  x=%.2f y=%.2f yaw=%.4f', robot_id, x, y, yaw)
+        logger.info('→ initialpose robot=%s  x=%.2f y=%.2f yaw=%.4f', rid, x, y, yaw)
 
     def get_node(self):
         return self._node
@@ -225,6 +228,10 @@ class ControlServiceNode:
             ok = bool(out.get('ok', False))
             logger.info('teleport: %s → (%.3f, %.3f, %.3f) success=%s',
                         model_name, gx, gy, gyaw, ok)
+            if ok:
+                # Gazebo pose 이동 후 AMCL도 같은 map pose로 즉시 동기화한다.
+                # 그렇지 않으면 /status가 기존 위치로 되돌아오는 현상이 발생할 수 있다.
+                self._publish_initialpose(robot_id, x, y, theta)
             return ok
         except Exception:
             logger.exception('teleport: unexpected error')
