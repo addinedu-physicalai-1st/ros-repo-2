@@ -28,9 +28,4 @@ setup(
     description='ShopPinkki navigation: BT1~BT5 + BoundaryMonitor + Nav2 config',
     license='MIT',
     tests_require=['pytest'],
-    entry_points={
-        'console_scripts': [
-            'boundary_monitor = shoppinkki_nav.boundary_monitor:main',
-        ],
-    },
 )

@@ -6,7 +6,8 @@ Starts:
     - map_server + amcl (localization)
     - controller_server, planner_server, ... (navigation)
     - lifecycle_manager (전체 순차 관리)
-    - boundary_monitor node
+
+결제 구역 감지는 shoppinkki_core main_node 의 BoundaryMonitor 가 담당한다.
 
 Namespace isolation:
     ROBOT_ID env var → robot_<id> namespace.
@@ -109,25 +110,8 @@ def generate_launch_description():
              }]),
     ])
 
-    # ── BoundaryMonitor node ──────────────────
-    boundary_monitor_node = Node(
-        package='shoppinkki_nav',
-        executable='boundary_monitor',
-        name='boundary_monitor',
-        namespace=namespace,
-        output='screen',
-        parameters=[{
-            'use_sim_time': LaunchConfiguration('use_sim_time'),
-        }],
-        additional_env={
-            'CONTROL_SERVICE_HOST': os.environ.get('CONTROL_SERVICE_HOST', '127.0.0.1'),
-            'CONTROL_SERVICE_PORT': os.environ.get('CONTROL_SERVICE_PORT', '8081'),
-        },
-    )
-
     return LaunchDescription([
         map_arg,
         use_sim_time_arg,
         nav2,
-        boundary_monitor_node,
     ])

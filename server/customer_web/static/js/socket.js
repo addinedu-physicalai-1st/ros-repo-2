@@ -79,6 +79,9 @@ socket.on("registration_done", () => {
 
 // 결제 구역 진입
 socket.on("checkout_zone_enter", () => {
+  if (typeof syncCheckoutModalFromCart === "function") {
+    syncCheckoutModalFromCart();
+  }
   showCheckoutModal();
 });
 
