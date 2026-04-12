@@ -1,0 +1,12 @@
+# ROS-Gazebo service bridge — admin teleport (test only)
+#
+# World-level service (not per-robot namespace):
+#   /world/shop/set_pose
+#
+# Expose Gazebo SetEntityPose service to ROS 2 so control_service can call:
+#   ros_gz_interfaces/srv/SetEntityPose
+
+- service_name: "/world/shop/set_pose"
+  ros_type_name: "ros_gz_interfaces/srv/SetEntityPose"
+  gz_req_type_name: "gz.msgs.Pose"
+  gz_rep_type_name: "gz.msgs.Boolean"

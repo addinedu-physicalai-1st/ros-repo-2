@@ -242,10 +242,20 @@ def generate_launch_description():
     # 각 로봇 액션 생성 (로봇 18은 15초 딜레이 — 54번 Nav2 초기화 후 시작)
     robot_54_actions = make_robot_actions(ROBOTS[0], delay=0.0)
     robot_18_actions = make_robot_actions(ROBOTS[1], delay=15.0)
+    teleport_bridge_yaml = os.path.join(SHOPPINKKI_NAV, 'config', 'bridge_teleport.yaml')
+    teleport_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='bridge_teleport',
+        arguments=['--ros-args', '-p', f'config_file:={teleport_bridge_yaml}'],
+        parameters=[{'use_sim_time': True}],
+        output='screen',
+    )
 
     return LaunchDescription([
         set_gz_path,
         *gz_actions,
+        teleport_bridge,
         *robot_54_actions,
         *robot_18_actions,
     ])
