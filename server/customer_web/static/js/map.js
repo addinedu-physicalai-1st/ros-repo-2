@@ -6,8 +6,8 @@
  *   origin     : [x, y, theta] 맵 원점 (미터)
  *
  * 좌표 변환 (맵 PNG 90도 CCW 회전 후):
- *   px = canvas_width  - (pos_y - origin_y) / resolution
- *   py = canvas_height - (pos_x - origin_x) / resolution
+ *   px = logicalW  - (pos_y - origin_y) / resolution
+ *   py = logicalH - (pos_x - origin_x) / resolution
  *
  * 핀치 줌 지원 (모바일).
  */
@@ -15,7 +15,6 @@
 "use strict";
 
 const MapRenderer = (() => {
-  // ── shop.yaml 파라미터 (서버에서 주입하거나 기본값 사용) ──
   const MAP_CONFIG = {
     resolution: window.MAP_RESOLUTION || 0.05,
     originX:    window.MAP_ORIGIN_X   || -0.1,
@@ -25,18 +24,22 @@ const MapRenderer = (() => {
 
   let canvas, ctx;
   let mapImage = null;
-  let mapImageRotated = null;  // 90도 CW 회전된 오프스크린 이미지
+  let mapImageRotated = null;
   let myRobotId = null;
+  let logicalW = 0;
+  let logicalH = 0;
+  let dpr = 1;
 
-  // 최신 로봇 위치 캐시
-  let myRobot = null;          // {robot_id, pos_x, pos_y}
-  let otherRobots = [];        // [{robot_id, pos_x, pos_y}, ...]
+  let myRobot = null;
+  let otherRobots = [];
 
-  // 핀치 줌 상태
   let scale = 1;
   let lastDist = null;
 
-  // ── 초기화 ──────────────────────────────────────────────────
+  /** 정사각형 마커: 한 변 길이 = 2 * MARKER_HALF_PX (논리 픽셀) */
+  const MARKER_HALF_PX = 8;
+  const MY_ROBOT_COLOR = "#0369a1";
+  const OTHER_ROBOT_COLOR = "#7dd3fc";
 
   function init(canvasId, robotId) {
     canvas = document.getElementById(canvasId);
@@ -44,48 +47,50 @@ const MapRenderer = (() => {
     ctx = canvas.getContext("2d");
     myRobotId = String(robotId);
 
-    // 맵 이미지 로드 (90도 CW 회전해서 가로 표시)
     mapImage = new Image();
     mapImage.onload = () => {
-      // 오프스크린 캔버스에 90도 CCW 회전 후 저장
       const off = document.createElement("canvas");
-      off.width  = mapImage.naturalHeight;  // CCW 회전 후: 가로 = 원본 세로
-      off.height = mapImage.naturalWidth;   // CCW 회전 후: 세로 = 원본 가로
+      off.width = mapImage.naturalHeight;
+      off.height = mapImage.naturalWidth;
       const offCtx = off.getContext("2d");
       offCtx.translate(0, off.height);
-      offCtx.rotate(-Math.PI / 2);          // 90도 CCW
+      offCtx.rotate(-Math.PI / 2);
       offCtx.drawImage(mapImage, 0, 0);
       mapImageRotated = off;
 
-      canvas.width  = off.width;
-      canvas.height = off.height;
+      logicalW = off.width;
+      logicalH = off.height;
+      applyCanvasBufferSize();
       render();
     };
     mapImage.onerror = () => {
-      // 이미지 없으면 빈 캔버스에 텍스트
-      canvas.width  = 400;
-      canvas.height = 300;
+      logicalW = 400;
+      logicalH = 300;
+      applyCanvasBufferSize();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = "#1e293b";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, logicalW, logicalH);
       ctx.fillStyle = "#94a3b8";
       ctx.font = "14px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("맵 이미지를 불러올 수 없습니다.", canvas.width / 2, canvas.height / 2);
+      ctx.fillText("맵 이미지를 불러올 수 없습니다.", logicalW / 2, logicalH / 2);
     };
     mapImage.src = MAP_CONFIG.imageUrl;
 
-    // 핀치 줌 이벤트
+    function applyCanvasBufferSize() {
+      /* 상한 3: 고해상도 패널에서 마커·테두리 번짐 완화 (맵 디테일은 PNG에 의존) */
+      dpr = Math.min(window.devicePixelRatio || 1, 3);
+      canvas.width = Math.round(logicalW * dpr);
+      canvas.height = Math.round(logicalH * dpr);
+    }
+
     canvas.addEventListener("touchstart", onTouchStart, { passive: false });
-    canvas.addEventListener("touchmove",  onTouchMove,  { passive: false });
-    canvas.addEventListener("touchend",   onTouchEnd,   { passive: false });
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+    canvas.addEventListener("touchend", onTouchEnd, { passive: false });
   }
 
-  // ── 상태 업데이트 ────────────────────────────────────────────
-
-  /**
-   * status 메시지로 로봇 위치 갱신 후 재렌더링.
-   * @param {object} statusMsg — 채널 A status 페이로드
-   */
   function updateFromStatus(statusMsg) {
     if (statusMsg.my_robot) {
       myRobot = statusMsg.my_robot;
@@ -110,75 +115,55 @@ const MapRenderer = (() => {
     }
   }
 
-  // ── 렌더링 ──────────────────────────────────────────────────
-
   function render() {
-    if (!canvas || !ctx) return;
+    if (!canvas || !ctx || !logicalW || !logicalH) return;
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // 핀치 줌 적용
-    const cx = canvas.width  / 2;
-    const cy = canvas.height / 2;
+    const cx = logicalW / 2;
+    const cy = logicalH / 2;
     ctx.translate(cx, cy);
     ctx.scale(scale, scale);
     ctx.translate(-cx, -cy);
 
-    // 맵 이미지 (90도 CW 회전된 오프스크린 이미지 사용)
     if (mapImageRotated) {
       ctx.drawImage(mapImageRotated, 0, 0);
     }
 
-    // 다른 로봇 (회색, 40% 불투명)
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = 0.55;
     otherRobots.forEach((r) => {
       const [px, py] = worldToCanvas(r.pos_x, r.pos_y);
-      drawRobotDot(px, py, "#94a3b8", 10, String(r.robot_id));
+      drawRobotMarker(px, py, OTHER_ROBOT_COLOR, MARKER_HALF_PX);
     });
 
-    // 내 로봇 (파란색, 불투명)
     ctx.globalAlpha = 1.0;
     if (myRobot) {
       const [px, py] = worldToCanvas(myRobot.pos_x, myRobot.pos_y);
-      drawRobotDot(px, py, "#3b82f6", 12, "#" + myRobotId);
+      drawRobotMarker(px, py, MY_ROBOT_COLOR, MARKER_HALF_PX);
     }
 
     ctx.restore();
   }
 
-  function drawRobotDot(px, py, color, r, label) {
-    // 원
-    ctx.beginPath();
-    ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // 레이블
-    if (label) {
-      ctx.fillStyle = "#1e293b";
-      ctx.font = `bold ${r}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.fillText(label, px, py - r - 4);
-    }
+  function drawRobotMarker(px, py, fillColor, half) {
+    const s = half * 2;
+    const x = px - half;
+    const y = py - half;
+    ctx.fillStyle = fillColor;
+    ctx.fillRect(x, y, s, s);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x, y, s, s);
   }
 
-  // ── 좌표 변환 ────────────────────────────────────────────────
-
-  // ── 좌표 변환 (90도 CCW 회전 적용) ─────────────────────────────
-  // 회전 후: px = canvas.width  - (y - oy) / res
-  //          py = canvas.height - (x - ox) / res
   function worldToCanvas(wx, wy) {
-    const px = canvas.width  - (wy - MAP_CONFIG.originY) / MAP_CONFIG.resolution;
-    const py = canvas.height - (wx - MAP_CONFIG.originX) / MAP_CONFIG.resolution;
+    const px = logicalW - (wy - MAP_CONFIG.originY) / MAP_CONFIG.resolution;
+    const py = logicalH - (wx - MAP_CONFIG.originX) / MAP_CONFIG.resolution;
     return [px, py];
   }
-
-  // ── 핀치 줌 ─────────────────────────────────────────────────
 
   function getTouchDist(touches) {
     const dx = touches[0].clientX - touches[1].clientX;
@@ -209,8 +194,6 @@ const MapRenderer = (() => {
   function onTouchEnd(e) {
     if (e.touches.length < 2) lastDist = null;
   }
-
-  // ── 공개 API ─────────────────────────────────────────────────
 
   return { init, updateFromStatus };
 })();
