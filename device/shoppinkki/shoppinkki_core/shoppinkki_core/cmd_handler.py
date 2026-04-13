@@ -262,6 +262,11 @@ class CmdHandler:
         else:
             self.sm.enter_tracking()
 
+    def _handle_force_idle(self, payload: dict) -> None:
+        """강제 IDLE 전환 (테스트/디버그용)."""
+        logger.info('force_idle: %s → IDLE', self.sm.state)
+        self.sm.force_idle()
+
     # ── Dispatch table ────────────────────────
 
     _dispatch: dict[str, Callable] = {
@@ -281,8 +286,3 @@ class CmdHandler:
         'registration_confirm':  _handle_registration_confirm,
         'force_idle':            _handle_force_idle,
     }
-
-    def _handle_force_idle(self, payload: dict) -> None:
-        """강제 IDLE 전환 (테스트/디버그용)."""
-        logger.info('force_idle: %s → IDLE', self.sm.state)
-        self.sm.force_idle()
