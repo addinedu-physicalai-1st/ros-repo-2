@@ -71,7 +71,7 @@ def generate_launch_description() -> LaunchDescription:
 
     # ── PinkyFleetAdapter (3초 지연 — traffic_schedule 준비 대기) ─────────────
     fleet_adapter = TimerAction(
-        period=3.0,
+        period=8.0,
         actions=[Node(
             package='shoppinkki_rmf',
             executable='fleet_adapter',
