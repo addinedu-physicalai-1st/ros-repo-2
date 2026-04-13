@@ -10,12 +10,12 @@ INSERT INTO zone (zone_id, zone_name, zone_type, waypoint_x, waypoint_y, waypoin
 (6,   '음료',     'product',  0.704, -0.899,  0.0),
 (7,   '베이커리', 'product',  0.622, -0.300,  0.0),
 (8,   '음식',     'product',  0.624, -0.606,  0.0),
-(100, '화장실',   'special',  0.812, -1.606,  1.5708),
+(100, '화장실',   'special',  0.812, -1.586,  1.5708),
 (110, '입구',     'special', 0.0,   -0.007,  0.0),
-(120, '출구',     'special', 0.0,   -1.617,  0.0),
+(120, '출구',     'special', 0.0,   -1.597,  0.0),
 (140, '충전소_18(P1)','special', 0.0, -0.606, 0.0),
 (141, '충전소_54(P2)','special', 0.0, -0.899, 0.0),
-(150, '결제 구역','special',  0.186, -1.614,  1.5708)
+(150, '결제 구역','special',  0.186, -1.594,  1.5708)
 ON CONFLICT (zone_id) DO UPDATE SET
     zone_name      = EXCLUDED.zone_name,
     zone_type      = EXCLUDED.zone_type,
@@ -130,10 +130,10 @@ INSERT INTO fleet_waypoint (idx, name, x, y, theta, zone_id, is_charger, is_park
 -- 왼쪽 복도 (x=0.0)
 ( 0, '입구1',          0.0,   -0.007, 0,       110,  false, false, false, true),
 ( 1, '입구2',          0.0,   -0.300, 0,       NULL, false, false, false, true),
-( 2, 'P1',             0.0,   -0.606, 0.0,     140,  true,  true,  false, false),
-( 3, 'P2',             0.0,   -0.899, 0.0,     141,  true,  true,  false, false),
+( 2, 'P1',             0.0,   -0.606, 3.1416,  140,  true,  true,  false, false),
+( 3, 'P2',             0.0,   -0.899, 3.1416,  141,  true,  true,  false, false),
 ( 4, '출구2',          0.0,   -1.402, 0,       NULL, false, false, false, true),
-( 5, '출구1',          0.0,   -1.617, 0,       120,  false, false, false, true),
+( 5, '출구1',          0.0,   -1.597, 0,       120,  false, false, false, true),
 -- 위쪽 복도 (y=-0.007)
 ( 6, '가전제품1',      0.489, -0.007, -1.5708, 1,    false, false, true,  false),
 ( 7, '가전제품2',      0.749, -0.007, -1.5708, 1,    false, false, true,  false),
@@ -144,20 +144,20 @@ INSERT INTO fleet_waypoint (idx, name, x, y, theta, zone_id, is_charger, is_park
 (11, '육류1',          1.151, -0.606, 3.1416,  4,    false, false, true,  false),
 (12, '육류2',          1.151, -0.899, 3.1416,  4,    false, false, true,  false),
 (13, '채소1',          1.151, -1.224, 3.1416,  5,    false, false, true,  false),
-(14, '채소_화장실',    1.151, -1.606, 0,       NULL, false, false, false, false),
--- 아래쪽 복도 (y=-1.6xx)
-(15, '화장실2',        0.812, -1.606, 1.5708,  100,  false, false, true,  false),
-(16, '결제구역1',      0.186, -1.614, 0,       150,  false, false, false, true),
+(14, '채소_화장실',    1.151, -1.586, 0,       NULL, false, false, false, false),
+-- 아래쪽 복도
+(15, '화장실2',        0.812, -1.586, 1.5708,  100,  false, false, true,  false),
+(16, '결제구역1',      0.186, -1.594, 0,       150,  false, false, false, true),
 (17, '결제구역2',      0.183, -1.402, 0,       150,  false, false, false, true),
 -- 내부 1열 (y=-0.300)
-(18, '빵1',            0.544, -0.300, 1.5708,  7,    false, false, true,  false),
-(19, '빵2',            0.699, -0.300, 1.5708,  7,    false, false, true,  false),
+(18, '빵1',            0.494, -0.300, 1.5708,  7,    false, false, true,  false),
+(19, '빵2',            0.749, -0.300, 1.5708,  7,    false, false, true,  false),
 -- 내부 2열 (y=-0.606)
-(20, '가공식품1',      0.699, -0.606, -1.5708, 8,    false, false, true,  false),
-(21, '가공식품2',      0.544, -0.606, -1.5708, 8,    false, false, true,  false),
+(20, '가공식품1',      0.749, -0.606, -1.5708, 8,    false, false, true,  false),
+(21, '가공식품2',      0.494, -0.606, -1.5708, 8,    false, false, true,  false),
 -- 내부 3열 (y=-0.899)
-(22, '음료1',          0.699, -0.899, 1.5708,  6,    false, false, true,  false),
-(23, '음료2',          0.699, -1.224, -1.5708, 6,    false, false, true,  false),
+(22, '음료1',          0.749, -0.899, 1.5708,  6,    false, false, true,  false),
+(23, '음료2',          0.749, -1.224, -1.5708, 6,    false, false, true,  false),
 -- 통로 waypoint
 (24, '로비',            0.245, -0.007, 0,       NULL, false, false, false, true),
 (25, '1열_입구',        0.245, -0.300, 0,       NULL, false, false, false, false),
@@ -173,7 +173,7 @@ INSERT INTO fleet_waypoint (idx, name, x, y, theta, zone_id, is_charger, is_park
 (35, '하단_입구',       0.245, -1.137, 0,       NULL, false, false, false, false),
 (36, '하단_복도',       0.0,   -1.137, 0,       NULL, false, false, false, false),
 (37, '결제구역2_입구',  0.494, -1.402, 0,       NULL, false, false, false, false),
-(38, '결제구역1_입구',  0.494, -1.606, 0,       NULL, false, false, false, false)
+(38, '결제구역1_입구',  0.494, -1.590, 0,       NULL, false, false, false, false)
 ON CONFLICT (idx) DO UPDATE SET
     name          = EXCLUDED.name,
     x             = EXCLUDED.x,
