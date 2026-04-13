@@ -156,13 +156,17 @@ class BTRunner:
 
     def on_state_changed(self, new_state: str) -> None:
         """상태 변경 시 진행 중인 BT의 내부 상태를 리셋."""
-        # 새 상태에 맞는 BT가 다음 tick에서 자동으로 시작됨
-        # (StateGuard가 게이트 역할)
         # follow_disabled 처리
         if self.follow_disabled and new_state in ('TRACKING', 'TRACKING_CHECKOUT'):
             logger.info('BTRunner: follow_disabled — BT1 skipped for state=%s',
                         new_state)
-        logger.debug('BTRunner: state changed to %s', new_state)
+
+        # 상태 전환 시 모든 Sequence를 리셋하여 다음 tick에서 깨끗하게 시작
+        for child in self._root.children:
+            if child.status != py_trees.common.Status.INVALID:
+                child.stop(py_trees.common.Status.INVALID)
+
+        logger.info('BTRunner: state changed to %s (BT reset)', new_state)
 
     # ──────────────────────────────────────────
     # Tick loop (called at ~10 Hz from main_node timer)
