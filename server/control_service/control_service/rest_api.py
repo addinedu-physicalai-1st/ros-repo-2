@@ -137,6 +137,13 @@ def create_app(robot_manager: 'RobotManager',
 
     @app.post('/session')
     def create_session():
+        # Keep DB invariants aligned with "active session" definition.
+        # Expired-but-active rows can violate UNIQUE(active user/robot) constraints.
+        try:
+            db.deactivate_expired_sessions()
+        except Exception as e:
+            logger.warning('failed to deactivate expired sessions: %s', e)
+
         data = request.get_json(silent=True) or {}
         robot_id = data.get('robot_id')
         user_id  = data.get('user_id')
