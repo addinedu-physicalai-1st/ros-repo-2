@@ -73,7 +73,7 @@ class ShoppinkiSM:
         # TRACKING / TRACKING_CHECKOUT → GUIDING  (navigate_to cmd)
         {'trigger': 'enter_guiding',
          'source': ['TRACKING', 'TRACKING_CHECKOUT', 'IDLE', 'WAITING',
-                    'GUIDING', 'CHARGING'],
+                    'GUIDING', 'CHARGING', 'SEARCHING'],
          'dest': 'GUIDING'},
 
         # ── Waiting ───────────────────────────────────

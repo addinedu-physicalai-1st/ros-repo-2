@@ -153,7 +153,7 @@ class CmdHandler:
         """TRACKING / TRACKING_CHECKOUT → GUIDING."""
         state = self.sm.state
         if state not in ('TRACKING', 'TRACKING_CHECKOUT', 'IDLE', 'WAITING',
-                         'GUIDING', 'CHARGING'):
+                         'GUIDING', 'CHARGING', 'SEARCHING'):
             logger.warning('navigate_to ignored in state=%s', state)
             return
 
