@@ -270,6 +270,9 @@ main() {
     echo "    c) cost_scaling_factor 변경"
     echo "    p) 기타 파라미터 직접 변경"
     echo
+    echo -e "  ${Y}[ 상태 제어 ]${NC}"
+    echo "    i) IDLE 모드로 강제 전환"
+    echo
     echo -e "  ${Y}[ 모니터 ]${NC}"
     echo "    s) 로봇 상태 확인"
     echo "    l) 최근 로그 보기"
@@ -293,6 +296,7 @@ main() {
       f) do_set_footprint_padding ;;
       c) do_set_cost_scaling ;;
       p) do_set_custom_param ;;
+      i) echo -e "${G}>> IDLE 모드로 전환${NC}"; send_cmd '{"cmd":"force_idle"}' ;;
       s) show_status ;;
       l) show_log ;;
       v) do_rviz ;;

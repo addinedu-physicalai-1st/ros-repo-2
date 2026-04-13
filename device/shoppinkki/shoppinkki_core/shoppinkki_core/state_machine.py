@@ -118,6 +118,10 @@ class ShoppinkiSM:
         {'trigger': '_trigger_staff_resolved',
          'source': 'HALTED', 'dest': 'CHARGING'},
 
+        # ── Force IDLE (테스트/디버그용) ─────────────────
+        {'trigger': 'force_idle',
+         'source': '*', 'dest': 'IDLE'},
+
         # ── Force terminate ───────────────────────────
         # Active states (not HALTED / LOCKED / CHARGING) → CHARGING
         {'trigger': '_force_terminate_trigger',
