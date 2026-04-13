@@ -279,4 +279,10 @@ class CmdHandler:
         'enter_registration':    _handle_enter_registration,
         'enter_simulation':      _handle_enter_simulation,
         'registration_confirm':  _handle_registration_confirm,
+        'force_idle':            _handle_force_idle,
     }
+
+    def _handle_force_idle(self, payload: dict) -> None:
+        """강제 IDLE 전환 (테스트/디버그용)."""
+        logger.info('force_idle: %s → IDLE', self.sm.state)
+        self.sm.force_idle()
