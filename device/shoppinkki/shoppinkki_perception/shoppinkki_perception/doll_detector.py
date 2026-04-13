@@ -36,7 +36,7 @@ from .reid_engine import ReIDEngine
 logger = logging.getLogger(__name__)
 
 # ── 상수 ──────────────────────────────────────────────────────────────────────
-MIN_CONFIDENCE: float = 0.4       # YOLO 최소 신뢰도
+MIN_CONFIDENCE: float = 0.25       # YOLO 최소 신뢰도
 REID_THRESHOLD: float = 0.55      # ReID 코사인 유사도 임계값 (갤러리 max)
 HSV_THRESHOLD: float = 0.45       # HSV 히스토그램 상관계수 임계값
 CALIBRATION_ADD_THRESHOLD: float = 0.94  # 이 이상이면 이미 커버됨 → 갤러리 추가 안 함
@@ -94,6 +94,14 @@ class DollDetector:
         # ── 자동 보정 카운터 ───────────────────────────────────────
         self._frame_count: int = 0
 
+        # ── YOLO 소켓 (Persistent Connection) ──────────────────────
+        self._socket: Optional[socket.socket] = None
+        self._socket_lock = threading.Lock()
+
+        # ── 디버그 모드 (모든 인형 감지 결과 노출) ─────────────────
+        import os
+        self.show_all_detections = os.environ.get('YOLO_DEBUG', 'false').lower() == 'true'
+
     # ── 공개 API ──────────────────────────────────────────────────────────────
 
     def register(self, frame) -> None:
@@ -102,6 +110,8 @@ class DollDetector:
         실제 템플릿 등록은 confirm_registration() 에서 수행.
         """
         detections = self._run_yolo(frame)
+        if detections:
+            logger.info('DollDetector: 등록 중 %d개 감지', len(detections))
         if not detections:
             return
 
@@ -147,6 +157,9 @@ class DollDetector:
             return
 
         raw_detections = self._run_yolo(frame)
+        if raw_detections:
+            logger.info('DollDetector: 수신 %d개 (신뢰도 %f)', 
+                        len(raw_detections), raw_detections[0]['confidence'])
         detections = self._tracker.update(raw_detections) if raw_detections else []
 
         self._frame_count += 1
@@ -214,6 +227,30 @@ class DollDetector:
                     area=float(best_det.get('area',
                                best_det.get('w', 0) * best_det.get('h', 0))),
                     confidence=float(best_det.get('confidence', 0)),
+                    bbox=[
+                        float(best_det.get('x1', 0)),
+                        float(best_det.get('y1', 0)),
+                        float(best_det.get('x2', 0)),
+                        float(best_det.get('y2', 0))
+                    ],
+                    mask=best_det.get('mask')
+                )
+            elif self.show_all_detections and raw_detections:
+                # 디버그 모드: 주인은 아니지만 감지된 최선의 결과를 노출
+                best_raw = max(raw_detections, key=lambda d: d.get('confidence', 0))
+                self._latest = Detection(
+                    cx=float(best_raw.get('cx', 0)),
+                    cy=float(best_raw.get('cy', 0)),
+                    area=float(best_raw.get('area', 10000)),
+                    confidence=float(best_raw.get('confidence', 0)),
+                    class_name='yolo_debug',
+                    bbox=[
+                        float(best_raw.get('x1', 0)),
+                        float(best_raw.get('y1', 0)),
+                        float(best_raw.get('x2', 0)),
+                        float(best_raw.get('y2', 0))
+                    ],
+                    mask=best_raw.get('mask')
                 )
             else:
                 self._latest = None
@@ -252,6 +289,7 @@ class DollDetector:
             self._verification_buffer.clear()
             self._frame_count = 0
         self._tracker.reset()
+        self._close_socket()
         logger.info('DollDetector: reset 완료')
 
     # ── 내부 메서드 ──────────────────────────────────────────────────────────
@@ -266,23 +304,64 @@ class DollDetector:
                 self._gallery.append(reid_vec)
                 logger.debug('DollDetector: 갤러리 보정 추가 (size=%d)', len(self._gallery))
 
+    # ── 소켓 관리 ────────────────────────────────────────────────────────────
+
+    def _get_socket(self) -> Optional[socket.socket]:
+        """기존 소켓을 반환하거나 새로 연결한다."""
+        with self._socket_lock:
+            if self._socket is not None:
+                return self._socket
+
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(1.0)
+                s.connect((self._host, self._port))
+                self._socket = s
+                logger.info('DollDetector: YOLO 서버 연결 성공 (%s:%d)', self._host, self._port)
+                return self._socket
+            except Exception as e:
+                logger.error('DollDetector: YOLO 서버 연결 실패 (%s:%d): %s', self._host, self._port, e)
+                return None
+
+    def _close_socket(self) -> None:
+        """소켓을 닫고 초기화한다."""
+        with self._socket_lock:
+            if self._socket:
+                try:
+                    self._socket.close()
+                except Exception:
+                    pass
+                self._socket = None
+
     # ── YOLO 클라이언트 ───────────────────────────────────────────────────────
 
     def _run_yolo(self, frame) -> List[dict]:
-        """JPEG 프레임을 YOLO TCP 서버에 전송, bbox 리스트 반환."""
+        """YOLO 서버에 이미지를 전송하고 결과를 파싱한다."""
+        jpeg = _to_jpeg(frame)
+        sock = self._get_socket()
+        if sock is None:
+            # 실시간 로그를 터미널에 출력하여 연결 상태 확인
+            import os
+            print(f"DEBUG: YOLO Server ({self._host}:{self._port}) is UNREACHABLE!") 
+            return []
+
         try:
-            jpeg = _to_jpeg(frame)
-            with socket.create_connection(
-                    (self._host, self._port), timeout=0.5) as s:
-                header = struct.pack('!I', len(jpeg))
-                s.sendall(header + jpeg)
-                resp_len_b = _recv_exact(s, 4)
-                if resp_len_b is None:
-                    return []
-                resp_len = struct.unpack('!I', resp_len_b)[0]
-                resp_data = _recv_exact(s, resp_len)
-                if resp_data is None:
-                    return []
+            # 헤더(길이) + 데이터 전송
+            header = struct.pack('!I', len(jpeg))
+            sock.sendall(header + jpeg)
+
+            # 응답 길이 수신
+            resp_len_b = _recv_exact(sock, 4)
+            if resp_len_b is None:
+                raise ConnectionError('YOLO 서버 응답 헤더 수신 실패')
+            
+            resp_len = struct.unpack('!I', resp_len_b)[0]
+            
+            # 응답 본문 수신
+            resp_data = _recv_exact(sock, resp_len)
+            if resp_data is None:
+                raise ConnectionError('YOLO 서버 응답 본문 수신 실패')
+
             import json
             result = json.loads(resp_data.decode())
             if isinstance(result, dict):
@@ -291,7 +370,8 @@ class DollDetector:
                 return result
             return []
         except Exception as e:
-            logger.debug('DollDetector: YOLO 쿼리 실패: %s', e)
+            logger.debug('DollDetector: YOLO 쿼리 실패 (소켓 리셋): %s', e)
+            self._close_socket()
             return []
 
     # ── 피처 추출 ─────────────────────────────────────────────────────────────
