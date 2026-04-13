@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING
 from flask import Flask, Response, jsonify, request
 
 from . import db
+import psycopg2
 
 if TYPE_CHECKING:
     from .robot_manager import RobotManager
@@ -180,11 +181,47 @@ def create_app(robot_manager: 'RobotManager',
         # Check if user already has an active session on another robot
         existing_user = db.get_active_session_by_user(user_id)
         if existing_user:
-            return jsonify({'error': 'user already has active session'}), 409
+            # 같은 로봇이면 idempotent: 새 세션 만들지 않고 기존 세션 반환
+            if existing_user.get('robot_id') == robot_id:
+                cart = db.get_cart_by_session(existing_user['session_id'])
+                return jsonify({
+                    'session_id': existing_user['session_id'],
+                    'cart_id': cart['cart_id'] if cart else None,
+                }), 200
+            return jsonify({
+                'error': 'user already has active session',
+                'session_id': existing_user['session_id'],
+                'robot_id': existing_user.get('robot_id'),
+            }), 409
 
-        session_id = db.create_session(robot_id, user_id)
-        db.update_robot(robot_id, active_user_id=user_id)
-        db.log_event(robot_id, 'SESSION_START', user_id)
+        try:
+            session_id = db.create_session(robot_id, user_id)
+            db.update_robot(robot_id, active_user_id=user_id)
+            db.log_event(robot_id, 'SESSION_START', user_id)
+        except psycopg2.errors.UniqueViolation:
+            # Race condition: another request created an active session.
+            # Re-query and return idempotent response.
+            existing = db.get_active_session_by_robot(robot_id)
+            if existing and existing.get('user_id') == user_id:
+                cart = db.get_cart_by_session(existing['session_id'])
+                return jsonify({
+                    'session_id': existing['session_id'],
+                    'cart_id': cart['cart_id'] if cart else None,
+                }), 200
+            existing_user = db.get_active_session_by_user(user_id)
+            if existing_user:
+                if existing_user.get('robot_id') == robot_id:
+                    cart = db.get_cart_by_session(existing_user['session_id'])
+                    return jsonify({
+                        'session_id': existing_user['session_id'],
+                        'cart_id': cart['cart_id'] if cart else None,
+                    }), 200
+                return jsonify({
+                    'error': 'user already has active session',
+                    'session_id': existing_user['session_id'],
+                    'robot_id': existing_user.get('robot_id'),
+                }), 409
+            return jsonify({'error': 'robot already in session'}), 409
 
         # CHARGING → IDLE 전환: Pi에 start_session cmd 전달
         if robot_manager.publish_cmd:

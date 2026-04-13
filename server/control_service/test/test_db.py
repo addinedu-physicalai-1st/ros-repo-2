@@ -68,15 +68,26 @@ class TestSessionCart:
         """Ensure test user and robot exist."""
         self.robot_id = '54'
         self.user_id = 'test01'
+        # Make tests robust: ensure this user has no active session anywhere
+        existing_user = db.get_active_session_by_user(self.user_id)
+        if existing_user:
+            db.end_session(existing_user['session_id'])
 
     def teardown_method(self):
         """Clean up any test sessions."""
         with db._cursor() as cur:
             cur.execute(
                 "UPDATE SESSION SET is_active=FALSE "
-                "WHERE robot_id=%s AND user_id=%s",
-                (self.robot_id, self.user_id),
+                "WHERE user_id=%s",
+                (self.user_id,),
             )
+        # Clear robot.active_user_id if it points to this user
+        try:
+            r = db.get_robot(self.robot_id)
+            if r and r.get('active_user_id') == self.user_id:
+                db.update_robot(self.robot_id, active_user_id=None)
+        except Exception:
+            pass
 
     def test_create_and_get_session(self):
         # End any existing active session first

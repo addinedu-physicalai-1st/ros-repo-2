@@ -143,6 +143,17 @@ def deactivate_expired_sessions() -> int:
         )
         return int(cur.rowcount or 0)
 
+def reset_sessions_on_startup() -> None:
+    """Hard reset sessions for test/demo runs.
+
+    - Deactivate all active sessions
+    - Clear robot ownership (active_user_id)
+    """
+    with _cursor(dictionary=False) as cur:
+        cur.execute('UPDATE SESSION SET is_active = FALSE WHERE is_active = TRUE')
+    with _cursor(dictionary=False) as cur:
+        cur.execute('UPDATE ROBOT SET active_user_id = NULL WHERE active_user_id IS NOT NULL')
+
 
 # ──────────────────────────────────────────────
 # SESSION
