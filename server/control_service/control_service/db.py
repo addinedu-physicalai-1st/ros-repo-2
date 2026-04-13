@@ -126,6 +126,25 @@ def get_user(user_id: str) -> Optional[Dict]:
 
 
 # ──────────────────────────────────────────────
+# SESSION maintenance
+# ──────────────────────────────────────────────
+
+def deactivate_expired_sessions() -> int:
+    """Deactivate sessions that are expired but still marked active.
+
+    Returns:
+        Number of rows updated.
+    """
+    with _cursor(dictionary=False) as cur:
+        cur.execute(
+            'UPDATE SESSION '
+            'SET is_active = FALSE '
+            'WHERE is_active = TRUE AND expires_at <= NOW()'
+        )
+        return int(cur.rowcount or 0)
+
+
+# ──────────────────────────────────────────────
 # SESSION
 # ──────────────────────────────────────────────
 

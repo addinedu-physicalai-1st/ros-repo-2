@@ -95,6 +95,28 @@ class TestSessionCart:
         session = db.get_session(sid)
         assert session['is_active'] is False
 
+    def test_deactivate_expired_sessions(self):
+        # Ensure no active sessions first (by robot and by user)
+        existing = db.get_active_session_by_robot(self.robot_id)
+        if existing:
+            db.end_session(existing['session_id'])
+
+        # Create a session, then force it to be expired but still active
+        sid = db.create_session(self.robot_id, self.user_id)
+        with db._cursor(dictionary=False) as cur:
+            cur.execute(
+                "UPDATE SESSION SET expires_at = NOW() - interval '1 minute', is_active = TRUE "
+                "WHERE session_id = %s",
+                (sid,),
+            )
+
+        updated = db.deactivate_expired_sessions()
+        assert updated >= 1
+
+        row = db.get_session(sid)
+        assert row is not None
+        assert row['is_active'] is False
+
     def test_cart_operations(self):
         existing = db.get_active_session_by_robot(self.robot_id)
         if existing:
