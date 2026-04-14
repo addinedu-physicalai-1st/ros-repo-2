@@ -137,3 +137,37 @@ nmcli device wifi list
 # 특정 와이파이를 지워버리고 싶을때
 sudo nmcli connection delete "addinedu_201class_2-5G"
 ```
+
+## Pre-commit (로그인/세션 회귀 방지)
+
+```bash
+# 1) pre-commit 설치 (1회)
+python3 -m pip install pre-commit
+
+# 2) Git hook 등록 (1회)
+cd /home/rokmc/shoppinkki
+pre-commit install
+```
+
+- `git commit` 시, staged 파일에 `server/control_service/` 또는 `server/customer_web/`가 포함되면 세션 게이트가 실행됩니다.
+- 기본 실행 테스트:
+  - `server/control_service/test/test_robot_manager.py`
+  - `server/control_service/test/test_rest_api_session.py`
+- `server/customer_web/` 변경이 있으면 추가로:
+  - `server/customer_web/tests/test_auth_flow.py`
+- 실패하면 커밋이 중단됩니다. 수정 후 `git add` -> `git commit`으로 다시 시도하세요.
+- `--no-verify`로 우회 가능하지만 기본적으로 사용하지 않는 것을 권장합니다.
+
+```bash
+# pre-commit hook 등록 해제
+pre-commit uninstall
+
+# 특정 hook type만 해제
+pre-commit uninstall --hook-type pre-commit
+
+# pre-commit 캐시 정리
+pre-commit clean
+```
+
+- `uninstall`은 Git hook 연결만 제거합니다.
+- `.pre-commit-config.yaml`과 `scripts/hooks/*` 파일은 그대로 남습니다.
