@@ -27,6 +27,10 @@ const socket = io();
 let currentMode = "IDLE";
 // 추종 비활성화 여부
 let followDisabled = false;
+// WAITING 카운트다운(프론트 임시 기준: 300초)
+const WAITING_TIMEOUT_SEC = 300;
+let waitingDeadlineMs = null;
+let waitingTimerId = null;
 // 도착한 구역명 캐시
 let arrivedZoneName = "";
 
@@ -59,8 +63,10 @@ function _isMyRobot(data) {
 socket.on("status", (data) => {
   if (!_isMyRobot(data)) return;
   updateStatusBar(data);
-  updatePanelVisibility(data.my_robot?.mode ?? data.mode);
+  // follow_disabled 값을 먼저 반영한 뒤 버튼 가시성을 계산해야
+  // 상태 업데이트 타이밍에 따른 버튼 깜빡임/오판정이 줄어든다.
   updateFollowDisabledBanner(data.my_robot?.follow_disabled ?? data.follow_disabled);
+  updatePanelVisibility(data.my_robot?.mode ?? data.mode);
   if (typeof MapRenderer !== "undefined") {
     MapRenderer.updateFromStatus(data);
   }
@@ -153,6 +159,7 @@ const SHOPPING_MODES = ["TRACKING", "TRACKING_CHECKOUT", "WAITING", "GUIDING", "
 
 function updatePanelVisibility(mode) {
   if (!mode) return;
+  const prevMode = currentMode;
   currentMode = mode;
 
   const panelCharging = document.getElementById("panel-charging");
@@ -173,11 +180,18 @@ function updatePanelVisibility(mode) {
   const btnFollow = document.getElementById("btn-follow");
 
   const isGuiding = (mode === "GUIDING" || mode === "SEARCHING");
-  const showWait = isGuiding || (!followDisabled && (mode === "TRACKING" || mode === "TRACKING_CHECKOUT"));
+  const isShoppingMode = SHOPPING_MODES.includes(mode);
+  // UX 요구사항: 쇼핑 패널에서는 [대기하기]와 [쇼핑 종료]를 항상 함께 노출.
+  const showWait = isShoppingMode;
 
   if (btnWait) {
     btnWait.style.display = showWait ? "" : "none";
-    if (isGuiding) {
+    btnWait.disabled = false;
+    if (mode === "WAITING") {
+      btnWait.innerHTML = "⏸ 대기 중";
+      btnWait.onclick = () => {};
+      btnWait.disabled = true;
+    } else if (isGuiding) {
       btnWait.innerHTML = "⏸ 안내 중단";
       btnWait.onclick = () => {
         socket.emit("resume_tracking", {});
@@ -189,6 +203,7 @@ function updatePanelVisibility(mode) {
     }
   }
   if (btnFollow) btnFollow.style.display = (mode === "WAITING") ? "" : "none";
+  _syncWaitingCountdown(prevMode, mode);
 }
 
 function showTrackingPanel() {
@@ -617,6 +632,40 @@ function _setActive(el, active) {
   } else {
     el.classList.remove("active");
   }
+}
+
+function _syncWaitingCountdown(prevMode, mode) {
+  const el = document.getElementById("waiting-countdown");
+  if (!el) return;
+
+  if (mode !== "WAITING") {
+    if (waitingTimerId) {
+      clearInterval(waitingTimerId);
+      waitingTimerId = null;
+    }
+    waitingDeadlineMs = null;
+    el.style.display = "none";
+    return;
+  }
+
+  // WAITING으로 새로 진입한 시점에만 5분 타이머를 시작한다.
+  if (prevMode !== "WAITING" || waitingDeadlineMs === null) {
+    waitingDeadlineMs = Date.now() + WAITING_TIMEOUT_SEC * 1000;
+  }
+
+  const render = () => {
+    if (waitingDeadlineMs === null) return;
+    const remainMs = Math.max(0, waitingDeadlineMs - Date.now());
+    const remainSec = Math.floor(remainMs / 1000);
+    const mm = String(Math.floor(remainSec / 60)).padStart(2, "0");
+    const ss = String(remainSec % 60).padStart(2, "0");
+    el.textContent = `자동 복귀까지 ${mm}:${ss}`;
+    el.style.display = "";
+  };
+
+  render();
+  if (waitingTimerId) clearInterval(waitingTimerId);
+  waitingTimerId = setInterval(render, 1000);
 }
 
 function _modeLabel(mode) {
