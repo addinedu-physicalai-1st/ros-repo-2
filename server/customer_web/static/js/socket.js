@@ -710,10 +710,8 @@ function _syncWaitingCountdown(prevMode, mode) {
   }
 
   // WAITING에 처음 진입할 때만 deadline을 잡고, 기간은 waitingTimeoutSec(설정·status)이다.
-  if (prevMode !== "WAITING" || waitingDeadlineMs === null) {
     waitingDeadlineMs = Date.now() + waitingTimeoutSec * 1000;
     waitingTimeoutHandled = false;
-  }
 
   const render = () => {
     if (waitingDeadlineMs === null) return;
