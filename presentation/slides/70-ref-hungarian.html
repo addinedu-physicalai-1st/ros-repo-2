@@ -1,0 +1,87 @@
+<section class="flex flex-col">
+  <h2 class="text-em-xl font-black mt-0 mb-6 text-center w-full">참고자료 4: <span style="color:#38BDF8">Hungarian Algorithm</span></h2>
+
+  <div class="flex gap-4 w-full flex-1 min-h-0">
+
+    <!-- 왼쪽 -->
+    <div class="flex-1 flex flex-col gap-3 justify-center">
+
+      <div class="rounded-2xl px-4 py-3" style="background:#0A1929;border:1px solid #38BDF8">
+        <p class="text-em-2xs font-bold m-0 mb-1" style="color:#38BDF8">핵심 아이디어</p>
+        <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
+          여러 트랙(기존 객체)과 여러 bbox(새로 감지된 객체)를 <strong style="color:#E2E8F0">전체 비용이 최소가 되도록 1:1로 매칭</strong>합니다.<br>
+          비용 지표로는 두 박스의 겹침 정도(<strong style="color:#4ADE80;text-decoration:underline;cursor:pointer" onclick="goToSlide(70)">IoU</strong>)를 사용합니다.
+        </p>
+      </div>
+
+      <div class="rounded-2xl px-4 py-3" style="background:#0A1929;border:1px solid #1E3A5A">
+        <p class="text-em-2xs font-bold m-0 mb-1" style="color:#7BA5C8">왜 필요한가?</p>
+        <p class="text-em-3xs leading-relaxed m-0" style="color:#8BACC8">
+          인형이 여러 개 있을 때 단순히 "가장 가까운 것"에 매칭하면 교차 시 ID가 뒤바뀝니다.<br>
+          헝가리안 알고리즘은 <strong style="color:#E2E8F0">전체 쌍의 비용 합이 최소</strong>가 되는 최적 매칭을 보장합니다.
+        </p>
+      </div>
+
+      <div class="rounded-2xl px-4 py-3" style="background:#0A1929;border:1px solid #1E3A5A">
+        <p class="text-em-2xs font-bold m-0 mb-1" style="color:#7BA5C8">ByteTracker에서의 역할</p>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">
+          Kalman Filter가 예측한 위치와 새로 감지된 bbox들을 <strong style="color:#E2E8F0">최적으로 연결</strong>해 track_id를 유지합니다.
+        </p>
+      </div>
+
+    </div>
+
+    <!-- 오른쪽: 비용 행렬 시각화 -->
+    <div class="flex-1 flex flex-col justify-center items-center rounded-2xl px-5 py-5" style="background:#0A1929;border:1px solid #1E3A5A">
+      <p class="text-em-3xs font-bold uppercase tracking-wider m-0 mb-3" style="color:#7BA5C8">비용 행렬 (IoU 기반)</p>
+      <svg viewBox="0 0 280 230" width="100%" style="max-height:240px">
+        <!-- 헤더 행 -->
+        <text x="110" y="22" text-anchor="middle" fill="#38BDF8" font-size="10" font-weight="bold">bbox A</text>
+        <text x="175" y="22" text-anchor="middle" fill="#38BDF8" font-size="10" font-weight="bold">bbox B</text>
+        <text x="240" y="22" text-anchor="middle" fill="#38BDF8" font-size="10" font-weight="bold">bbox C</text>
+
+        <!-- 헤더 열 -->
+        <text x="60" y="55" text-anchor="end" fill="#FBBF24" font-size="10" font-weight="bold">Track 1</text>
+        <text x="60" y="100" text-anchor="end" fill="#FBBF24" font-size="10" font-weight="bold">Track 2</text>
+        <text x="60" y="145" text-anchor="end" fill="#FBBF24" font-size="10" font-weight="bold">Track 3</text>
+
+        <!-- 셀들 (비용: 1-IoU) -->
+        <!-- Track1 × A: 0.1 (최적) -->
+        <rect x="75" y="30" width="70" height="35" rx="6" fill="#071320" stroke="#4ADE80" stroke-width="2"/>
+        <text x="110" y="52" text-anchor="middle" fill="#4ADE80" font-size="13" font-weight="bold">0.1</text>
+        <!-- Track1 × B -->
+        <rect x="145" y="30" width="60" height="35" rx="6" fill="#071320" stroke="#1E3A5A" stroke-width="1"/>
+        <text x="175" y="52" text-anchor="middle" fill="#475569" font-size="13">0.7</text>
+        <!-- Track1 × C -->
+        <rect x="210" y="30" width="60" height="35" rx="6" fill="#071320" stroke="#1E3A5A" stroke-width="1"/>
+        <text x="240" y="52" text-anchor="middle" fill="#475569" font-size="13">0.8</text>
+
+        <!-- Track2 × A -->
+        <rect x="75" y="75" width="70" height="35" rx="6" fill="#071320" stroke="#1E3A5A" stroke-width="1"/>
+        <text x="110" y="97" text-anchor="middle" fill="#475569" font-size="13">0.6</text>
+        <!-- Track2 × B: 0.2 (최적) -->
+        <rect x="145" y="75" width="60" height="35" rx="6" fill="#071320" stroke="#4ADE80" stroke-width="2"/>
+        <text x="175" y="97" text-anchor="middle" fill="#4ADE80" font-size="13" font-weight="bold">0.2</text>
+        <!-- Track2 × C -->
+        <rect x="210" y="75" width="60" height="35" rx="6" fill="#071320" stroke="#1E3A5A" stroke-width="1"/>
+        <text x="240" y="97" text-anchor="middle" fill="#475569" font-size="13">0.9</text>
+
+        <!-- Track3 × A -->
+        <rect x="75" y="120" width="70" height="35" rx="6" fill="#071320" stroke="#1E3A5A" stroke-width="1"/>
+        <text x="110" y="142" text-anchor="middle" fill="#475569" font-size="13">0.8</text>
+        <!-- Track3 × B -->
+        <rect x="145" y="120" width="60" height="35" rx="6" fill="#071320" stroke="#1E3A5A" stroke-width="1"/>
+        <text x="175" y="142" text-anchor="middle" fill="#475569" font-size="13">0.5</text>
+        <!-- Track3 × C: 0.15 (최적) -->
+        <rect x="210" y="120" width="60" height="35" rx="6" fill="#071320" stroke="#4ADE80" stroke-width="2"/>
+        <text x="240" y="142" text-anchor="middle" fill="#4ADE80" font-size="13" font-weight="bold">0.15</text>
+
+        <!-- 설명 -->
+        <text x="75" y="180" fill="#7BA5C8" font-size="9">* 값 = 1 - IoU (낮을수록 잘 맞는 쌍)</text>
+        <rect x="75" y="192" width="12" height="12" rx="3" fill="#071320" stroke="#4ADE80" stroke-width="1.5"/>
+        <text x="92" y="202" fill="#4ADE80" font-size="9" font-weight="bold">최적 매칭 (합계 0.45)</text>
+      </svg>
+    </div>
+
+  </div>
+</section>

@@ -1,0 +1,71 @@
+<section class="flex flex-col">
+  <h2 class="text-em-xl font-black mt-0 mb-6 text-center w-full">참고자료 5: <span style="color:#4ADE80">IoU (Intersection over Union)</span></h2>
+
+  <div class="flex gap-4 w-full flex-1 min-h-0">
+
+    <!-- 왼쪽 -->
+    <div class="flex-1 flex flex-col gap-3 justify-center">
+
+      <div class="rounded-2xl px-4 py-3" style="background:#0A1929;border:1px solid #4ADE80">
+        <p class="text-em-2xs font-bold m-0 mb-1" style="color:#4ADE80">핵심 아이디어</p>
+        <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
+          두 박스가 <strong style="color:#E2E8F0">얼마나 겹치는지</strong>를 0~1 사이 값으로 나타냅니다.<br>
+          1에 가까울수록 두 박스가 거의 같은 위치, 0이면 전혀 겹치지 않음을 의미합니다.
+        </p>
+      </div>
+
+      <div class="rounded-2xl px-4 py-3" style="background:#0A1929;border:1px solid #1E3A5A">
+        <p class="text-em-2xs font-bold m-0 mb-2" style="color:#7BA5C8">공식</p>
+        <div class="text-center py-2 text-em-sm font-mono font-bold" style="color:#E2E8F0">
+          IoU = <span style="color:#4ADE80">교집합 넓이</span> / <span style="color:#38BDF8">합집합 넓이</span>
+        </div>
+        <div class="flex gap-2 mt-2">
+          <div class="flex-1 rounded-xl px-2 py-2 text-center text-em-3xs" style="background:#071320">
+            <div class="font-bold mb-0.5" style="color:#4ADE80">교집합</div>
+            <div style="color:#8BACC8">두 박스가<br>겹치는 영역</div>
+          </div>
+          <div class="flex-1 rounded-xl px-2 py-2 text-center text-em-3xs" style="background:#071320">
+            <div class="font-bold mb-0.5" style="color:#38BDF8">합집합</div>
+            <div style="color:#8BACC8">두 박스를 합친<br>전체 영역</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl px-4 py-3" style="background:#0A1929;border:1px solid #1E3A5A">
+        <p class="text-em-2xs font-bold m-0 mb-1" style="color:#7BA5C8">ByteTracker에서의 역할</p>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">
+          기존 트랙(예측 위치)과 새로 감지된 bbox 간의 <strong style="color:#E2E8F0">유사도 비용</strong>으로 사용됩니다.<br>
+          IoU가 높을수록 같은 객체일 가능성이 높으므로, <code style="color:#4ADE80">1 - IoU</code>를 비용으로 씁니다.
+        </p>
+      </div>
+
+    </div>
+
+    <!-- 오른쪽: 시각화 -->
+    <div class="flex-1 flex flex-col justify-center items-center rounded-2xl px-5 py-5" style="background:#0A1929;border:1px solid #1E3A5A">
+      <p class="text-em-3xs font-bold uppercase tracking-wider m-0 mb-4" style="color:#7BA5C8">시각적 예시</p>
+      <svg viewBox="0 0 280 240" width="100%" style="max-height:260px">
+
+        <!-- 박스 A (트랙 예측) -->
+        <rect x="40" y="40" width="120" height="100" rx="4" fill="rgba(56,189,248,0.1)" stroke="#38BDF8" stroke-width="2"/>
+        <text x="55" y="60" fill="#38BDF8" font-size="10" font-weight="bold">박스 A (예측)</text>
+
+        <!-- 박스 B (새 감지) -->
+        <rect x="90" y="70" width="120" height="100" rx="4" fill="rgba(74,222,128,0.1)" stroke="#4ADE80" stroke-width="2"/>
+        <text x="160" y="158" fill="#4ADE80" font-size="10" font-weight="bold">박스 B (감지)</text>
+
+        <!-- 교집합 영역 -->
+        <rect x="90" y="70" width="70" height="70" rx="2" fill="rgba(251,191,36,0.25)" stroke="#FBBF24" stroke-width="1.5" stroke-dasharray="4,2"/>
+        <text x="125" y="108" text-anchor="middle" fill="#FBBF24" font-size="9" font-weight="bold">교집합</text>
+
+        <!-- 수치 -->
+        <rect x="40" y="170" width="200" height="55" rx="8" fill="#071320" stroke="#1E3A5A" stroke-width="1"/>
+        <text x="55" y="188" fill="#7BA5C8" font-size="9">교집합: 70×70 = 4,900</text>
+        <text x="55" y="203" fill="#7BA5C8" font-size="9">합집합: 120×100 + 120×100 - 4,900 = 19,100</text>
+        <text x="55" y="218" fill="#4ADE80" font-size="10" font-weight="bold">IoU = 4,900 / 19,100 ≈ 0.26</text>
+
+      </svg>
+    </div>
+
+  </div>
+</section>

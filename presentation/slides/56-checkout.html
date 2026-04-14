@@ -1,0 +1,77 @@
+<section class="flex flex-col">
+  <h2 class="text-em-xl font-black mt-0 mb-6 text-center w-full">핵심 기능 6: <span style="color:#FB7185">결제</span></h2>
+
+  <div class="flex-1 flex flex-col gap-3 min-h-0 w-full">
+
+    <!-- 1단계: 진입 → 감지 → 팝업 -->
+    <div class="flex items-center gap-2 justify-center">
+      <div class="rounded-2xl px-3 py-2 text-center" style="background:#0A1929;border:1px solid #FB7185;min-width:140px">
+        <span class="material-icons-round text-em-xs block mb-0.5" style="color:#FB7185">store</span>
+        <p class="text-em-2xs font-bold m-0" style="color:#FB7185">결제 구역 진입</p>
+        <p class="text-em-3xs m-0 mt-0.5" style="color:#8BACC8">로봇이 결제존 경계 통과</p>
+      </div>
+      <span class="material-icons-round" style="color:#1E3A5A;font-size:1.3rem">arrow_forward</span>
+      <div class="rounded-2xl px-3 py-2 text-center" style="background:#0A1929;border:1px solid #1E3A5A;min-width:140px">
+        <span class="material-icons-round text-em-xs block mb-0.5" style="color:#7BA5C8">sensors</span>
+        <p class="text-em-2xs font-bold m-0" style="color:#E2E8F0">BoundaryMonitor</p>
+        <p class="text-em-3xs m-0 mt-0.5" style="color:#8BACC8">Keepout Zone 경계 인식</p>
+      </div>
+      <span class="material-icons-round" style="color:#1E3A5A;font-size:1.3rem">arrow_forward</span>
+      <div class="rounded-2xl px-3 py-2 text-center" style="background:#0A1929;border:1px solid #FBBF24;min-width:140px">
+        <span class="material-icons-round text-em-xs block mb-0.5" style="color:#FBBF24">smartphone</span>
+        <p class="text-em-2xs font-bold m-0" style="color:#FBBF24">결제 팝업 자동 표시</p>
+        <p class="text-em-3xs m-0 mt-0.5" style="color:#8BACC8">고객 폰 WebSocket Push</p>
+      </div>
+    </div>
+
+    <!-- 화살표 -->
+    <div class="flex justify-center">
+      <span class="material-icons-round" style="color:#1E3A5A;font-size:1.3rem">arrow_downward</span>
+    </div>
+
+    <!-- 2단계: 3분기 -->
+    <div class="flex gap-3">
+
+      <!-- 결제하기 -->
+      <div class="flex-1 rounded-2xl px-4 py-3 flex flex-col gap-2" style="background:#0A1929;border:2px solid #4ADE80">
+        <div class="flex items-center gap-2">
+          <span class="material-icons-round text-em-xs" style="color:#4ADE80">contactless</span>
+          <p class="text-em-2xs font-bold m-0" style="color:#4ADE80">[결제하기]</p>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">장바구니 확인 후 결제 완료</p>
+        <div class="rounded-xl px-3 py-1.5 mt-auto" style="background:#071320">
+          <p class="text-em-3xs font-bold m-0" style="color:#4ADE80">TRACKING_CHECKOUT</p>
+          <p class="text-em-3xs m-0 mt-0.5" style="color:#8BACC8">출구 통과 허용 · 추종 계속</p>
+        </div>
+      </div>
+
+      <!-- 계속 쇼핑 -->
+      <div class="flex-1 rounded-2xl px-4 py-3 flex flex-col gap-2" style="background:#0A1929;border:1px solid #1E3A5A">
+        <div class="flex items-center gap-2">
+          <span class="material-icons-round text-em-xs" style="color:#7BA5C8">shopping_bag</span>
+          <p class="text-em-2xs font-bold m-0" style="color:#E2E8F0">[계속 쇼핑하기]</p>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">팝업을 닫고 쇼핑 계속</p>
+        <div class="rounded-xl px-3 py-1.5 mt-auto" style="background:#071320">
+          <p class="text-em-3xs font-bold m-0" style="color:#7BA5C8">TRACKING 복귀</p>
+          <p class="text-em-3xs m-0 mt-0.5" style="color:#8BACC8">출구 통과 <span style="color:#FB7185">불가</span> 상태 유지</p>
+        </div>
+      </div>
+
+      <!-- 미결제 퇴장 -->
+      <div class="flex-1 rounded-2xl px-4 py-3 flex flex-col gap-2" style="background:#0A1929;border:2px solid #FB7185">
+        <div class="flex items-center gap-2">
+          <span class="material-icons-round text-em-xs" style="color:#FB7185">directions_run</span>
+          <p class="text-em-2xs font-bold m-0" style="color:#FB7185">미결제 퇴장 시도</p>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">결제 없이 출구 방향으로 이동 시도</p>
+        <div class="rounded-xl px-3 py-1.5 mt-auto" style="background:#071320">
+          <p class="text-em-3xs font-bold m-0" style="color:#FB7185">Nav2 Keepout Zone이 출구 차단</p>
+          <p class="text-em-3xs m-0 mt-0.5" style="color:#8BACC8">로봇이 물리적으로 출구 통과 불가</p>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>

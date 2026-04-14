@@ -1,0 +1,112 @@
+<section class="flex flex-col">
+  <h2 class="text-em-xl font-black mt-0 mb-6 text-center w-full">참고자료 2: <span style="color:#FB923C">HSV 히스토그램 상관계수란?</span></h2>
+
+  <div class="flex gap-5 flex-1 w-full">
+
+    <!-- 왼쪽: 구체적 동작 방식 -->
+    <div class="flex flex-col gap-3 flex-1">
+
+      <!-- 핵심 아이디어 -->
+      <div class="rounded-2xl px-4 py-3" style="background:#0A1929;border:1px solid #FB923C">
+        <p class="text-em-2xs font-bold m-0 mb-1" style="color:#FB923C">핵심 아이디어</p>
+        <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
+          픽셀의 색상 값을 <strong style="color:#E2E8F0">버킷(bin)에 나눠 담아</strong> 분포를 만듭니다.<br>
+          분홍 인형이라면 Hue 300~360° 구간에 픽셀이 <strong style="color:#FB923C">몰려있고</strong>, 파란 인형이라면 Hue 180~240° 구간에 몰립니다.
+          같은 인형이면 이 분포 모양이 프레임이 바뀌어도 <strong style="color:#E2E8F0">일정하게 유지</strong>됩니다.
+        </p>
+      </div>
+
+      <!-- 48차원 벡터 -->
+      <div class="rounded-2xl px-4 py-3" style="background:#0A1929;border:1px solid #1E3A5A">
+        <p class="text-em-2xs font-bold m-0 mb-2" style="color:#7BA5C8">실제 구현 — 48차원 벡터</p>
+        <div class="flex gap-2 mb-2">
+          <div class="flex-1 rounded-xl px-2 py-2 text-center text-em-3xs" style="background:#071320">
+            <div class="font-black mb-0.5" style="color:#F87171">H(색) 채널</div>
+            <div style="color:#8BACC8">16 bins</div>
+            <div style="color:#475569">0 ~ 180°</div>
+          </div>
+          <div class="flex items-center text-em-2xs" style="color:#1E3A5A">+</div>
+          <div class="flex-1 rounded-xl px-2 py-2 text-center text-em-3xs" style="background:#071320">
+            <div class="font-black mb-0.5" style="color:#FB923C">S(선명) 채널</div>
+            <div style="color:#8BACC8">16 bins</div>
+            <div style="color:#475569">0 ~ 255</div>
+          </div>
+          <div class="flex items-center text-em-2xs" style="color:#1E3A5A">+</div>
+          <div class="flex-1 rounded-xl px-2 py-2 text-center text-em-3xs" style="background:#071320">
+            <div class="font-black mb-0.5" style="color:#FDE68A">V(밝기) 채널</div>
+            <div style="color:#8BACC8">16 bins</div>
+            <div style="color:#475569">0 ~ 255</div>
+          </div>
+          <div class="flex items-center text-em-2xs" style="color:#1E3A5A">=</div>
+          <div class="flex-1 rounded-xl px-2 py-2 text-center text-em-3xs" style="background:#071320;border:1px solid #FB923C">
+            <div class="font-black mb-0.5" style="color:#FB923C">48차원</div>
+            <div style="color:#8BACC8">벡터</div>
+            <div style="color:#475569">합산</div>
+          </div>
+        </div>
+        <div class="rounded-xl px-3 py-2 font-mono text-em-3xs" style="background:#071320;color:#7BA5C8">
+          hist_h = cv2.calcHist([hsv], [0], None, <span style="color:#FB923C">[16]</span>, [0, 180])<br>
+          hist_s = cv2.calcHist([hsv], [1], None, <span style="color:#FB923C">[16]</span>, [0, 256])<br>
+          hist_v = cv2.calcHist([hsv], [2], None, <span style="color:#FB923C">[16]</span>, [0, 256])
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 오른쪽: 시각화 -->
+    <div class="flex-1 flex flex-col rounded-2xl px-4 py-4" style="background:#0A1929;border:1px solid #1E3A5A">
+      <p class="text-em-3xs font-bold uppercase tracking-wider m-0 mb-3" style="color:#7BA5C8">Hue 히스토그램 비교 (16 bins)</p>
+      <svg viewBox="0 0 280 200" width="100%" style="flex:1">
+        <!-- 등록된 인형 (분홍 계열) -->
+        <text x="0" y="11" fill="#38BDF8" font-size="8.5" font-weight="bold">등록된 인형</text>
+        <!-- 16개 bin, 분홍 인형은 마지막 bin들에 집중 -->
+        <rect x="0"   y="100" width="13" height="5"  fill="#38BDF8" opacity="0.4" rx="1"/>
+        <rect x="15"  y="98"  width="13" height="7"  fill="#38BDF8" opacity="0.4" rx="1"/>
+        <rect x="30"  y="97"  width="13" height="8"  fill="#38BDF8" opacity="0.4" rx="1"/>
+        <rect x="45"  y="98"  width="13" height="7"  fill="#38BDF8" opacity="0.4" rx="1"/>
+        <rect x="60"  y="99"  width="13" height="6"  fill="#38BDF8" opacity="0.4" rx="1"/>
+        <rect x="75"  y="98"  width="13" height="7"  fill="#38BDF8" opacity="0.4" rx="1"/>
+        <rect x="90"  y="97"  width="13" height="8"  fill="#38BDF8" opacity="0.4" rx="1"/>
+        <rect x="105" y="98"  width="13" height="7"  fill="#38BDF8" opacity="0.4" rx="1"/>
+        <rect x="120" y="97"  width="13" height="8"  fill="#38BDF8" opacity="0.4" rx="1"/>
+        <rect x="135" y="85"  width="13" height="20" fill="#38BDF8" opacity="0.5" rx="1"/>
+        <rect x="150" y="60"  width="13" height="45" fill="#38BDF8" opacity="0.7" rx="1"/>
+        <rect x="165" y="30"  width="13" height="75" fill="#38BDF8" opacity="0.9" rx="1"/>
+        <rect x="180" y="18"  width="13" height="87" fill="#38BDF8" rx="1"/>
+        <rect x="195" y="25"  width="13" height="80" fill="#38BDF8" opacity="0.9" rx="1"/>
+        <rect x="210" y="50"  width="13" height="55" fill="#38BDF8" opacity="0.7" rx="1"/>
+        <rect x="225" y="75"  width="13" height="30" fill="#38BDF8" opacity="0.5" rx="1"/>
+        <line x1="0" y1="107" x2="242" y2="107" stroke="#1E3A5A" stroke-width="1"/>
+        <text x="0"   y="116" fill="#475569" font-size="6.5">0°</text>
+        <text x="108" y="116" fill="#475569" font-size="6.5">90°</text>
+        <text x="228" y="116" fill="#475569" font-size="6.5">180°</text>
+
+        <!-- 현재 프레임 (유사) -->
+        <text x="0" y="132" fill="#4ADE80" font-size="8.5" font-weight="bold">현재 프레임 (유사 → ✓)</text>
+        <rect x="0"   y="194" width="13" height="5"  fill="#4ADE80" opacity="0.4" rx="1"/>
+        <rect x="15"  y="192" width="13" height="7"  fill="#4ADE80" opacity="0.4" rx="1"/>
+        <rect x="30"  y="191" width="13" height="8"  fill="#4ADE80" opacity="0.4" rx="1"/>
+        <rect x="45"  y="192" width="13" height="7"  fill="#4ADE80" opacity="0.4" rx="1"/>
+        <rect x="60"  y="193" width="13" height="6"  fill="#4ADE80" opacity="0.4" rx="1"/>
+        <rect x="75"  y="192" width="13" height="7"  fill="#4ADE80" opacity="0.4" rx="1"/>
+        <rect x="90"  y="191" width="13" height="8"  fill="#4ADE80" opacity="0.4" rx="1"/>
+        <rect x="105" y="192" width="13" height="7"  fill="#4ADE80" opacity="0.4" rx="1"/>
+        <rect x="120" y="191" width="13" height="8"  fill="#4ADE80" opacity="0.4" rx="1"/>
+        <rect x="135" y="180" width="13" height="19" fill="#4ADE80" opacity="0.5" rx="1"/>
+        <rect x="150" y="157" width="13" height="42" fill="#4ADE80" opacity="0.7" rx="1"/>
+        <rect x="165" y="132" width="13" height="67" fill="#4ADE80" opacity="0.9" rx="1"/>
+        <rect x="180" y="122" width="13" height="77" fill="#4ADE80" rx="1"/>
+        <rect x="195" y="128" width="13" height="71" fill="#4ADE80" opacity="0.9" rx="1"/>
+        <rect x="210" y="148" width="13" height="51" fill="#4ADE80" opacity="0.7" rx="1"/>
+        <rect x="225" y="170" width="13" height="29" fill="#4ADE80" opacity="0.5" rx="1"/>
+        <line x1="0" y1="200" x2="242" y2="200" stroke="#1E3A5A" stroke-width="1"/>
+
+        <!-- 결과 배지 -->
+        <rect x="248" y="80" width="32" height="40" rx="6" fill="#071320" stroke="#4ADE80" stroke-width="1"/>
+        <text x="264" y="97"  fill="#7BA5C8" font-size="7" text-anchor="middle">corr</text>
+        <text x="264" y="112" fill="#4ADE80" font-size="10" font-weight="bold" text-anchor="middle">0.91</text>
+      </svg>
+    </div>
+
+  </div>
+</section>

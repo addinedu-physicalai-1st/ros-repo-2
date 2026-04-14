@@ -1,0 +1,855 @@
+- generic [active] [ref=e1]:
+  - application [ref=e2]:
+    - generic:
+      - generic:
+        - paragraph: Physical AI 자율주행 프로젝트
+        - generic:
+          - paragraph: 쇼핑의 자유를 경험하라!
+          - heading [level=1]: 쑈삥끼
+        - generic:
+          - paragraph: 자율주행 스마트 쇼핑 카트
+          - generic: 에드인에듀 자율주행 프로젝트 2팀 - 삥끼랩
+      - generic [ref=e18]:
+        - paragraph [ref=e19]: Problem Statement
+        - heading "쇼핑의 3대 불편" [level=2] [ref=e20]
+        - generic [ref=e21]:
+          - generic [ref=e22]:
+            - generic [ref=e23]:
+              - generic [ref=e25]: fitness_center
+              - generic [ref=e26]: "01"
+            - heading "무거움 / 비효율" [level=3] [ref=e27]
+            - paragraph [ref=e28]: 장거리 이동과 무거운 카트 조작
+            - generic [ref=e29]:
+              - paragraph [ref=e30]: Pain Point
+              - paragraph [ref=e31]: 물리적 노동 수반
+          - generic [ref=e32]:
+            - generic [ref=e33]:
+              - generic [ref=e35]: hourglass_top
+              - generic [ref=e36]: "02"
+            - heading "계산대 대기" [level=3] [ref=e37]
+            - paragraph [ref=e38]: 결제를 위해 지루하고 긴 대기 시간
+            - generic [ref=e39]:
+              - paragraph [ref=e40]: Pain Point
+              - paragraph [ref=e41]: 시간적 기회비용 손실
+          - generic [ref=e42]:
+            - generic [ref=e43]:
+              - generic [ref=e45]: search_off
+              - generic [ref=e46]: "03"
+            - heading "물건 찾기 어려움" [level=3] [ref=e47]
+            - paragraph [ref=e48]: 복잡하고 방대한 매장에서 길을 잃음
+            - generic [ref=e49]:
+              - paragraph [ref=e50]: Pain Point
+              - paragraph [ref=e51]: 정보 비대칭성
+      - generic:
+        - heading [level=2]: 쑈삥끼
+        - paragraph: Shoppin-kki - Shopping Pinky
+        - paragraph:
+          - text: 고객을
+          - strong: 따라다니고
+          - text: ","
+          - strong: 매장을 안내
+          - text: 하며,
+          - strong: 결제까지 처리
+          - text: 하는 스마트 카트
+      - generic:
+        - heading [level=2]: 아이디어 - Carrefour Scan'lib
+        - generic:
+          - generic:
+            - img
+          - generic:
+            - img
+          - generic:
+            - img
+          - generic:
+            - img
+      - generic:
+        - generic:
+          - generic:
+            - heading [level=2]: 쇼핑몰 지도
+            - generic:
+              - generic: "188"
+              - generic: cm
+              - generic: x
+              - generic: "141"
+              - generic: cm
+            - generic:
+              - generic: "2"
+              - generic: 대 동시 운용 로봇
+            - generic:
+              - generic: "8"
+              - generic: 개 상품 구역 + 특수 구역
+          - generic:
+            - img
+      - generic:
+        - heading [level=2]: 구역 배치
+        - generic:
+          - img
+      - generic:
+        - heading [level=2]: User Journey
+        - generic:
+          - generic:
+            - generic: "01"
+            - generic:
+              - generic: qr_code_scanner
+            - heading [level=4]: QR 스캔
+            - paragraph: 로봇 LCD의 QR 스캔하여 접속
+          - generic: ›
+          - generic:
+            - generic: "02"
+            - generic:
+              - generic: app_registration
+            - heading [level=4]: 인형 등록
+            - paragraph: 로봇 카메라로 주인 등록
+          - generic: ›
+          - generic:
+            - generic: "03"
+            - generic:
+              - generic: shopping_cart
+            - heading [level=4]: 쇼핑
+            - paragraph: 장바구니 관리와 쇼핑 가이드
+          - generic: ›
+          - generic:
+            - generic: "04"
+            - generic:
+              - generic: contactless
+            - heading [level=4]: 결제
+            - paragraph: 결제구역 진입 시 자동 결제 팝업
+          - generic: ›
+          - generic:
+            - generic: "05"
+            - generic:
+              - generic: home
+            - heading [level=4]: 자동 복귀
+            - paragraph: 쇼핑 종료 후 충전소로 자율주행
+      - generic:
+        - heading [level=2]: Pinky Pro, Basket Edition
+        - generic:
+          - generic:
+            - generic:
+              - paragraph: 크기
+              - paragraph: 110 x 150 x 142 mm (바구니 포함)
+            - generic:
+              - paragraph: 메인 컴퓨터
+              - paragraph: Raspberry Pi 5 (8GB)
+            - generic:
+              - paragraph: 센서
+              - paragraph: RPLiDAR + 카메라 + IMU
+            - generic:
+              - paragraph: 구동
+              - paragraph: 2-Wheel Differential Drive
+            - generic:
+              - paragraph: 출력장치
+              - paragraph: LCD + LED + 부저
+          - generic:
+            - img
+      - generic:
+        - heading [level=2]: System Architecture
+        - generic:
+          - generic:
+            - generic:
+              - strong: Customer Web
+              - text: Flask + SocketIO (모바일)
+            - generic:
+              - strong: Admin UI
+              - text: PyQt6 관제 대시보드
+            - generic:
+              - strong: 실시간 통신
+              - text: WebSocket + TCP + ROS 2 DDS
+          - generic:
+            - img
+      - generic:
+        - heading [level=2]: Tech Stack
+        - generic:
+          - generic:
+            - generic:
+              - generic: language
+              - heading [level=3]: Customer Web
+            - generic:
+              - generic: Flask
+              - generic: SocketIO
+              - generic: Jinja2
+              - generic: WebSocket
+          - generic:
+            - generic:
+              - generic: desktop_windows
+              - heading [level=3]: Admin UI
+            - generic:
+              - generic: PyQt6
+          - generic:
+            - generic:
+              - generic: dns
+              - heading [level=3]: Control Service
+            - generic:
+              - generic: ROS 2 Jazzy
+              - generic: PostgreSQL 17
+              - generic: pgvector
+              - generic: Open-RMF
+              - generic: Docker
+              - generic: Sentence-Transformers
+          - generic:
+            - generic:
+              - generic: smart_toy
+              - heading [level=3]: Device
+            - generic:
+              - generic: ROS 2 Jazzy
+              - generic: Nav2
+              - generic: SLAM Toolbox
+              - generic: Transitions
+              - generic: Py-Trees
+              - generic: OpenCV
+              - generic: Torchreid
+              - generic: NCNN
+              - generic: YOLOv8
+      - generic:
+        - heading [level=2]: 프로젝트 구조
+        - generic:
+          - generic:
+            - generic: root/
+            - generic: ├── device/
+            - generic: │ ├── pinky_pro/
+            - generic: │ └── shoppinkki/
+            - generic: ├── server/
+            - generic: │ ├── control_service/
+            - generic: │ ├── customer_web/
+            - generic: │ └── ai_service/
+            - generic: ├── ui/
+            - generic: │ └── admin_ui/
+            - generic: └── scripts/
+          - generic:
+            - generic:
+              - generic:
+                - generic: smart_toy
+                - heading [level=3]: device/
+                - generic: Raspberry Pi 5
+              - paragraph: 로봇 위에서 실행되는 ROS2 패키지 모음. 하드웨어 제어·자율주행·인식·상태머신이 모두 여기서 동작합니다.
+            - generic:
+              - generic:
+                - generic: dns
+                - heading [level=3]: server/
+                - generic: 서버 PC
+              - paragraph: 고객 웹앱·로봇 제어 서비스·AI 추론 서버·DB가 모두 이 곳에서 실행됩니다. 로봇과는 ROS2 DDS + TCP로 통신합니다.
+            - generic:
+              - generic:
+                - generic: desktop_windows
+                - heading [level=3]: ui/
+                - generic: 관제 PC
+              - paragraph: PyQt6 기반 관제 UI. 로봇 상태 모니터링, 수동 명령, 카메라 디버그 등 운영자가 사용하는 도구입니다.
+      - generic:
+        - heading [level=2]: "프로젝트 구조: device/ 패키지"
+        - generic:
+          - generic:
+            - generic: device/
+            - generic: ├── pinky_pro/
+            - generic: └── shoppinkki/
+            - generic: ├── shoppinkki_interfaces/
+            - generic: ├── shoppinkki_core/
+            - generic: │ ├── main_node.py
+            - generic: │ ├── state_machine.py
+            - generic: │ └── bt_runner.py
+            - generic: ├── shoppinkki_nav/
+            - generic: │ ├── bt_tracking.py
+            - generic: │ ├── bt_guiding.py
+            - generic: │ ├── bt_searching.py
+            - generic: │ ├── bt_waiting.py
+            - generic: │ └── bt_returning.py
+            - generic: └── shoppinkki_perception/
+            - generic: ├── doll_detector.py
+            - generic: └── reid_engine.py
+          - generic:
+            - generic:
+              - generic:
+                - generic: integration_instructions
+                - heading [level=3]: shoppinkki_interfaces
+              - paragraph: Python Protocol로 하드웨어·Nav2 의존성을 추상화한 계층. 테스트 시 Mock으로 대체할 수 있어 실제 로봇 없이도 단위 테스트가 가능합니다.
+            - generic:
+              - generic:
+                - generic: hub
+                - heading [level=3]: shoppinkki_core
+              - paragraph: 로봇의 두뇌. 상태머신이 현재 상태를 판단하면 bt_runner가 그에 맞는 Behavior Tree를 실행합니다. 매장 경계 감시와 LCD·LED·버저 등 하드웨어 제어도 여기서 담당합니다.
+            - generic:
+              - generic:
+                - generic: near_me
+                - heading [level=3]: shoppinkki_nav
+              - paragraph: Nav2 기반 자율주행 담당. 추종·가이드·복귀 등 각 상태별 Behavior Tree를 포함합니다.
+            - generic:
+              - generic:
+                - generic: visibility
+                - heading [level=3]: shoppinkki_perception
+              - paragraph: 카메라 기반 인식 패키지. YOLOv8 감지 결과 수신·ReID 특징 추출·HSV 매칭을 담당합니다.
+      - generic:
+        - heading [level=2]: shoppinkki_core — 클래스 관계도
+        - generic:
+          - generic:
+            - generic:
+              - generic: ShoppinkiMainNode
+              - generic: main_node.py
+          - generic:
+            - generic:
+              - generic: ShoppinkiSM
+              - generic: state_machine.py
+              - generic: 상태 관리·전이
+            - generic:
+              - generic: BTRunner
+              - generic: bt_runner.py
+              - generic: 상태에 맞는 BT 실행
+            - generic:
+              - generic: HWController
+              - generic: hw_controller.py
+              - generic: LCD·LED·버저
+          - generic:
+            - generic:
+              - generic: bt_tracking
+              - generic: 추종
+            - generic:
+              - generic: bt_guiding
+              - generic: 가이드
+            - generic:
+              - generic: bt_searching
+              - generic: 탐색
+            - generic:
+              - generic: bt_waiting
+              - generic: 대기
+            - generic:
+              - generic: bt_returning
+              - generic: 복귀
+            - generic:
+              - generic: DollDetector
+              - generic: perception
+            - generic:
+              - generic: RobotPublisher
+              - generic: cmd_vel
+      - generic:
+        - heading [level=2]: ShoppinkiMainNode — 실행 흐름
+        - generic:
+          - generic:
+            - generic: main_node.py
+            - generic: "class ShoppinkiMainNode(Node): def __init__(self): super().__init__('shoppinkki_main') # ① 상태머신 초기화 self.sm = ShoppinkiSM(...) # ② 하드웨어 초기화 self.hw = HWController(...) # ③ 인식 모듈 초기화 self.doll_detector = DollDetector(...) # ④ BT 생성 후 BTRunner에 등록 self.bt_runner = BTRunner(sm=self.sm, bts={...}) # ⑤ ROS2 타이머 (BT tick 10Hz, 상태 발행 1Hz) self.create_timer(0.1, self._bt_tick_callback) self.create_timer(1.0, self._status_pub_callback) # ⑥ 별도 스레드 (AI 추론, 카메라 스트림) self._ai_thread = Thread(target=self._ai_loop, daemon=True) self._cam_thread = Thread(target=self._cam_loop, daemon=True) self._ai_thread.start(); self._cam_thread.start() # ⑦ ROS2 루프 진입 def main(): rclpy.init() rclpy.spin(ShoppinkiMainNode())"
+          - generic:
+            - generic:
+              - generic: "1"
+              - paragraph:
+                - strong: ShoppinkiSM
+                - text: — 상태 전이 시 콜백으로 HW·BT를 조율합니다.
+            - generic:
+              - generic: "2"
+              - paragraph:
+                - strong: HWController
+                - text: — LCD·LED·버저를 추상화해 상태별 출력을 담당합니다.
+            - generic:
+              - generic: "3"
+              - paragraph:
+                - strong: DollDetector
+                - text: — AI 서버에 연결해 인형 감지·ReID 매칭 결과를 제공합니다.
+            - generic:
+              - generic: "4"
+              - paragraph:
+                - strong: BTRunner
+                - text: — SM 상태가 바뀌면 해당 BT를 선택·실행합니다.
+            - generic:
+              - generic: "5"
+              - paragraph:
+                - strong: create_timer
+                - text: — BT를 10Hz로 tick, 상태를 1Hz로 발행합니다.
+            - generic:
+              - generic: "6"
+              - paragraph:
+                - strong: Thread
+                - text: — AI 추론·카메라 스트림을 별도 스레드에서 병렬 실행합니다.
+            - generic:
+              - generic: "7"
+              - paragraph:
+                - strong: rclpy.spin()
+                - text: — ROS2 이벤트 루프. 토픽·타이머·액션을 처리합니다.
+      - generic:
+        - heading [level=2]: "프로젝트 구조: server/ 패키지"
+        - generic:
+          - generic:
+            - generic: server/
+            - generic: ├── control_service/
+            - generic: │ ├── ros_node.py
+            - generic: │ ├── tcp_server.py
+            - generic: │ ├── rest_api.py
+            - generic: │ └── robot_manager.py
+            - generic: ├── customer_web/
+            - generic: ├── ai_service/
+            - generic: │ ├── yolo/
+            - generic: │ │ └── yolo_server.py
+            - generic: │ └── llm/
+            - generic: │ └── llm_server.py
+            - generic: ├── control_db/
+            - generic: └── shoppinkki_rmf/
+          - generic:
+            - generic:
+              - generic:
+                - generic: dns
+                - heading [level=3]: control_service
+              - paragraph: 시스템의 중앙 허브. ROS2 노드로 로봇과 통신하고, TCP 서버(8080)로 Admin UI를, REST API(8081)로 고객 웹앱을 연결합니다.
+            - generic:
+              - generic:
+                - generic: language
+                - heading [level=3]: customer_web
+              - paragraph: 고객이 사용하는 모바일 웹앱. Flask + SocketIO로 구성되어 QR 스캔 후 로그인·쇼핑·결제 플로우를 제공합니다. (포트 8501)
+            - generic:
+              - generic:
+                - generic: model_training
+                - heading [level=3]: ai_service
+              - paragraph: Docker 컨테이너로 실행되는 AI 추론 서버. 커스텀 YOLOv8 모델(TCP:5005)과 LLM 가이드 서버(REST:8000)를 제공합니다.
+            - generic:
+              - generic:
+                - generic: storage
+                - heading [level=3]: control_db
+              - paragraph: PostgreSQL 17 DB 스키마 및 시드 데이터. 고객·상품·주문 정보와 ReID 특징벡터(pgvector)를 저장합니다.
+            - generic:
+              - generic:
+                - generic: route
+                - heading [level=3]: shoppinkki_rmf
+              - paragraph: Open-RMF Fleet Adapter. 여러 로봇을 중앙에서 조율하는 다중 로봇 관리 레이어입니다.
+      - generic:
+        - heading [level=2]: State Machine
+        - generic:
+          - img
+      - generic:
+        - paragraph: Core Features
+        - heading [level=2]: 핵심기능 5가지
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic: qr_code_scanner
+              - generic: "01"
+            - heading [level=3]: 로그인
+            - paragraph: QR 스캔으로 접속 및 주인 등록
+          - generic:
+            - generic:
+              - generic:
+                - generic: person_pin_circle
+              - generic: "02"
+            - heading [level=3]: 추종
+            - paragraph: AI 비전으로 주인을 인식하고 따라감
+          - generic:
+            - generic:
+              - generic:
+                - generic: near_me
+              - generic: "03"
+            - heading [level=3]: 가이드
+            - paragraph: 상품 검색, 위치 안내
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic: shopping_cart
+              - generic: "04"
+            - heading [level=3]: 장바구니
+            - paragraph: 상품 QR 스캔으로 장바구니 관리
+          - generic:
+            - generic:
+              - generic:
+                - generic: contactless
+              - generic: "05"
+            - heading [level=3]: 결제
+            - paragraph: 결제구역 진입 시 모바일 자동 결제
+      - generic:
+        - heading [level=2]: "핵심 기능 1: 로그인"
+        - generic:
+          - generic:
+            - generic:
+              - generic: qr_code_scanner
+              - generic: QR 스캔
+              - generic: 로봇 LCD
+            - generic: arrow_forward
+            - generic:
+              - generic: smartphone
+              - generic: 웹앱 접속
+              - generic: Flask + SocketIO
+            - generic: arrow_forward
+            - generic:
+              - generic: smart_toy
+              - generic: 주인 등록
+              - generic: 로봇 Pi 카메라
+            - generic: arrow_forward
+            - generic:
+              - generic: person_pin_circle
+              - generic: TRACKING 시작
+              - generic: IDLE → TRACKING
+        - generic:
+          - generic:
+            - img
+          - generic:
+            - heading [level=3]: Step 1 — QR 스캔
+            - paragraph: 로봇 LCD에 표시되는 QR 코드를 고객이 스마트폰으로 스캔합니다. QR에는 robot_id가 인코딩되어 있어 1:1 세션이 자동 생성됩니다.
+      - generic:
+        - heading [level=2]: "핵심 기능 1: 로그인"
+        - generic:
+          - generic:
+            - generic:
+              - generic: qr_code_scanner
+              - generic: QR 스캔
+              - generic: 로봇 LCD
+            - generic: arrow_forward
+            - generic:
+              - generic: smartphone
+              - generic: 웹앱 접속
+              - generic: Flask + SocketIO
+            - generic: arrow_forward
+            - generic:
+              - generic: smart_toy
+              - generic: 주인 등록
+              - generic: 로봇 Pi 카메라
+            - generic: arrow_forward
+            - generic:
+              - generic: person_pin_circle
+              - generic: TRACKING 시작
+              - generic: IDLE → TRACKING
+        - generic:
+          - generic:
+            - img
+          - generic:
+            - heading [level=3]: Step 2 — 고객 웹앱 접속
+            - paragraph: QR 스캔 시 Flask 기반 고객 웹앱으로 자동 리다이렉트됩니다. 사용자는 로그인을 통해 카트이용을 시작합니다.
+      - generic:
+        - heading [level=2]: "핵심 기능 1: 로그인"
+        - generic:
+          - generic:
+            - generic:
+              - generic: qr_code_scanner
+              - generic: QR 스캔
+              - generic: 로봇 LCD
+            - generic: arrow_forward
+            - generic:
+              - generic: smartphone
+              - generic: 웹앱 접속
+              - generic: Flask + SocketIO
+            - generic: arrow_forward
+            - generic:
+              - generic: smart_toy
+              - generic: 주인 등록
+              - generic: 로봇 Pi 카메라
+            - generic: arrow_forward
+            - generic:
+              - generic: person_pin_circle
+              - generic: TRACKING 시작
+              - generic: IDLE → TRACKING
+        - generic:
+          - generic:
+            - generic:
+              - img
+            - generic:
+              - img
+          - generic:
+            - heading [level=3]: Step 3 — 인형 등록
+            - paragraph: 고객이 자신의 모습을 로봇 카메라에 등록합니다. 데모에서는 인형을 대신 사용합니다.
+      - generic:
+        - heading [level=2]: "핵심 기능 1: 로그인"
+        - generic:
+          - generic:
+            - generic:
+              - generic: qr_code_scanner
+              - generic: QR 스캔
+              - generic: 로봇 LCD
+            - generic: arrow_forward
+            - generic:
+              - generic: smartphone
+              - generic: 웹앱 접속
+              - generic: Flask + SocketIO
+            - generic: arrow_forward
+            - generic:
+              - generic: smart_toy
+              - generic: 주인 등록
+              - generic: 로봇 Pi 카메라
+            - generic: arrow_forward
+            - generic:
+              - generic: person_pin_circle
+              - generic: TRACKING 시작
+              - generic: IDLE → TRACKING
+        - generic:
+          - generic:
+            - img
+          - generic:
+            - heading [level=3]: Step 4 — TRACKING 시작
+            - paragraph: 주인 등록이 완료되면 상태가 IDLE → TRACKING으로 전환됩니다. 로봇이 주인 인형을 따라가며 쇼핑을 시작합니다.
+      - generic:
+        - heading [level=2]: "핵심 기능 2: 추종"
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic: fingerprint
+                - heading [level=3]: ReID + HSV 이중 조건
+              - paragraph: "ReID: 외형 특징벡터로 주인 식별 / HSV: 색상 히스토그램으로 보정"
+            - generic:
+              - generic:
+                - generic: psychology
+                - heading [level=3]: 커스텀 YOLOv8
+              - paragraph: SAM2로 마스크 생성 후 인형 전용 학습 — Docker AI 서버에서 추론 후 결과 반환
+            - generic:
+              - generic:
+                - generic: gamepad
+                - heading [level=3]: bbox 기반 P-Control
+              - paragraph: bbox 크기→선속도, 중심 X→각속도로 센서 없이 제어
+      - generic:
+        - heading [level=2]: "추종: ReID와 HSV란?"
+        - generic:
+          - generic:
+            - generic:
+              - generic: fingerprint
+              - heading [level=3]: ReID (Re-Identification)
+            - paragraph:
+              - text: 사람(또는 물체)을 카메라가 바뀌거나 시간이 지난 뒤에도
+              - strong: 같은 개체임을 인식
+              - text: 하는 기술입니다. 딥러닝 모델(OSNet)이 이미지를 보고
+              - strong: 512차원 특징 벡터
+              - text: 를 추출하며, 등록된 벡터와의
+              - strong: 코사인 유사도
+              - text: 로 동일 인물 여부를 판단합니다.
+            - generic: "# 두 벡터 사이 각도로 유사도 측정 similarity = cos(θ) = A·B / (|A||B|) # 1.0에 가까울수록 동일 인물"
+          - generic:
+            - generic:
+              - generic: palette
+              - heading [level=3]: HSV 히스토그램 상관계수
+            - paragraph:
+              - text: HSV는 색상(Hue)·채도(Saturation)·명도(Value)로 색을 표현하는 방식입니다. RGB보다
+              - strong: 조명 변화에 강합니다.
+              - text: 등록 시 인형의 색상 분포를 히스토그램으로 저장하고, 매 프레임마다
+              - strong: 히스토그램 상관계수
+              - text: 로 색감이 얼마나 비슷한지 비교합니다.
+            - generic:
+              - generic:
+                - generic: H
+                - generic: 색상
+              - generic:
+                - generic: S
+                - generic: 채도
+              - generic:
+                - generic: V
+                - generic: 명도
+              - generic:
+                - generic: ≥ 0.25
+                - generic: 임계값
+      - generic:
+        - heading [level=2]: "추종: ReID + HSV 이중 조건"
+        - generic:
+          - generic:
+            - paragraph:
+              - text: ReID 단독으로는 외형이 비슷한 다른 인형을 주인으로 오인할 수 있습니다. OSNet x0.25로 추출한
+              - strong: 512차원 특징벡터(ReID)
+              - text: 와
+              - strong: HSV 히스토그램 상관계수
+              - text: 를 AND 조건으로 묶어 오인식을 방지합니다.
+            - generic:
+              - generic:
+                - generic: REID_THRESHOLD
+                - generic: "0.40"
+                - generic: 코사인 유사도
+              - generic:
+                - generic: HSV_THRESHOLD
+                - generic: "0.25"
+                - generic: 히스토그램 상관계수
+          - generic:
+            - generic: doll_detector.py
+            - generic: "# 갤러리 내 모든 등록 벡터와 코사인 유사도 계산 reid_sim = max( _cosine_similarity(g, reid_vec) for g in gallery_snapshot ) # HSV 히스토그램 상관계수 계산 hsv_sim = _histogram_correlation( hsv_template, hsv_vec ) # 두 조건을 AND로 묶어 주인 인형 확정 if (reid_sim >= REID_THRESHOLD # 0.40 and hsv_sim >= HSV_THRESHOLD): # 0.25 best_det = d"
+      - generic:
+        - heading [level=2]: "추종: 커스텀 YOLOv8"
+        - generic:
+          - generic:
+            - paragraph:
+              - strong: SAM2
+              - text: 로 인형 마스크를 자동 생성해 학습 데이터를 구축하고, 인형 전용 YOLOv8 모델을 훈련했습니다. 모델은
+              - strong: Docker AI 서버
+              - text: 에서 실행되며, 로봇은 JPEG 프레임을 TCP로 전송하고 감지 결과를 JSON으로 돌려받습니다.
+            - generic:
+              - generic:
+                - generic: arrow_forward
+                - generic:
+                  - strong: 요청
+                  - text: ": [4B 길이] + [JPEG 바이트]"
+              - generic:
+                - generic: arrow_back
+                - generic:
+                  - strong: 응답
+                  - text: ": cx, cy, area, confidence, features (ReID 임베딩)"
+          - generic:
+            - generic: doll_detector.py → yolo_server.py
+            - generic: "# [로봇] JPEG 프레임을 TCP로 전송 header = struct.pack('!I', len(jpeg)) sock.sendall(header + jpeg) # [로봇] 결과 JSON 수신 resp_len = struct.unpack('!I', _recv_exact(sock, 4))[0] result = json.loads(_recv_exact(sock, resp_len)) # [AI 서버] YOLOv8 추론 후 응답 result = infer(model, reid, frame) resp = json.dumps(result).encode() conn.sendall(struct.pack('!I', len(resp)) + resp)"
+      - generic:
+        - heading [level=2]: "추종: bbox 기반 P-Control"
+        - generic:
+          - generic:
+            - paragraph:
+              - text: 별도 거리 센서 없이 bbox만으로 속도를 제어합니다.
+              - strong: bbox 크기 → 선속도
+              - text: ","
+              - strong: bbox 중심 X → 각속도
+              - text: 를 각각 독립적인 P 제어로 계산합니다.
+            - generic:
+              - generic:
+                - generic: KP_DIST
+                - generic: "0.005"
+                - generic: 선속도 게인
+              - generic:
+                - generic: KP_ANGLE
+                - generic: "0.002"
+                - generic: 각속도 게인
+              - generic:
+                - generic: TARGET_SIZE
+                - generic: "250"
+                - generic: 목표 bbox 크기
+          - generic:
+            - generic: bt_tracking.py — ComputeVelocity
+            - generic: "# sqrt(area) ≈ bbox 한 변 길이 (거리 역비례) current_size = math.sqrt(det.area) error_size = TARGET_SIZE - current_size linear_x = KP_DIST * error_size linear_x = max(0.0, min(LINEAR_X_MAX, linear_x)) # bbox 중심과 영상 중심의 편차로 방향 보정 error_cx = det.cx - IMAGE_WIDTH / 2.0 angular_z = -KP_ANGLE * error_cx angular_z = max(-ANGULAR_Z_MAX, min(ANGULAR_Z_MAX, angular_z))"
+      - generic:
+        - heading [level=2]: "핵심 기능 3: 가이드"
+        - generic:
+          - generic:
+            - generic:
+              - generic: record_voice_over
+            - generic: 자연어 입력
+            - generic: 텍스트 / 음성
+          - generic: arrow_forward
+          - generic:
+            - generic:
+              - generic: auto_awesome
+            - generic: LLM 분석
+            - generic: 구역 ID 판별
+          - generic: arrow_forward
+          - generic:
+            - generic:
+              - generic: pin_drop
+            - generic: 웨이포인트 조회
+            - generic: DB 좌표 매핑
+          - generic: arrow_forward
+          - generic:
+            - generic:
+              - generic: navigation
+            - generic: Nav2 자율주행
+            - generic: 경로 계획 & 이동
+        - generic:
+          - generic: "\"음료수 어디 있어?\" → LLM → zone_id: 6 (음료) → Nav2 자율주행 → 도착 알림"
+      - generic:
+        - heading [level=2]: 가이드 Demo
+      - generic:
+        - heading [level=2]: "핵심 기능 4: 장바구니"
+        - generic:
+          - generic:
+            - generic:
+              - generic: qr_code_2
+            - generic: 상품 QR 스캔
+            - generic: 카트 카메라
+          - generic: arrow_forward
+          - generic:
+            - generic:
+              - generic: send
+            - generic: 서버 전송
+            - generic: ROS 2 → TCP
+          - generic: arrow_forward
+          - generic:
+            - generic:
+              - generic: storage
+            - generic: DB 저장
+            - generic: PostgreSQL 17
+          - generic: arrow_forward
+          - generic:
+            - generic:
+              - generic: sync
+            - generic: 실시간 반영
+            - generic: WebSocket Push
+          - generic: arrow_forward
+          - generic:
+            - generic:
+              - generic: shopping_cart
+            - generic: 앱 표시
+            - generic: 고객 웹 장바구니
+        - generic:
+          - generic:
+            - strong: 담기
+            - text: QR 인식 → 상품 목록 추가
+          - generic:
+            - strong: 빼기
+            - text: 앱에서 직접 수량 조절
+          - generic:
+            - strong: 합계
+            - text: 가격 실시간 계산 표시
+      - generic:
+        - heading [level=2]: 장바구니 Demo
+      - generic:
+        - heading [level=2]: "핵심 기능 5: 결제"
+        - generic:
+          - generic:
+            - generic:
+              - generic: block
+            - heading [level=3]: 결제 전 (TRACKING)
+            - paragraph:
+              - text: 결제구역 진입 시 BoundaryMonitor 감지 ↓
+              - strong: 결제 팝업 자동 표시
+              - text: 출구 통과
+              - strong: 불가
+          - generic: arrow_forward
+          - generic:
+            - generic:
+              - generic: contactless
+            - heading [level=3]: 결제 처리
+            - paragraph:
+              - text: 장바구니 + 총액 확인 ↓
+              - strong: "[결제하기] 터치"
+              - text: ↓ 결제 완료 처리
+          - generic: arrow_forward
+          - generic:
+            - generic:
+              - generic: check_circle
+            - heading [level=3]: 결제 후 (TRACKING_CHECKOUT)
+            - paragraph:
+              - text: 추종 모드 유지 출구 통과
+              - strong: 허용
+              - text: ↓
+              - strong: 쇼핑 종료 → 자동 복귀
+        - paragraph:
+          - text: 미결제 퇴장 시도 →
+          - strong: LOCKED
+          - text: 상태 전환 → 자동 충전소 복귀 + 관제 알림
+      - generic:
+        - heading [level=2]: 결제 Demo
+      - generic:
+        - heading [level=2]: 데모
+        - generic:
+          - generic: touch_app
+          - text: 클릭 또는 P 키로 재생/일시정지 |
+          - generic: settings_remote
+          - text: "리모컨: Page Down / Up"
+      - generic:
+        - heading [level=2]: 향후 계획
+        - generic:
+          - generic:
+            - generic:
+              - generic: store
+            - generic:
+              - strong: 실제 매장 스케일 확장
+              - paragraph: 미니어처에서 실제 마트 크기로 확장 검증
+          - generic:
+            - generic:
+              - generic: hub
+            - generic:
+              - strong: Open-RMF 본격 연동
+              - paragraph: 다중 로봇 경로 충돌 협상 및 교통 관리
+          - generic:
+            - generic:
+              - generic: group
+            - generic:
+              - strong: 사람 추종으로 전환
+              - paragraph: 인형 대신 실제 사람 감지 + ReID 기반 추종
+          - generic:
+            - generic:
+              - generic: payments
+            - generic:
+              - strong: 실제 결제 시스템 연동
+              - paragraph: PG사 연동을 통한 실결제 처리
+      - generic:
+        - heading [level=1]: Q & A
+        - paragraph: 감사합니다
+        - generic:
+          - generic: 삥끼랩
+          - generic: 에드인에듀 자율주행 프로젝트 2팀
+          - generic: "2026.04"
+    - link "2 / 35" [ref=e52] [cursor=pointer]:
+      - /url: "#/1"
+    - text: Speaker notes
+    - generic [ref=e17]: 쑈삥끼 Shoppin-kki - Shopping Pinky 고객을 따라다니고 , 매장을 안내 하며, 결제까지 처리 하는 스마트 카트
+  - generic: Press F for fullscreen

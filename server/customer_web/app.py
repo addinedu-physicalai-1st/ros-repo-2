@@ -402,6 +402,39 @@ def logout():
     return redirect(url_for("login", robot_id=robot_id)) if robot_id else redirect(url_for("login"))
 
 
+# ── LLM 테스트 ─────────────────────────────────────────────
+
+@app.route("/llm_test")
+def llm_test():
+    """LLM 채팅 테스트 페이지 (세션 불필요)."""
+    return render_template("llm_test.html")
+
+
+@app.route("/api/llm_test", methods=["POST"])
+def api_llm_test():
+    """LLM 상품 검색 API (테스트용)."""
+    from llm_client import query as llm_query
+
+    data = request.get_json() or {}
+    name = data.get("name", "").strip()
+
+    if not name:
+        return {"error": "상품명을 입력해주세요."}, 400
+
+    result = llm_query(
+        name,
+        host=LLM_HOST,
+        port=LLM_PORT,
+    )
+
+    if result is None:
+        return {
+            "error": f"LLM 서버에 연결할 수 없습니다. ({LLM_HOST}:{LLM_PORT})"
+        }, 503
+
+    return result
+
+
 # ── 진입점 ────────────────────────────────────────────────────
 
 if __name__ == "__main__":

@@ -1,0 +1,64 @@
+- generic [active]:
+  - generic:
+    - generic:
+      - generic:
+        - paragraph: Physical AI 자율주행 프로젝트
+        - generic:
+          - paragraph: 쇼핑의 자유를 경험하라!
+          - heading "쑈삥끼" [level=1]
+        - generic:
+          - paragraph: 자율주행 스마트 쇼핑 카트
+          - generic: 에드인에듀 자율주행 프로젝트 2팀 - 삥끼랩
+      - generic:
+        - paragraph: Problem Statement
+        - heading "쇼핑의 3대 불편" [level=2]
+        - generic:
+          - generic:
+            - generic: "01"
+            - generic:
+              - generic: fitness_center
+            - heading "무거움 / 비효율" [level=3]
+            - paragraph: 장거리 이동과 무거운 카트 조작
+            - generic:
+              - paragraph: Pain Point
+              - paragraph: 물리적 노동 수반
+          - generic:
+            - generic: "02"
+            - generic:
+              - generic: hourglass_top
+            - heading "계산대 대기" [level=3]
+            - paragraph: 결제를 위해 지루하고 긴 대기 시간
+            - generic:
+              - paragraph: Pain Point
+              - paragraph: 시간적 기회비용 손실
+          - generic:
+            - generic: "03"
+            - generic:
+              - generic: search_off
+            - heading "물건 찾기 어려움" [level=3]
+            - paragraph: 복잡하고 방대한 매장에서 길을 잃음
+            - generic:
+              - paragraph: Pain Point
+              - paragraph: 정보 비대칭성
+      - generic:
+        - generic:
+          - heading "쑈삥끼" [level=2]
+          - paragraph: Shoppin-kki · Shopping Pinky
+        - generic:
+          - generic:
+            - generic: Follow
+            - paragraph:
+              - text: 고객을
+              - strong: 따라다니고
+              - text: ","
+          - generic:
+            - generic: Guide
+            - paragraph:
+              - strong: 매장을 안내
+              - text: 하며,
+          - generic:
+            - generic: Pay
+            - paragraph:
+              - strong: 결제까지 처리
+              - text: 하는 스마트 카트
+  - generic: Press F for fullscreen

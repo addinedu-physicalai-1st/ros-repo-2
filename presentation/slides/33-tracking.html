@@ -1,0 +1,42 @@
+<section>
+  <h2 class="text-em-xl font-black mt-0 mb-6 text-center w-full">핵심 기능 2: <span style="color:#A78BFA">추종</span></h2>
+  <div class="flex gap-8 items-center mt-2 w-full flex-1">
+    <div class="flex-1 relative rounded-2xl overflow-hidden" style="min-height:440px">
+      <video src="https://woolimi.cdn.prismic.io/woolimi/ad-Dd51ZCF7ETNkJ_tracking_muted.mp4" class="absolute inset-0 w-full h-full object-contain" autoplay loop muted playsinline></video>
+    </div>
+    <div class="flex-1 flex flex-col gap-3">
+      <!-- YOLOv8 Custom -->
+      <div class="bg-white rounded-2xl shadow-md1 px-4 py-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="material-icons-round text-em-sm text-md-primary">psychology</span>
+          <h3 class="text-em-sm font-extrabold text-md-primary m-0">커스텀 YOLOv8</h3>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">직접 학습시킨 모델로 카메라 영상에서 인형을 찾아냄</p>
+      </div>
+      <!-- ByteTracker -->
+      <div class="bg-white rounded-2xl shadow-md1 px-4 py-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="material-icons-round text-em-sm text-md-primary">track_changes</span>
+          <h3 class="text-em-sm font-extrabold text-md-primary m-0">ByteTracker</h3>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">감지된 인형 각각에 고유 번호를 붙여, 움직여도 같은 인형을 계속 추적</p>
+      </div>
+      <!-- ReID + HSV -->
+      <div class="bg-white rounded-2xl shadow-md1 px-4 py-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="material-icons-round text-em-sm text-md-primary">fingerprint</span>
+          <h3 class="text-em-sm font-extrabold text-md-primary m-0">ReID와 HSV 히스토그램 상관계수</h3>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">추적 중인 인형들 중 주인 인형이 누구인지 외형과 색상으로 확인</p>
+      </div>
+      <!-- PID Control -->
+      <div class="bg-white rounded-2xl shadow-md1 px-4 py-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="material-icons-round text-em-sm text-md-primary">gamepad</span>
+          <h3 class="text-em-sm font-extrabold text-md-primary m-0">bbox 기반 PI 제어</h3>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">화면 속 인형의 위치와 크기만 보고 로봇의 속도와 방향을 조절</p>
+      </div>
+    </div>
+  </div>
+</section>

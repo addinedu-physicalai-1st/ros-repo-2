@@ -1,0 +1,109 @@
+<section class="flex flex-col">
+  <h2 class="text-em-xl font-black mt-0 mb-6 text-center w-full">가이드: <span style="color:#4ADE80">검색 파이프라인</span></h2>
+
+  <div class="flex gap-5 flex-1 w-full items-stretch">
+
+    <!-- 입력 -->
+    <div class="flex flex-col justify-center items-center gap-2 shrink-0" style="min-width:140px">
+      <div class="rounded-2xl px-4 py-3 text-center w-full" style="background:#0A1929;border:1px solid #4ADE80">
+        <span class="material-icons-round text-em-sm mb-1 block" style="color:#4ADE80">keyboard</span>
+        <p class="text-em-3xs font-bold m-0" style="color:#4ADE80">텍스트 입력</p>
+        <p class="text-em-3xs m-0 mt-1" style="color:#8BACC8">"음료수 어디 있어?"</p>
+      </div>
+    </div>
+
+    <!-- 화살표 -->
+    <div class="flex items-center shrink-0">
+      <span class="material-icons-round" style="color:#7BA5C8;font-size:1.8rem">arrow_forward</span>
+    </div>
+
+    <!-- 3단계 파이프라인 -->
+    <div class="flex-1 flex flex-col gap-0 justify-center">
+
+      <!-- 0순위 -->
+      <div class="rounded-2xl px-4 py-3 flex items-center gap-4" style="background:#0A1929;border:1px solid #F87171">
+        <div class="shrink-0 rounded-xl px-2 py-1 text-em-3xs font-black" style="background:#F871711A;color:#F87171;min-width:3.5em;text-align:center">0순위</div>
+        <div class="flex-1">
+          <p class="text-em-2xs font-bold m-0" style="color:#F87171">입력 방어</p>
+          <p class="text-em-3xs m-0 mt-0.5" style="color:#8BACC8">무의미 입력(자음 나열, 반복 문자), 매장 무관 주제(날씨, 게임…) 차단</p>
+        </div>
+      </div>
+
+      <div class="flex justify-center py-1">
+        <span class="material-icons-round" style="color:#7BA5C8;font-size:1.2rem">arrow_downward</span>
+      </div>
+
+      <!-- 1순위 -->
+      <div class="rounded-2xl px-4 py-3 flex items-center gap-4" style="background:#0A1929;border:1px solid #FBBF24">
+        <div class="shrink-0 rounded-xl px-2 py-1 text-em-3xs font-black" style="background:#FBBF241A;color:#FBBF24;min-width:3.5em;text-align:center">1순위</div>
+        <div class="flex-1">
+          <p class="text-em-2xs font-bold m-0" style="color:#FBBF24">감성·상황어 즉시 매핑</p>
+          <p class="text-em-3xs m-0 mt-0.5" style="color:#8BACC8">상품명이 아닌 감성·상황 표현을 DB 키워드와 매칭해 구역을 즉시 반환</p>
+          <div class="mt-1.5 rounded-lg overflow-hidden" style="border:1px solid #2A3A4A">
+            <table style="width:100%;border-collapse:collapse;font-size:0.38em">
+              <thead>
+                <tr style="background:#071320">
+                  <th class="text-left px-2 py-1" style="color:#FBBF24;font-weight:700;border-bottom:1px solid #2A3A4A">keywords</th>
+                  <th class="text-left px-2 py-1" style="color:#FBBF24;font-weight:700;border-bottom:1px solid #2A3A4A">item_name</th>
+                  <th class="text-left px-2 py-1" style="color:#FBBF24;font-weight:700;border-bottom:1px solid #2A3A4A">zone</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom:1px solid #1E3A5A20">
+                  <td class="px-2 py-1" style="color:#E2E8F0">목말라, 음료수, 마실 거</td>
+                  <td class="px-2 py-1" style="color:#8BACC8">시원한 음료</td>
+                  <td class="px-2 py-1" style="color:#4ADE80">음료 구역</td>
+                </tr>
+                <tr style="border-bottom:1px solid #1E3A5A20">
+                  <td class="px-2 py-1" style="color:#E2E8F0">배고파, 허기, 식사</td>
+                  <td class="px-2 py-1" style="color:#8BACC8">도시락</td>
+                  <td class="px-2 py-1" style="color:#4ADE80">식품 구역</td>
+                </tr>
+                <tr>
+                  <td class="px-2 py-1" style="color:#E2E8F0">급해, 화장실, 마렵다</td>
+                  <td class="px-2 py-1" style="color:#8BACC8">화장실</td>
+                  <td class="px-2 py-1" style="color:#4ADE80">화장실</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-center py-1">
+        <span class="material-icons-round" style="color:#7BA5C8;font-size:1.2rem">arrow_downward</span>
+      </div>
+
+      <!-- 2순위 -->
+      <div class="rounded-2xl px-4 py-3 flex items-center gap-4" style="background:#0A1929;border:1px solid #4ADE80">
+        <div class="shrink-0 rounded-xl px-2 py-1 text-em-3xs font-black" style="background:#4ADE801A;color:#4ADE80;min-width:3.5em;text-align:center">2순위</div>
+        <div class="flex-1">
+          <p class="text-em-2xs font-bold m-0" style="color:#4ADE80">LLM 키워드 추출 + 벡터 검색</p>
+          <p class="text-em-3xs m-0 mt-0.5" style="color:#8BACC8">Qwen 2.5 3B로 핵심 키워드 추출 → pgvector 코사인 유사도 검색 (임계값 0.28)</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 화살표 -->
+    <div class="flex items-center shrink-0">
+      <span class="material-icons-round" style="color:#7BA5C8;font-size:1.8rem">arrow_forward</span>
+    </div>
+
+    <!-- 출력 -->
+    <div class="flex flex-col justify-center gap-2 shrink-0" style="min-width:150px">
+      <div class="rounded-2xl px-4 py-3 text-center" style="background:#0A1929;border:1px solid #4ADE80">
+        <span class="material-icons-round text-em-sm mb-1 block" style="color:#4ADE80">pin_drop</span>
+        <p class="text-em-3xs font-bold m-0" style="color:#4ADE80">zone_id 반환</p>
+        <p class="text-em-3xs m-0 mt-1 font-mono" style="color:#E2E8F0">zone_id: 6</p>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">음료 구역</p>
+      </div>
+      <div class="rounded-2xl px-4 py-3 text-center" style="background:#0A1929;border:1px solid #A78BFA">
+        <span class="material-icons-round text-em-sm mb-1 block" style="color:#A78BFA">chat</span>
+        <p class="text-em-3xs font-bold m-0" style="color:#A78BFA">안내 문장</p>
+        <p class="text-em-3xs m-0 mt-1" style="color:#8BACC8">"음료 코너로 안내해 드릴게요!"</p>
+      </div>
+    </div>
+
+  </div>
+</section>

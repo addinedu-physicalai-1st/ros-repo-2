@@ -1,0 +1,74 @@
+<section>
+  <h2 class="text-em-xl font-black mt-0 mb-6 text-center w-full">핵심 기능 3: <span class="text-md-green">가이드</span></h2>
+  <div class="flex gap-8 items-center mt-2 w-full flex-1">
+
+    <!-- 왼쪽: 예시 흐름 -->
+    <div class="flex-1 relative rounded-2xl overflow-hidden flex items-center justify-center" style="min-height:440px;background:#0A1929;border:1px solid #1E3A5A">
+      <div class="flex flex-col items-center gap-4 px-8 w-full">
+        <p class="text-em-3xs font-bold uppercase tracking-wider m-0" style="color:#7BA5C8">예시 흐름</p>
+
+        <!-- 사용자 발화 -->
+        <div class="w-full rounded-2xl px-5 py-3 text-center" style="background:#071320;border:1px solid #38BDF8">
+          <span class="material-icons-round text-em-sm mb-1 block" style="color:#38BDF8">record_voice_over</span>
+          <p class="text-em-sm font-bold m-0" style="color:#E2E8F0">"음료수 어디 있어?"</p>
+          <p class="text-em-3xs m-0 mt-0.5" style="color:#475569">텍스트 입력</p>
+        </div>
+
+        <span class="material-icons-round" style="color:#1E3A5A;font-size:1.4rem">arrow_downward</span>
+
+        <!-- LLM -->
+        <div class="w-full rounded-2xl px-5 py-3 text-center" style="background:#071320;border:1px solid #A78BFA">
+          <span class="material-icons-round text-em-sm mb-1 block" style="color:#A78BFA">auto_awesome</span>
+          <p class="text-em-xs font-bold m-0" style="color:#A78BFA">LLM 분석</p>
+          <p class="text-em-3xs m-0 mt-0.5" style="color:#8BACC8">→ <strong style="color:#E2E8F0">zone_id: 6</strong> (음료 구역)</p>
+        </div>
+
+        <span class="material-icons-round" style="color:#1E3A5A;font-size:1.4rem">arrow_downward</span>
+
+        <!-- Nav2 -->
+        <div class="w-full rounded-2xl px-5 py-3 text-center" style="background:#071320;border:1px solid #4ADE80">
+          <span class="material-icons-round text-em-sm mb-1 block" style="color:#4ADE80">navigation</span>
+          <p class="text-em-xs font-bold m-0" style="color:#4ADE80">Nav2 자율주행 → 도착</p>
+          <p class="text-em-3xs m-0 mt-0.5" style="color:#8BACC8">DB 좌표 조회 후 경로 계획 &amp; 이동</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 오른쪽: 파이프라인 카드 -->
+    <div class="flex-1 flex flex-col gap-3">
+
+      <div class="bg-white rounded-2xl shadow-md1 px-4 py-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="material-icons-round text-em-sm text-md-primary">record_voice_over</span>
+          <h3 class="text-em-sm font-extrabold text-md-primary m-0">자연어 입력</h3>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">고객이 웹앱에서 텍스트로 원하는 상품·구역을 입력합니다.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-md1 px-4 py-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="material-icons-round text-em-sm text-md-primary">auto_awesome</span>
+          <h3 class="text-em-sm font-extrabold text-md-primary m-0">LLM 분석</h3>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">Docker AI 서버의 LLM이 발화를 분석해 매장 구역 ID를 반환합니다.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-md1 px-4 py-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="material-icons-round text-em-sm text-md-primary">pin_drop</span>
+          <h3 class="text-em-sm font-extrabold text-md-primary m-0">웨이포인트 조회</h3>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">구역 ID로 DB에서 좌표를 조회해 Nav2에 전달할 목표 지점을 설정합니다.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-md1 px-4 py-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="material-icons-round text-em-sm text-md-primary">navigation</span>
+          <h3 class="text-em-sm font-extrabold text-md-primary m-0">Nav2 자율주행</h3>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">장애물을 피하며 목표 구역까지 자율 이동, 도착 시 고객에게 알림을 전송합니다.</p>
+      </div>
+
+    </div>
+  </div>
+</section>

@@ -1,0 +1,117 @@
+<section class="flex flex-col">
+  <h2 class="text-em-xl font-black mt-0 mb-6 text-center w-full">참고자료 1: <span style="color:#A78BFA">코사인 유사도란?</span></h2>
+
+  <div class="flex gap-5 flex-1 w-full">
+
+    <!-- 왼쪽: 개념 설명 -->
+    <div class="flex flex-col gap-4 flex-1">
+
+      <div class="rounded-2xl px-5 py-4" style="background:#0A1929;border:1px solid #38BDF8">
+        <p class="text-em-2xs font-bold m-0 mb-1" style="color:#38BDF8">핵심 아이디어</p>
+        <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
+          두 벡터가 얼마나 <strong style="color:#E2E8F0">같은 방향을 가리키는지</strong>를 측정합니다.<br>
+          크기(밝기·거리)는 무시하고, <strong style="color:#38BDF8">방향(모양·특징)</strong>만 비교합니다.
+        </p>
+      </div>
+
+      <!-- 공식 -->
+      <div class="rounded-2xl px-5 py-4" style="background:#0A1929;border:1px solid #1E3A5A">
+        <p class="text-em-2xs font-bold mb-2 m-0" style="color:#7BA5C8">공식</p>
+        <div class="text-center py-2 text-em-sm font-mono font-bold" style="color:#E2E8F0">
+          cos(θ) = <span style="color:#38BDF8">A · B</span> / ( <span style="color:#F472B6">|A|</span> × <span style="color:#F472B6">|B|</span> )
+        </div>
+        <div class="flex gap-3 mt-3">
+          <div class="flex-1 text-center text-em-3xs rounded-xl px-2 py-1.5" style="background:#071320">
+            <div class="font-bold mb-0.5" style="color:#38BDF8">A · B</div>
+            <div style="color:#8BACC8">내적 (두 벡터의 유사 성분 합)</div>
+          </div>
+          <div class="flex-1 text-center text-em-3xs rounded-xl px-2 py-1.5" style="background:#071320">
+            <div class="font-bold mb-0.5" style="color:#F472B6">|A| × |B|</div>
+            <div style="color:#8BACC8">각 벡터의 크기 곱 (정규화)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 결과 범위 -->
+      <div class="rounded-2xl px-5 py-3" style="background:#0A1929;border:1px solid #1E3A5A">
+        <p class="text-em-2xs font-bold mb-2 m-0" style="color:#7BA5C8">결과값 범위</p>
+        <div class="flex gap-2">
+          <div class="flex-1 rounded-xl px-2 py-2 text-center text-em-3xs" style="background:#071320">
+            <div class="font-black text-em-sm mb-0.5" style="color:#4ADE80">1.0</div>
+            <div style="color:#8BACC8">완전히 같은 방향<br>(동일 인형)</div>
+          </div>
+          <div class="flex-1 rounded-xl px-2 py-2 text-center text-em-3xs" style="background:#071320">
+            <div class="font-black text-em-sm mb-0.5" style="color:#FBBF24">0.4 ~</div>
+            <div style="color:#8BACC8">비슷한 방향<br>(임계값 이상 = 주인)</div>
+          </div>
+          <div class="flex-1 rounded-xl px-2 py-2 text-center text-em-3xs" style="background:#071320">
+            <div class="font-black text-em-sm mb-0.5" style="color:#F87171">0.0</div>
+            <div style="color:#8BACC8">수직 (완전히 다른 특징)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 오른쪽: 시각적 다이어그램 -->
+    <div class="flex-1 flex flex-col justify-center items-center rounded-2xl" style="background:#0A1929;border:1px solid #1E3A5A">
+      <svg viewBox="0 0 320 280" width="100%" height="100%" style="max-height:320px">
+        <!-- 배경 격자 -->
+        <defs>
+          <marker id="arrow-a" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="#38BDF8"/>
+          </marker>
+          <marker id="arrow-b" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="#4ADE80"/>
+          </marker>
+          <marker id="arrow-c" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="#F87171"/>
+          </marker>
+          <marker id="arrow-axis" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="#1E3A5A"/>
+          </marker>
+        </defs>
+
+        <!-- 축 -->
+        <line x1="50" y1="230" x2="290" y2="230" stroke="#1E3A5A" stroke-width="1" marker-end="url(#arrow-axis)"/>
+        <line x1="50" y1="230" x2="50" y2="30" stroke="#1E3A5A" stroke-width="1" marker-end="url(#arrow-axis)"/>
+        <text x="295" y="234" fill="#3A5A7A" font-size="10">x</text>
+        <text x="44" y="26" fill="#3A5A7A" font-size="10">y</text>
+
+        <!-- 원점 -->
+        <circle cx="50" cy="230" r="3" fill="#38BDF8" opacity="0.5"/>
+
+        <!-- 각도 호 -->
+        <path d="M 95 230 A 45 45 0 0 0 80 189" fill="none" stroke="#FBBF24" stroke-width="1" stroke-dasharray="3,2" opacity="0.6"/>
+        <text x="100" y="205" fill="#FBBF24" font-size="10" opacity="0.8">θ</text>
+
+        <!-- 벡터 A (주인 등록 벡터) -->
+        <line x1="50" y1="230" x2="240" y2="80" stroke="#38BDF8" stroke-width="2.5" marker-end="url(#arrow-a)"/>
+        <text x="245" y="76" fill="#38BDF8" font-size="11" font-weight="bold">A</text>
+        <text x="245" y="89" fill="#38BDF8" font-size="9" opacity="0.7">(등록 벡터)</text>
+
+        <!-- 벡터 B — 가까운 방향 (주인) -->
+        <line x1="50" y1="230" x2="220" y2="60" stroke="#4ADE80" stroke-width="2.5" marker-end="url(#arrow-b)"/>
+        <text x="225" y="56" fill="#4ADE80" font-size="11" font-weight="bold">B₁</text>
+        <text x="225" y="69" fill="#4ADE80" font-size="9" opacity="0.7">cos≈0.97 ✓</text>
+
+        <!-- 벡터 C — 수직 방향 (다른 인형) -->
+        <line x1="50" y1="230" x2="270" y2="210" stroke="#F87171" stroke-width="2.5" marker-end="url(#arrow-c)"/>
+        <text x="272" y="208" fill="#F87171" font-size="11" font-weight="bold">B₂</text>
+        <text x="256" y="220" fill="#F87171" font-size="9" opacity="0.7">cos≈0.12 ✗</text>
+
+        <!-- 범례 -->
+        <rect x="52" y="36" width="10" height="3" fill="#38BDF8" rx="1"/>
+        <text x="66" y="42" fill="#7BA5C8" font-size="9">등록된 주인 인형 벡터</text>
+        <rect x="52" y="50" width="10" height="3" fill="#4ADE80" rx="1"/>
+        <text x="66" y="56" fill="#7BA5C8" font-size="9">현재 프레임 (주인, 유사)</text>
+        <rect x="52" y="64" width="10" height="3" fill="#F87171" rx="1"/>
+        <text x="66" y="70" fill="#7BA5C8" font-size="9">현재 프레임 (다른 인형)</text>
+      </svg>
+
+      <p class="text-em-3xs text-center mt-2 mx-4" style="color:#3A5A7A">
+        512차원 공간에서도 동일한 원리로 동작
+      </p>
+    </div>
+
+  </div>
+</section>

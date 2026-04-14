@@ -1,0 +1,27 @@
+<section class="flex flex-col">
+  <h2 class="text-em-xl font-black mt-0 mb-6 text-center w-full">추종: <span style="color:#A78BFA">커스텀 YOLOv8</span></h2>
+  <div class="flex gap-6 w-full flex-1">
+    <!-- 설명 -->
+    <div class="flex flex-col gap-3 justify-center" style="flex:2">
+      <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
+        <strong style="color:#38BDF8">SAM3</strong>로 인형 마스크를 자동 생성해 학습 데이터를 구축하고,
+        인형 전용 YOLOv8 모델을 훈련했습니다.
+      </p>
+      <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
+        모델은 <strong style="color:#38BDF8">Docker AI 서버</strong>에서 실행되며,
+        로봇은 JPEG 프레임을 전송하고 bbox 결과를 JSON으로 돌려받습니다.
+      </p>
+      <!-- SAM3 설명 -->
+      <div class="rounded-2xl px-4 py-3" style="background:#0A1929;border:1px solid #1E3A5A">
+        <p class="text-em-3xs font-bold m-0 mb-1" style="color:#7BA5C8">SAM3란?</p>
+        <p class="text-em-3xs leading-relaxed m-0" style="color:#8BACC8">
+          Meta의 <strong style="color:#E2E8F0">Segment Anything Model 3</strong>. 이미지 속 물체를 클릭 몇 번만으로 픽셀 단위 마스크로 분리해내는 모델로, 인형 사진에 적용해 배경을 제거한 마스크 이미지를 <strong style="color:#E2E8F0">300개</strong> 생성해 YOLOv8 학습 데이터로 활용했습니다.
+        </p>
+      </div>
+    </div>
+    <!-- 비디오 -->
+    <div class="relative rounded-2xl overflow-hidden" style="flex:3;min-height:500px">
+      <video src="https://woolimi.cdn.prismic.io/woolimi/ad_IuJ1ZCF7ETOYi_how_sam3_works.mp4" class="absolute inset-0 w-full h-full object-contain" autoplay loop muted playsinline></video>
+    </div>
+  </div>
+</section>

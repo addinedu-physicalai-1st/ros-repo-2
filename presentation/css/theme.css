@@ -1,0 +1,230 @@
+/* ============================================
+   Reveal.js overrides — Dark Impact Theme
+   ============================================ */
+
+.reveal {
+  font-family: 'Noto Sans KR', 'Roboto', sans-serif;
+  color: #E2EEFF;
+  background: #0A1628;
+}
+.reveal .controls { display: none !important; }
+.reveal .slides {
+  overflow: hidden;
+  text-align: left;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Dark dot-grid background */
+.reveal .slide-background-content {
+  background-color: #0A1628;
+  background-image: radial-gradient(rgba(56,189,248,0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.reveal .slides section {
+  box-sizing: border-box;
+  overflow: visible !important;
+  padding: 52px 40px 20px;
+  background: transparent;
+  display: flex !important;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  height: auto !important;
+}
+
+.reveal h1, .reveal h2, .reveal h3 {
+  text-transform: none;
+  letter-spacing: -0.01em;
+}
+
+/* 콘텐츠 슬라이드 메인 제목은 흰색으로 명시 */
+.reveal .slides section:not(.title-slide) h2 {
+  color: #FFFFFF !important;
+}
+
+/* 모든 카드 h3 기본값 흰색 */
+.reveal .slides section h3 {
+  color: #FFFFFF !important;
+}
+
+
+/* Title slide */
+.title-slide {
+  padding: 0 !important;
+  justify-content: center !important;
+  background: transparent !important;
+}
+.title-slide::before { display: none !important; }
+
+/* Dark overlay on background-image layer */
+.has-dark-bg .slide-background-content::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+}
+
+/* ─── bg-white → dark card ─── */
+.reveal .slides section .bg-white {
+  background-color: #112236 !important;
+}
+
+/* Dividers inside dark cards */
+.reveal .slides section .bg-white .border-b,
+.reveal .slides section .bg-white .border-t,
+.reveal .slides section .bg-white li.border-b {
+  border-color: #1E3A5A !important;
+}
+
+/* ─── Shadows → dark glow ─── */
+.reveal .slides .shadow-md1 {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 0 1px rgba(56,189,248,0.07) !important;
+}
+.reveal .slides .shadow-md2 {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.55), 0 0 0 1px rgba(56,189,248,0.10) !important;
+}
+.reveal .slides .shadow-md3 {
+  box-shadow: 0 8px 28px rgba(0,0,0,0.65), 0 0 0 1px rgba(56,189,248,0.13) !important;
+}
+
+/* ─── Slide number ─── */
+.reveal .slide-number {
+  background: rgba(10,22,40,0.85) !important;
+  color: #3A5A7A !important;
+  border-radius: 8px !important;
+  padding: 4px 10px !important;
+  font-size: 11px !important;
+  bottom: 12px !important;
+  right: 14px !important;
+  border: 1px solid #1E3A5A !important;
+  cursor: pointer !important;
+  transition: color 0.15s, border-color 0.15s !important;
+}
+.reveal .slide-number:hover {
+  color: #38BDF8 !important;
+  border-color: #38BDF8 !important;
+}
+
+/* ─── Thumbnail: mirror dark theme ─── */
+.slide-thumb-inner .bg-white {
+  background-color: #112236 !important;
+}
+.slide-thumb-inner h2 {
+  color: #FFFFFF !important;
+}
+.slide-thumb-inner h3 {
+  color: #FFFFFF !important;
+}
+.slide-thumb-inner .shadow-md1 {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 0 1px rgba(56,189,248,0.07) !important;
+}
+.slide-thumb-inner .shadow-md2 {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.55), 0 0 0 1px rgba(56,189,248,0.10) !important;
+}
+.slide-thumb-inner .border-b,
+.slide-thumb-inner .border-t,
+.slide-thumb-inner li.border-b {
+  border-color: #1E3A5A !important;
+}
+
+/* ─── Slide thumbnail panel ─── */
+.slide-thumb-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+  margin-bottom: 6px;
+}
+.slide-thumb-item:hover {
+  background: #1A3050;
+  border-color: #2A4A6A;
+}
+.slide-thumb-item.active {
+  background: #0E2840;
+  border-color: #38BDF8;
+}
+.slide-thumb-preview {
+  width: 208px;
+  height: 117px;
+  overflow: hidden;
+  border-radius: 4px;
+  position: relative;
+  background: #0A1628;
+  flex-shrink: 0;
+}
+.slide-thumb-inner {
+  width: 1280px;
+  height: 720px;
+  overflow: hidden;
+  transform: scale(0.1625);
+  transform-origin: top left;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: #0A1628;
+  background-image: radial-gradient(rgba(56,189,248,0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 52px 40px 20px;
+  box-sizing: border-box;
+  color: #E2EEFF;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.slide-thumb-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.slide-thumb-num {
+  font-size: 10px;
+  font-weight: 700;
+  color: #38BDF8;
+  min-width: 20px;
+}
+.slide-thumb-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #E2EEFF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Pipeline / UI arrows ─── */
+.pipeline-arrow {
+  font-family: 'Material Icons Round';
+}
+.pipeline-arrow::after { content: 'arrow_forward'; }
+
+.ui-arrow {
+  font-family: 'Material Icons Round';
+}
+.ui-arrow::after { content: 'arrow_forward'; }
+
+/* ─── Video play button ─── */
+.video-overlay .play-btn {
+  font-family: 'Material Icons Round';
+}
+.video-overlay .play-btn::after { content: 'play_arrow'; }
+
+/* ─── Keyboard shortcut tag ─── */
+kbd {
+  background: #112236;
+  border: 1px solid #1E3A5A;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.9em;
+  color: #7BA5C8;
+}

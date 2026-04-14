@@ -199,6 +199,7 @@ class DollDetector:
         self._last_count = 0
         
         # ── 로컬 YOLO (NCNN) ───────────────────────────────────────
+        self._local_model = None
         if _ULTRALYTICS_AVAILABLE and os.path.exists(model_path):
             try:
                 # Let Ultralytics infer task (detect/segment) from model metadata.
@@ -217,6 +218,7 @@ class DollDetector:
                 )
             except Exception as e:
                 logger.error('DollDetector: 로컬 모델 로드 실패: %s', e)
+                self._local_model = None
         else:
             if not _ULTRALYTICS_AVAILABLE:
                 logger.info('DollDetector: ultralytics 미설치 — 원격 모드만 사용 가능')

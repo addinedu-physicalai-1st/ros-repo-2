@@ -1,0 +1,69 @@
+<section class="!items-center">
+  <h2 class="text-em-xl font-black mt-0 mb-6 text-center w-full">추종: <span style="color:#A78BFA">ReID와 HSV란?</span></h2>
+
+  <div class="grid grid-cols-2 gap-5 w-full">
+
+    <!-- ReID -->
+    <div class="rounded-2xl px-5 py-4 flex flex-col gap-3" style="background:#0A1929;border:1px solid #38BDF8">
+      <div class="flex items-center gap-2">
+        <span class="material-icons-round text-em-sm" style="color:#38BDF8">fingerprint</span>
+        <h3 class="text-em-sm font-extrabold m-0" style="color:#38BDF8">ReID (Re-Identification)</h3>
+      </div>
+      <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
+        딥러닝 모델이 이미지를 <strong style="color:#38BDF8">512차원 특징 벡터</strong>로 변환하고,
+        등록된 벡터와 <strong style="color:#38BDF8;text-decoration:underline;cursor:pointer" onclick="goToSlide(66)">코사인 유사도</strong>로 비교해
+        <strong style="color:#E2E8F0">같은 개체인지 판단</strong>합니다.
+      </p>
+      <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
+        인형 등록 시 외형 벡터를 저장해 두고, 매 프레임마다 감지된 인형들과 비교해 <strong style="color:#E2E8F0">주인 인형을 식별</strong>합니다.
+      </p>
+      <div class="flex gap-2 mt-auto">
+        <div class="flex-1 rounded-xl px-3 py-2 text-em-3xs" style="background:#071320">
+          <div class="font-bold mb-0.5" style="color:#38BDF8">라이브러리</div>
+          <div style="color:#8BACC8">torchreid</div>
+        </div>
+        <div class="flex-1 rounded-xl px-3 py-2 text-em-3xs" style="background:#071320">
+          <div class="font-bold mb-0.5" style="color:#38BDF8">모델</div>
+          <div style="color:#8BACC8">OSNet x0.25</div>
+          <div class="mt-0.5" style="color:#475569">Pi 5에서 실행 가능</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HSV -->
+    <div class="rounded-2xl px-5 py-4 flex flex-col gap-3" style="background:#0A1929;border:1px solid #FB923C">
+      <div class="flex items-center gap-2">
+        <span class="material-icons-round text-em-sm" style="color:#FB923C">palette</span>
+        <h3 class="text-em-sm font-extrabold m-0" style="color:#FB923C">HSV 히스토그램 상관계수</h3>
+      </div>
+      <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
+        색상·채도·명도로 이미지의 색 분포를 히스토그램으로 만들고,
+        <strong style="color:#FB923C;text-decoration:underline;cursor:pointer" onclick="goToSlide(67)">히스토그램 상관계수</strong>로
+        <strong style="color:#E2E8F0">색감이 얼마나 비슷한지</strong> 비교합니다.
+        RGB보다 <strong style="color:#E2E8F0">조명 변화에 강합니다.</strong>
+      </p>
+      <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
+        ReID만으로는 비슷한 외형의 인형을 혼동할 수 있어, 색상 분포를 추가로 비교해 <strong style="color:#E2E8F0">오인식을 줄입니다.</strong>
+      </p>
+      <div class="flex gap-2 mt-auto">
+        <div class="flex-1 rounded-xl px-2 py-1.5 text-center text-em-3xs" style="background:#071320">
+          <div style="color:#F87171">H</div>
+          <div style="color:#8BACC8">색상</div>
+        </div>
+        <div class="flex-1 rounded-xl px-2 py-1.5 text-center text-em-3xs" style="background:#071320">
+          <div style="color:#FB923C">S</div>
+          <div style="color:#8BACC8">채도</div>
+        </div>
+        <div class="flex-1 rounded-xl px-2 py-1.5 text-center text-em-3xs" style="background:#071320">
+          <div style="color:#FDE68A">V</div>
+          <div style="color:#8BACC8">명도</div>
+        </div>
+        <div class="flex-1 rounded-xl px-2 py-1.5 text-center text-em-3xs" style="background:#071320">
+          <div style="color:#FB923C">≥ 0.25</div>
+          <div style="color:#8BACC8">임계값</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>

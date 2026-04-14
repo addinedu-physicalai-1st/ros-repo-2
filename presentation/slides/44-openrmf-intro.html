@@ -1,0 +1,108 @@
+<section class="flex flex-col">
+  <h2 class="text-em-xl font-black mt-0 mb-6 text-center w-full">가이드: <span style="color:#4ADE80">Open-RMF란?</span></h2>
+
+  <div class="flex gap-4 flex-1 w-full min-h-0">
+
+    <!-- 왼쪽: RMF 설명 + 기능들 -->
+    <div class="flex-1 flex flex-col gap-3 justify-center">
+
+      <div class="rounded-2xl px-4 py-3" style="background:#0A1929;border:1px solid #4ADE80">
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="material-icons-round text-em-xs shrink-0" style="color:#4ADE80">hub</span>
+          <p class="text-em-2xs font-extrabold m-0" style="color:#4ADE80">Open-RMF (Robot Middleware Framework)</p>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#8BACC8">
+          싱가포르 OSRF가 주도하는 오픈소스 다중 로봇 통합 플랫폼.<br>
+          <strong style="color:#E2E8F0">제조사가 달라도</strong> 여러 로봇을 하나의 시스템으로 묶어 관리하고,
+          건물 인프라(엘리베이터, 도어)와도 연동합니다.
+        </p>
+      </div>
+
+      <div class="rounded-2xl px-4 py-2.5" style="background:#071320;border:1px solid #4ADE8030">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="material-icons-round text-em-3xs shrink-0" style="color:#4ADE80">label</span>
+          <p class="text-em-3xs font-bold m-0" style="color:#4ADE80">Fleet이란?</p>
+        </div>
+        <p class="text-em-3xs m-0" style="color:#7BA5C8">
+          <strong style="color:#E2E8F0">같은 목적으로 운영되는 로봇 그룹</strong>을 묶은 단위입니다.<br>
+          예) "쑈삥끼 Fleet" = Pinky #54 + Pinky #18. RMF는 Fleet 단위로 로봇을 등록·관리합니다.
+        </p>
+      </div>
+
+      <div class="rounded-2xl px-4 py-3" style="background:#0A1929;border:1px solid #1E3A5A">
+        <p class="text-em-2xs font-bold m-0 mb-2" style="color:#7BA5C8">할 수 있는 것들</p>
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-start gap-2 text-em-3xs">
+            <span class="material-icons-round shrink-0" style="color:#4ADE80;font-size:0.85em;margin-top:1px">check_circle</span>
+            <span style="color:#8BACC8"><strong style="color:#E2E8F0">다중 Fleet 관리</strong> — 이기종 로봇을 단일 시스템으로 통합</span>
+          </div>
+          <div class="flex items-start gap-2 text-em-3xs">
+            <span class="material-icons-round shrink-0" style="color:#4ADE80;font-size:0.85em;margin-top:1px">check_circle</span>
+            <span style="color:#8BACC8"><strong style="color:#E2E8F0">경로 충돌 방지</strong> — Traffic Schedule이 실시간으로 경로 충돌 감지·조율</span>
+          </div>
+          <div class="flex items-start gap-2 text-em-3xs">
+            <span class="material-icons-round shrink-0" style="color:#4ADE80;font-size:0.85em;margin-top:1px">check_circle</span>
+            <span style="color:#8BACC8"><strong style="color:#E2E8F0">작업 할당</strong> — Task Dispatcher가 적합한 로봇에게 임무를 자동 배분</span>
+          </div>
+          <div class="flex items-start gap-2 text-em-3xs">
+            <span class="material-icons-round shrink-0" style="color:#4ADE80;font-size:0.85em;margin-top:1px">check_circle</span>
+            <span style="color:#8BACC8"><strong style="color:#E2E8F0">인프라 연동</strong> — 엘리베이터·자동문을 API로 제어</span>
+          </div>
+          <div class="flex items-start gap-2 text-em-3xs">
+            <span class="material-icons-round shrink-0" style="color:#4ADE80;font-size:0.85em;margin-top:1px">check_circle</span>
+            <span style="color:#8BACC8"><strong style="color:#E2E8F0">배달·순찰 자동화</strong> — 반복 작업을 스케줄링</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 오른쪽: 우리 프로젝트에서 한 것 -->
+    <div class="flex-1 flex flex-col gap-3 justify-center">
+
+      <div class="rounded-2xl px-4 py-3" style="background:#0D2010;border:2px solid #4ADE80">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="material-icons-round text-em-xs shrink-0" style="color:#4ADE80">shopping_cart</span>
+          <p class="text-em-2xs font-extrabold m-0" style="color:#4ADE80">쑈삥끼에서 활용한 것</p>
+        </div>
+        <div class="flex flex-col gap-2">
+
+          <div class="rounded-xl px-3 py-2" style="background:#071320">
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:#4ADE80"></span>
+              <p class="text-em-3xs font-bold m-0" style="color:#E2E8F0">Fleet 등록</p>
+            </div>
+            <p class="text-em-3xs m-0 pl-3.5" style="color:#8BACC8">Pinky #54, #18을 EasyFullControl API로 RMF Fleet에 등록</p>
+          </div>
+
+          <div class="rounded-xl px-3 py-2" style="background:#071320">
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:#4ADE80"></span>
+              <p class="text-em-3xs font-bold m-0" style="color:#E2E8F0">가이드 내비게이션</p>
+            </div>
+            <p class="text-em-3xs m-0 pl-3.5" style="color:#8BACC8">고객 가이드 요청 시 RMF가 해당 상품 웨이포인트로 Nav2 goal 자동 발행</p>
+          </div>
+
+          <div class="rounded-xl px-3 py-2" style="background:#071320">
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:#4ADE80"></span>
+              <p class="text-em-3xs font-bold m-0" style="color:#E2E8F0">경로 충돌 방지</p>
+            </div>
+            <p class="text-em-3xs m-0 pl-3.5" style="color:#8BACC8">두 로봇의 경로가 겹치면 협상을 통해 한 쪽을 우회, 우회 불가 시 대기</p>
+          </div>
+
+          <div class="rounded-xl px-3 py-2" style="background:#071320">
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:#38BDF8"></span>
+              <p class="text-em-3xs font-bold m-0" style="color:#E2E8F0">로봇 코드 무변경</p>
+            </div>
+            <p class="text-em-3xs m-0 pl-3.5" style="color:#8BACC8">Pi의 SM·BT 코드는 그대로 — RMF Fleet Adapter 레이어에서 투명하게 처리</p>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
