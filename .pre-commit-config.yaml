@@ -6,4 +6,5 @@ repos:
         entry: bash scripts/hooks/precommit_session_gate.sh
         language: system
         pass_filenames: false
+        verbose: true
         stages: [pre-commit]
