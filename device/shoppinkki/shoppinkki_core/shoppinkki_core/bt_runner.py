@@ -216,7 +216,7 @@ class BTRunner:
             elif status == py_trees.common.Status.FAILURE:
                 if self._on_nav_failed:
                     self._on_nav_failed()
-                self.sm.resume_tracking()
+                self.sm.enter_waiting()
 
         elif state == 'RETURNING':
             if status == py_trees.common.Status.SUCCESS:
