@@ -23,6 +23,24 @@ def make_rm():
     return rm
 
 
+class TestStartup:
+    def test_start_resets_sessions_on_startup(self):
+        with patch('control_service.robot_manager.db') as mock_db:
+            mock_db.get_all_robots.return_value = [
+                {'robot_id': '54', 'current_mode': 'CHARGING', 'pos_x': 0.0,
+                 'pos_y': 0.0, 'battery_level': 100, 'is_locked_return': 0,
+                 'active_user_id': None},
+            ]
+            mock_db.update_robot.return_value = None
+            mock_db.log_event.return_value = None
+            mock_db.log_staff_call.return_value = 1
+
+            rm = RobotManager()
+            rm.start()
+
+            mock_db.reset_sessions_on_startup.assert_called_once()
+
+
 class TestStatusUpdate:
     def test_status_admin_flat_web_has_fleet_snapshot(self):
         admin_msgs = []

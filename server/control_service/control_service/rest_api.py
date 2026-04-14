@@ -145,6 +145,9 @@ def create_app(robot_manager: 'RobotManager',
         except Exception as e:
             logger.warning('failed to deactivate expired sessions: %s', e)
 
+        def _sync_active_user_cache(rid: str) -> None:
+            robot_manager.sync_active_user_from_db(rid)
+
         data = request.get_json(silent=True) or {}
         robot_id = data.get('robot_id')
         user_id  = data.get('user_id')
@@ -171,6 +174,7 @@ def create_app(robot_manager: 'RobotManager',
             # 같은 사용자가 같은 로봇에 재로그인 → 기존 세션 반환
             if existing.get('user_id') == user_id:
                 cart = db.get_cart_by_session(existing['session_id'])
+                _sync_active_user_cache(robot_id)
                 return jsonify({
                     'session_id': existing['session_id'],
                     'cart_id': cart['cart_id'] if cart else None,
@@ -184,6 +188,7 @@ def create_app(robot_manager: 'RobotManager',
             # 같은 로봇이면 idempotent: 새 세션 만들지 않고 기존 세션 반환
             if existing_user.get('robot_id') == robot_id:
                 cart = db.get_cart_by_session(existing_user['session_id'])
+                _sync_active_user_cache(robot_id)
                 return jsonify({
                     'session_id': existing_user['session_id'],
                     'cart_id': cart['cart_id'] if cart else None,
@@ -204,6 +209,7 @@ def create_app(robot_manager: 'RobotManager',
             existing = db.get_active_session_by_robot(robot_id)
             if existing and existing.get('user_id') == user_id:
                 cart = db.get_cart_by_session(existing['session_id'])
+                _sync_active_user_cache(robot_id)
                 return jsonify({
                     'session_id': existing['session_id'],
                     'cart_id': cart['cart_id'] if cart else None,
@@ -212,6 +218,7 @@ def create_app(robot_manager: 'RobotManager',
             if existing_user:
                 if existing_user.get('robot_id') == robot_id:
                     cart = db.get_cart_by_session(existing_user['session_id'])
+                    _sync_active_user_cache(robot_id)
                     return jsonify({
                         'session_id': existing_user['session_id'],
                         'cart_id': cart['cart_id'] if cart else None,
@@ -233,6 +240,7 @@ def create_app(robot_manager: 'RobotManager',
             logger.warning('publish_cmd not wired; start_session dropped for robot=%s', robot_id)
 
         cart = db.get_cart_by_session(session_id)
+        _sync_active_user_cache(robot_id)
         return jsonify({
             'session_id': session_id,
             'cart_id': cart['cart_id'] if cart else None,
@@ -259,13 +267,15 @@ def create_app(robot_manager: 'RobotManager',
     @app.patch('/session/<int:session_id>')
     def update_session(session_id: int):
         data = request.get_json(silent=True) or {}
-        if data.get('is_active') == 0:
+        if data.get('is_active') in (0, False):
             session = db.get_session(session_id)
             if not session:
                 return jsonify({'error': 'not found'}), 404
+            rid = session['robot_id']
             db.end_session(session_id)
-            db.update_robot(session['robot_id'], active_user_id=None)
-            db.log_event(session['robot_id'], 'SESSION_END', session.get('user_id'))
+            db.update_robot(rid, active_user_id=None)
+            db.log_event(rid, 'SESSION_END', session.get('user_id'))
+            robot_manager.set_cached_active_user_id(rid, None)
         return jsonify({'ok': True})
 
     # ── Cart ──────────────────────────────────

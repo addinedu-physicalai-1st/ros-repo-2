@@ -33,6 +33,12 @@ class _DummyRobotManager:
     def get_available_parking(self):
         return None
 
+    def sync_active_user_from_db(self, robot_id: str) -> None:
+        pass
+
+    def set_cached_active_user_id(self, robot_id: str, user_id) -> None:
+        pass
+
 
 @pytest.fixture()
 def client():
