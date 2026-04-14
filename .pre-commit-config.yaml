@@ -1,10 +1,24 @@
 repos:
   - repo: local
     hooks:
-      - id: session-login-gate
-        name: Session/Login Regression Gate
-        entry: bash scripts/hooks/precommit_session_gate.sh
+      - id: session-robot-manager-test
+        name: "session: robot_manager"
+        entry: bash -lc "cd server/control_service && PYTHONPATH=.:/home/rokmc/shoppinkki/device/shoppinkki/shoppinkki_core python3 -m pytest test/test_robot_manager.py -q"
         language: system
         pass_filenames: false
-        verbose: true
         stages: [pre-commit]
+        files: ^(server|ui)/
+      - id: session-rest-api-test
+        name: "session: rest_api_session"
+        entry: bash -lc "cd server/control_service && PYTHONPATH=.:/home/rokmc/shoppinkki/device/shoppinkki/shoppinkki_core python3 -m pytest test/test_rest_api_session.py -q"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^(server|ui)/
+      - id: session-auth-flow-test
+        name: "session: auth_flow"
+        entry: bash -lc "cd server/customer_web && python3 -m pytest tests/test_auth_flow.py -q"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^server/customer_web/
