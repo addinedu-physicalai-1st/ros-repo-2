@@ -156,14 +156,14 @@ def create_app(robot_manager: 'RobotManager',
         if not user:
             return jsonify({'error': 'user not found'}), 404
 
-        # Check robot availability by mode
+        # Check robot availability by mode (strict: IDLE only)
         robot = db.get_robot(robot_id)
-        if robot:
-            mode = robot.get('current_mode')
-            if mode == 'CHARGING':
-                return jsonify({'error': 'robot is charging'}), 409
-            if mode in ('RETURNING', 'LOCKED'):
-                return jsonify({'error': 'robot is returning'}), 409
+        if not robot:
+            return jsonify({'error': 'robot not found'}), 404
+
+        mode = robot.get('current_mode')
+        if mode != 'IDLE':
+            return jsonify({'error': 'robot not idle', 'mode': mode}), 409
 
         # Check for existing active session on same robot
         existing = db.get_active_session_by_robot(robot_id)
@@ -260,7 +260,12 @@ def create_app(robot_manager: 'RobotManager',
     def update_session(session_id: int):
         data = request.get_json(silent=True) or {}
         if data.get('is_active') == 0:
+            session = db.get_session(session_id)
+            if not session:
+                return jsonify({'error': 'not found'}), 404
             db.end_session(session_id)
+            db.update_robot(session['robot_id'], active_user_id=None)
+            db.log_event(session['robot_id'], 'SESSION_END', session.get('user_id'))
         return jsonify({'ok': True})
 
     # ── Cart ──────────────────────────────────
