@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS event_log CASCADE;
 DROP TABLE IF EXISTS robot CASCADE;
 DROP TABLE IF EXISTS card CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS llm_fewshot_example CASCADE;
 DROP TABLE IF EXISTS boundary_config CASCADE;
 DROP TABLE IF EXISTS product_text_embedding CASCADE;
 DROP TABLE IF EXISTS zone_text_embedding CASCADE;
@@ -57,11 +58,20 @@ CREATE TABLE product_text_embedding (
 );
 
 CREATE TABLE zone_text_embedding (
-    id          SERIAL PRIMARY KEY,
-    zone_id     INT NOT NULL UNIQUE REFERENCES zone(zone_id) ON DELETE CASCADE,
-    text        TEXT NOT NULL,
-    embedding   vector(384),
-    model_name  VARCHAR(100) NOT NULL
+    id               SERIAL PRIMARY KEY,
+    zone_id          INT NOT NULL UNIQUE REFERENCES zone(zone_id) ON DELETE CASCADE,
+    text             TEXT NOT NULL,
+    embedding        vector(384),
+    model_name       VARCHAR(100) NOT NULL,
+    empathy_prefix   TEXT,
+    required_keywords TEXT
+);
+
+CREATE TABLE llm_fewshot_example (
+    id              SERIAL PRIMARY KEY,
+    input_query     TEXT NOT NULL,
+    output_keywords TEXT NOT NULL,
+    description     TEXT
 );
 
 CREATE TABLE boundary_config (
