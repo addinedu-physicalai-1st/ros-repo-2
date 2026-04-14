@@ -6,6 +6,7 @@ Run:
 """
 
 import pytest
+from transitions import MachineError
 from shoppinkki_core.state_machine import ShoppinkiSM
 
 
@@ -195,17 +196,17 @@ class TestReturning:
 
 
 class TestLocked:
-    def test_tracking_to_locked_auto_returning(self):
-        """LOCKED immediately auto-transitions to RETURNING."""
+    def test_waiting_to_locked(self):
         sm = make_sm()
         reach_tracking(sm)
+        sm.enter_waiting()
         sm.enter_locked()
-        # LOCKED auto-fires enter_returning() in on_enter_LOCKED
-        assert sm.state == 'RETURNING'
+        assert sm.state == 'LOCKED'
 
     def test_is_locked_return_true_after_locked(self):
         sm = make_sm()
         reach_tracking(sm)
+        sm.enter_waiting()
         sm.enter_locked()
         assert sm.is_locked_return is True
 
@@ -213,25 +214,22 @@ class TestLocked:
         session_ended = []
         sm = make_sm(on_session_end=lambda: session_ended.append(True))
         reach_tracking(sm)
-        sm.enter_locked()        # → RETURNING
-        sm.enter_charging()      # → CHARGING (locked)
-        # Session should NOT end yet (staff_resolved needed)
-        assert session_ended == []
-
-    def test_waiting_to_locked(self):
-        sm = make_sm()
-        reach_tracking(sm)
         sm.enter_waiting()
-        sm.enter_locked()
-        assert sm.state == 'RETURNING'
+        sm.enter_locked()        # → LOCKED
+        # LOCKED 진입만으로는 세션 종료하지 않는다.
+        assert session_ended == []
+        sm.handle_staff_resolved()  # LOCKED → CHARGING + session_end
+        assert sm.state == 'CHARGING'
+        assert session_ended == [True]
 
-    def test_guiding_to_locked_auto_returning(self):
+    def test_guiding_to_locked_rejected(self):
         sm = make_sm()
         reach_tracking(sm)
         sm.enter_guiding()
-        sm.enter_locked()
-        assert sm.state == 'RETURNING'
-        assert sm.is_locked_return is True
+        with pytest.raises(MachineError):
+            sm.enter_locked()
+        assert sm.state == 'GUIDING'
+        assert sm.is_locked_return is False
 
 
 class TestHalted:
@@ -266,9 +264,9 @@ class TestHalted:
     def test_staff_resolved_clears_locked_return(self):
         sm = make_sm()
         reach_tracking(sm)
-        sm.enter_locked()     # → RETURNING, is_locked_return=True
-        sm.enter_charging()   # → CHARGING (locked)
+        sm.enter_locked()     # → LOCKED, is_locked_return=True
         sm.handle_staff_resolved()
+        assert sm.state == 'CHARGING'
         assert sm.is_locked_return is False
 
 

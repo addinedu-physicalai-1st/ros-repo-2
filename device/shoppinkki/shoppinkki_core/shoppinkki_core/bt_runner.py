@@ -289,7 +289,7 @@ class BTRunner:
                     except Exception:
                         logger.exception('BTRunner: has_unpaid_items callback failed')
                 if unpaid:
-                    self.sm.enter_locked()   # LOCKED -> RETURNING(auto)
+                    self.sm.enter_locked()   # LOCKED 유지
                 else:
                     self.sm.enter_returning()
 

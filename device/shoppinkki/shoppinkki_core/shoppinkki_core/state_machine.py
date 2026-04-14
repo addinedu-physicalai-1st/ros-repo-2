@@ -7,7 +7,7 @@
                               ↕
                     TRACKING_CHECKOUT
                               ↕
-                    LOCKED → RETURNING → CHARGING
+                    LOCKED            RETURNING → CHARGING
                                        (HALTED from any)
 
 Uses the ``transitions`` library (pip install transitions).
@@ -31,7 +31,7 @@ class ShoppinkiSM:
     on_state_changed:
         Called with the new state string whenever the SM transitions.
     on_locked:
-        Called when entering LOCKED (before auto-transitioning to RETURNING).
+        Called when entering LOCKED.
     on_halted:
         Called when entering HALTED.
     on_session_end:
@@ -99,14 +99,14 @@ class ShoppinkiSM:
          'source': 'TRACKING', 'dest': 'TRACKING_CHECKOUT'},
 
         # ── Locked / Returning ────────────────────────
-        # TRACKING / TRACKING_CHECKOUT / WAITING → LOCKED  (unpaid items)
+        # WAITING → LOCKED  (unpaid items)
         {'trigger': 'enter_locked',
-         'source': ['TRACKING', 'TRACKING_CHECKOUT', 'WAITING'],
+         'source': ['WAITING'],
          'dest': 'LOCKED'},
 
-        # TRACKING / TRACKING_CHECKOUT / WAITING / LOCKED → RETURNING
+        # TRACKING / TRACKING_CHECKOUT / WAITING / GUIDING / SEARCHING → RETURNING
         {'trigger': 'enter_returning',
-         'source': ['TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'LOCKED'],
+         'source': ['TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'GUIDING', 'SEARCHING'],
          'dest': 'RETURNING'},
 
         # RETURNING → CHARGING  (BT5 Nav2 SUCCESS)
@@ -118,9 +118,9 @@ class ShoppinkiSM:
         {'trigger': 'enter_halted',
          'source': '*', 'dest': 'HALTED'},
 
-        # HALTED → CHARGING  (staff_resolved)
+        # HALTED / LOCKED → CHARGING  (staff_resolved)
         {'trigger': '_trigger_staff_resolved',
-         'source': 'HALTED', 'dest': 'CHARGING'},
+         'source': ['HALTED', 'LOCKED'], 'dest': 'CHARGING'},
 
         # ── Force IDLE (테스트/디버그용) ─────────────────
         {'trigger': 'force_idle',
@@ -189,14 +189,12 @@ class ShoppinkiSM:
         self._notify('WAITING')
 
     def on_enter_LOCKED(self) -> None:
-        """Set is_locked_return and immediately auto-transition to RETURNING."""
+        """Set is_locked_return and keep LOCKED until explicit resolution."""
         self.is_locked_return = True
         logger.info('SM → LOCKED  (is_locked_return=True)')
         self._notify('LOCKED')
         if self._on_locked:
             self._on_locked()
-        # Immediately go to RETURNING (BT5 귀환 시작)
-        self.enter_returning()
 
     def on_enter_RETURNING(self) -> None:
         logger.info('SM → RETURNING  (is_locked_return=%s)', self.is_locked_return)
@@ -229,11 +227,11 @@ class ShoppinkiSM:
     def handle_staff_resolved(self) -> None:
         """Handle staff_resolved command from admin.
 
-        - HALTED state  → clear flag, transition to CHARGING.
+        - HALTED / LOCKED state → clear flag, transition to CHARGING.
         - CHARGING state (locked) → clear flag, end session.
         """
         self.is_locked_return = False
-        if self.state == 'HALTED':
+        if self.state in ('HALTED', 'LOCKED'):
             self._trigger_staff_resolved()
         elif self.state == 'CHARGING':
             # Robot arrived at charging station with locked flag; staff resolved
