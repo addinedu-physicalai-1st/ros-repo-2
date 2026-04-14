@@ -68,13 +68,13 @@ class TestModeReturning:
         cmd(sm, h, cmd='mode', value='RETURNING')
         assert sm.state == 'RETURNING'
 
-    def test_unpaid_to_locked_then_returning(self):
+    def test_unpaid_waiting_to_locked(self):
         sm, h = make_handler(has_unpaid_items=lambda: True)
         sm.charging_completed()
         sm.enter_tracking()
+        sm.enter_waiting()
         cmd(sm, h, cmd='mode', value='RETURNING')
-        # LOCKED auto-transitions to RETURNING
-        assert sm.state == 'RETURNING'
+        assert sm.state == 'LOCKED'
         assert sm.is_locked_return is True
 
     def test_tracking_checkout_to_returning(self):
@@ -109,14 +109,14 @@ class TestModeReturning:
         cmd(sm, h, cmd='mode', value='RETURNING')
         assert sm.state == 'RETURNING'
 
-    def test_guiding_unpaid_to_locked_then_returning(self):
+    def test_guiding_unpaid_to_returning(self):
         sm, h = make_handler(has_unpaid_items=lambda: True)
         sm.charging_completed()
         sm.enter_tracking()
         sm.enter_guiding()
         cmd(sm, h, cmd='mode', value='RETURNING')
         assert sm.state == 'RETURNING'
-        assert sm.is_locked_return is True
+        assert sm.is_locked_return is False
 
 
 class TestResumeTracking:
@@ -190,9 +190,10 @@ class TestStaffResolved:
         sm, h = make_handler()
         sm.charging_completed()
         sm.enter_tracking()
-        sm.enter_locked()    # → RETURNING, is_locked_return=True
-        sm.enter_charging()  # → CHARGING
+        sm.enter_waiting()
+        sm.enter_locked()    # → LOCKED, is_locked_return=True
         cmd(sm, h, cmd='staff_resolved')
+        assert sm.state == 'CHARGING'
         assert sm.is_locked_return is False
 
 
