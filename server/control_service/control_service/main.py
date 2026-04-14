@@ -72,7 +72,7 @@ def main() -> None:
     # ── 7. Flask REST API (main thread) ───────
     app = create_app(robot_manager=rm, camera_stream=cam)
     logger.info('REST API starting on %s:%d', REST_HOST, REST_PORT)
-    app.run(host=REST_HOST, port=REST_PORT, debug=False, use_reloader=False)
+    app.run(host=REST_HOST, port=REST_PORT, debug=False, use_reloader=False, threaded=True)
 
 
 if __name__ == '__main__':
