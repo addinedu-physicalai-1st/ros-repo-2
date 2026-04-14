@@ -70,6 +70,12 @@ try:
 except ImportError:
     _NAV_BT_AVAILABLE = False
 
+# BT3 (WAITING) can load even when BT1/2 are Mock — timeout must still run in sim/dev.
+try:
+    from shoppinkki_nav.bt_waiting import create_waiting_tree as _create_waiting_bt3
+except ImportError:
+    _create_waiting_bt3 = None
+
 try:
     from pinkylib import Camera as PinkyCamera
     _PINKYLIB_AVAILABLE = True
@@ -178,10 +184,18 @@ class ShoppinkiMainNode(Node):
         else:
             self._bt_tracking = py_trees.behaviours.Running(name='MockBT1')
             self._bt_searching = py_trees.behaviours.Running(name='MockBT2')
-            self._bt_waiting = py_trees.behaviours.Running(name='MockBT3')
+            if _create_waiting_bt3 is not None:
+                self._bt_waiting = _create_waiting_bt3(
+                    publisher=self._robot_publisher,
+                    get_scan=self._get_forward_scan,
+                )
+                self.get_logger().info(
+                    'BT3: WaitAndAvoid 사용 (BT1/2/4/5는 Mock — perception/nav 미설치)')
+            else:
+                self._bt_waiting = py_trees.behaviours.Running(name='MockBT3')
             self._bt_guiding = py_trees.behaviours.Running(name='MockBT4')
             self._bt_returning = py_trees.behaviours.Running(name='MockBT5')
-            self.get_logger().warning('BT1~BT5: py_trees Mock (nav/perception 미설치)')
+            self.get_logger().warning('BT1/2/4/5: py_trees Mock (nav/perception 미설치)')
 
         # ── Nav2 action client (admin_goto / navigate_to) ─────
         self._nav2_client = None
