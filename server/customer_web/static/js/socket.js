@@ -34,6 +34,8 @@ let waitingTimerId = null;
 let waitingTimeoutSec = DEFAULT_WAITING_TIMEOUT_SEC;
 let waitingTimeoutHandled = false;
 let waitingRedirectTimerId = null;
+/** After UI hits 00:00, emit RETURNING if still WAITING (delay ms; BT usually wins first). */
+const WAITING_RETURNING_FALLBACK_MS = 2500;
 // 도착한 구역명 캐시
 let arrivedZoneName = "";
 
@@ -714,6 +716,19 @@ function _syncWaitingCountdown(prevMode, mode) {
 
     if (remainSec === 0 && !waitingTimeoutHandled) {
       waitingTimeoutHandled = true;
+      if (waitingRedirectTimerId) {
+        clearTimeout(waitingRedirectTimerId);
+        waitingRedirectTimerId = null;
+      }
+      waitingRedirectTimerId = setTimeout(() => {
+        waitingRedirectTimerId = null;
+        if (currentMode === "WAITING") {
+          console.info(
+            "[socket] WAITING: UI deadline reached; fallback mode RETURNING"
+          );
+          socket.emit("mode", { value: "RETURNING" });
+        }
+      }, WAITING_RETURNING_FALLBACK_MS);
     }
   };
 
