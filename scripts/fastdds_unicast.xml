@@ -7,7 +7,7 @@
     export ROS_DISCOVERY_SERVER=  (비워야 함 — Simple Discovery 사용)
 
   각 머신의 IP를 <address> 에 등록해야 합니다.
-  현재 구성: Pi#54(192.168.102.54), Pi#18(192.168.102.18), 서버PC(192.168.102.7)
+  현재 구성: Pi#54(192.168.102.54), Pi#18(192.168.102.18), 서버PC(192.168.102.100)
 -->
 <dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
   <profiles>
@@ -27,7 +27,7 @@
             </locator>
             <locator>
               <udpv4>
-                <address>192.168.102.7</address>
+                <address>192.168.102.100</address>
               </udpv4>
             </locator>
           </metatrafficUnicastLocatorList>
@@ -44,7 +44,7 @@
             </locator>
             <locator>
               <udpv4>
-                <address>192.168.102.7</address>
+                <address>192.168.102.100</address>
               </udpv4>
             </locator>
           </initialPeersList>
