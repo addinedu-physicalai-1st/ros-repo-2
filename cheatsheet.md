@@ -149,7 +149,7 @@ cd /home/rokmc/shoppinkki
 pre-commit install
 ```
 
-- `git commit` 시, staged 파일에 `server/control_service/` 또는 `server/customer_web/`가 포함되면 세션 게이트가 실행됩니다.
+- `git commit` 시, staged 파일에 `server/` 또는 `ui/`가 포함되면 세션 게이트가 실행됩니다.
 - 기본 실행 테스트:
   - `server/control_service/test/test_robot_manager.py` (서버 내부 상태 전이/세션 정리/active_user 캐시 동기화 유닛 테스트)
   - `server/control_service/test/test_rest_api_session.py` (`/session` 생성/중복 요청/충돌 처리(idempotency) 통합 테스트)

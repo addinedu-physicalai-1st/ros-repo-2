@@ -9,21 +9,21 @@ if [[ -z "${staged_files}" ]]; then
   exit 0
 fi
 
-touch_control=0
 touch_customer=0
+touch_gate_scope=0
 
 while IFS= read -r file; do
   case "$file" in
-    server/control_service/*)
-      touch_control=1
-      ;;
     server/customer_web/*)
       touch_customer=1
+      ;;
+    server/*|ui/*)
+      touch_gate_scope=1
       ;;
   esac
 done <<< "$staged_files"
 
-if [[ $touch_control -eq 0 && $touch_customer -eq 0 ]]; then
+if [[ $touch_gate_scope -eq 0 ]]; then
   exit 0
 fi
 
