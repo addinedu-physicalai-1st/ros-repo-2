@@ -32,12 +32,13 @@ echo "[pre-commit] session/login regression gate start"
 run_test() {
   local title="$1"
   shift
-  echo "[pre-commit] running: $title"
+  echo "[pre-commit] RUNNING: $title"
   if ! "$@"; then
     echo "[pre-commit] FAILED: $title"
     echo "[pre-commit] hint: session reset on startup / active_user_id sync / mode gate / auth route"
     exit 1
   fi
+  echo "[pre-commit] PASSED: $title"
 }
 
 run_test \
@@ -52,6 +53,8 @@ if [[ $touch_customer -eq 1 ]]; then
   run_test \
     "customer_web:test_auth_flow.py" \
     bash -lc "cd server/customer_web && python3 -m pytest tests/test_auth_flow.py -q"
+else
+  echo "[pre-commit] SKIPPED: customer_web:test_auth_flow.py (no customer_web changes)"
 fi
 
 echo "[pre-commit] session/login regression gate passed"
