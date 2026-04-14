@@ -484,7 +484,7 @@ class ShoppinkiMainNode(Node):
             subprocess.run(
                 ['ros2', 'param', 'set', f'/{ns}/controller_server',
                  'FollowPath.allow_reversing', reversing],
-                capture_output=True, timeout=3)
+                capture_output=True, timeout=10)
         except Exception as e:
             self.get_logger().warning('set_nav2_mode: %s' % e)
         self.get_logger().info('Nav2 mode → %s (reversing=%s)' % (mode, reversing))
