@@ -51,6 +51,14 @@ class TestModeWaiting:
         cmd(sm, h, cmd='mode', value='WAITING')
         assert sm.state == 'WAITING'
 
+    def test_searching_to_waiting(self):
+        sm, h = make_handler()
+        sm.charging_completed()
+        sm.enter_tracking()
+        sm.enter_searching()
+        cmd(sm, h, cmd='mode', value='WAITING')
+        assert sm.state == 'WAITING'
+
 
 class TestModeReturning:
     def test_empty_cart_to_returning(self):
@@ -119,6 +127,15 @@ class TestResumeTracking:
         sm.enter_waiting()
         cmd(sm, h, cmd='resume_tracking')
         assert sm.state == 'TRACKING'
+
+    def test_resume_from_waiting_to_previous_tracking_checkout(self):
+        sm, h = make_handler()
+        sm.charging_completed()
+        sm.enter_tracking()
+        sm.enter_tracking_checkout()
+        sm.enter_waiting()
+        cmd(sm, h, cmd='resume_tracking')
+        assert sm.state == 'TRACKING_CHECKOUT'
 
 
 class TestNavigateTo:

@@ -127,7 +127,7 @@ class CmdHandler:
         state = self.sm.state
 
         if value == 'WAITING':
-            if state in ('TRACKING', 'TRACKING_CHECKOUT'):
+            if state in ('TRACKING', 'TRACKING_CHECKOUT', 'SEARCHING'):
                 self.sm.enter_waiting()
             else:
                 logger.warning('mode=WAITING ignored in state=%s', state)

@@ -158,6 +158,7 @@ class BTRunner:
         self._bt_tracking = bt_tracking
         self._bt_searching = bt_searching
         self._bt_guiding = bt_guiding
+        self._bt_waiting = bt_waiting
 
         logger.info('BTRunner: py_trees 트리 구성 완료')
         logger.info('\n' + py_trees.display.unicode_tree(root=self._root))
@@ -295,11 +296,11 @@ class BTRunner:
             'TRACKING': self._bt_tracking,
             'TRACKING_CHECKOUT': self._bt_tracking,
             'SEARCHING': self._bt_searching,
+            'WAITING': self._bt_waiting,
         }
-        # BT3~BT5: root children의 leaf로 접근
+        # BT4~BT5: root children의 leaf로 접근
         children = self._root.children
         state_map = {
-            'WAITING': children[2].children[1] if len(children) > 2 else None,
             'GUIDING': children[3].children[1] if len(children) > 3 else None,
             'RETURNING': children[4].children[1] if len(children) > 4 else None,
         }

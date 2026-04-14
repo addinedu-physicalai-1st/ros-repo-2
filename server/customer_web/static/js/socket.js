@@ -204,8 +204,10 @@ function updatePanelVisibility(mode) {
     btnWait.disabled = false;
     if (mode === "WAITING") {
       btnWait.innerHTML = "⏸ 대기 중";
-      btnWait.onclick = () => {};
-      btnWait.disabled = true;
+      btnWait.onclick = () => {
+        // 토글 동작: WAITING 중 재클릭하면 이전 추종 상태로 복귀
+        socket.emit("resume_tracking", {});
+      };
     } else if (isGuiding) {
       btnWait.innerHTML = "⏸ 안내 중단";
       btnWait.onclick = () => {

@@ -92,7 +92,6 @@ class TestTracking:
         sm.enter_waiting()
         assert sm.state == 'WAITING'
 
-
 class TestGuiding:
     def test_tracking_to_guiding(self):
         sm = make_sm()
