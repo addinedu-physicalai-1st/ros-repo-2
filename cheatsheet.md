@@ -151,12 +151,15 @@ pre-commit install
 
 - `git commit` 시, staged 파일에 `server/control_service/` 또는 `server/customer_web/`가 포함되면 세션 게이트가 실행됩니다.
 - 기본 실행 테스트:
-  - `server/control_service/test/test_robot_manager.py`
-  - `server/control_service/test/test_rest_api_session.py`
+  - `server/control_service/test/test_robot_manager.py` (서버 내부 상태 전이/세션 정리/active_user 캐시 동기화 유닛 테스트)
+  - `server/control_service/test/test_rest_api_session.py` (`/session` 생성/중복 요청/충돌 처리(idempotency) 통합 테스트)
 - `server/customer_web/` 변경이 있으면 추가로:
-  - `server/customer_web/tests/test_auth_flow.py`
+  - `server/customer_web/tests/test_auth_flow.py` (로그인 후 `login/register/main/blocked` 라우팅 분기 테스트)
+- 즉, 세션 생성/유지/종료 + 로그인 분기 회귀를 집중 점검합니다.
 - 실패하면 커밋이 중단됩니다. 수정 후 `git add` -> `git commit`으로 다시 시도하세요.
 - `--no-verify`로 우회 가능하지만 기본적으로 사용하지 않는 것을 권장합니다.
+- 이 게이트가 통과하면 세션 생성/유지/종료와 로그인 분기의 핵심 회귀를 막는 데 신뢰할 수 있습니다.
+- 단, 완전 보장은 아닙니다. DB 미연결 시 일부 테스트가 skip될 수 있고, 운영 타이밍 이슈/미포함 시나리오는 별도 점검이 필요합니다.
 
 ```bash
 # pre-commit hook 등록 해제
