@@ -28,8 +28,8 @@ amcl:
     laser_min_range: -1.0
     laser_model_type: "likelihood_field"
     max_beams: 60
-    max_particles: 2000
-    min_particles: 500
+    max_particles: 1000
+    min_particles: 200
     odom_frame_id: "__NS__/odom"
     pf_err: 0.05
     pf_z: 0.99
@@ -121,6 +121,7 @@ controller_server:
       allow_final_rotation: true
       use_final_rotation: true
       use_approach_velocity_scaling: true
+      approach_velocity_scaling_dist: 0.3
       min_approach_linear_velocity: 0.05
       inflation_cost_scaling_factor: 3.0
       regulated_linear_scaling_min_radius: 0.5
@@ -133,8 +134,8 @@ local_costmap:
   local_costmap:
     ros__parameters:
       use_sim_time: false
-      update_frequency: 5.0
-      publish_frequency: 2.0
+      update_frequency: 3.0
+      publish_frequency: 1.0
       global_frame: __NS__/odom
       robot_base_frame: __NS__/base_footprint
       rolling_window: true
@@ -175,8 +176,8 @@ global_costmap:
     ros__parameters:
       use_sim_time: false
       footprint_padding: 0.0
-      update_frequency: 5.0
-      publish_frequency: 2.0
+      update_frequency: 2.0
+      publish_frequency: 1.0
       global_frame: map
       robot_base_frame: __NS__/base_footprint
       footprint: '[[0.08, 0.055], [0.08, -0.055], [-0.07, -0.055], [-0.07, 0.055]]'
