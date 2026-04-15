@@ -214,6 +214,12 @@ class ShoppinkiMainNode(Node):
             if hasattr(self._bt_returning, '_set_nav2_mode'):
                 self._bt_returning._set_nav2_mode = self._set_nav2_mode
                 self.get_logger().info('BT5 RETURNING: Nav2 mode switcher connected')
+            if hasattr(self._bt_returning, '_set_inflation'):
+                self._bt_returning._set_inflation = self._set_inflation
+                self.get_logger().info('BT5 RETURNING: inflation switcher connected')
+            if hasattr(self._bt_returning, '_get_current_pose'):
+                self._bt_returning._get_current_pose = self._get_live_pose
+                self.get_logger().info('BT5 RETURNING: pose callback connected')
         else:
             self.get_logger().warning('nav2_msgs not available — admin_goto disabled')
 
@@ -553,6 +559,25 @@ class ShoppinkiMainNode(Node):
         except Exception as e:
             self.get_logger().warning('set_nav2_mode: %s' % e)
         self.get_logger().info('Nav2 mode → %s (reversing=%s)' % (mode, reversing))
+
+    _INFLATION_RADIUS_DEFAULT = 0.06
+
+    def _set_inflation(self, enable: bool) -> None:
+        """Inflation 동적 제어 — 좁은 복도 통과 시 비활성화."""
+        import subprocess
+        ns = f'robot_{ROBOT_ID}'
+        radius = str(self._INFLATION_RADIUS_DEFAULT) if enable else '0.0'
+
+        for costmap in ('local_costmap/local_costmap', 'global_costmap/global_costmap'):
+            try:
+                subprocess.run(
+                    ['ros2', 'param', 'set', f'/{ns}/{costmap}',
+                     'inflation_layer.inflation_radius', radius],
+                    capture_output=True, timeout=10)
+            except Exception as e:
+                self.get_logger().warning('set_inflation(%s): %s' % (costmap, e))
+        self.get_logger().info('Inflation → %s (radius=%s)' % (
+            'ON' if enable else 'OFF', radius))
 
     def _send_nav_goal_guiding(self, x: float, y: float, theta: float) -> bool:
         """GUIDING 모드: collision detection ON, 벽에서 떨어진 경로."""

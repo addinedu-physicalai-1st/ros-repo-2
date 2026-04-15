@@ -30,14 +30,20 @@ ROW_ENTRANCE_NODES: dict[str, tuple[float, float, float]] = {
     '18': (0.245, -0.606, 0.0),   # 2열_입구 (P1과 같은 y)
 }
 
+# 하단_복도 노드 — 결제구역/출구 근처에서 RETURNING 시 경유
+LOWER_CORRIDOR_NODE: tuple[float, float, float] = (0.12, -1.137, 0.0)
+# 이 y좌표 이하면 결제구역/출구 근처 → 하단_복도 경유
+LOWER_AREA_THRESHOLD_Y: float = -1.2
+
 
 
 class _Phase(Enum):
     INIT = auto()
     KEEPOUT_ON = auto()
     GET_SLOT = auto()
-    NAVIGATING = auto()   # 열 입구까지 (충돌 감지 ON)
-    DOCKING = auto()      # 후진으로 충전소까지 (충돌 감지 OFF)
+    PRE_NAVIGATE = auto()  # 하단_복도까지 (무조건 경유)
+    NAVIGATING = auto()    # 열 입구까지 (충돌 감지 ON)
+    DOCKING = auto()       # 후진으로 충전소까지 (충돌 감지 OFF)
     DONE = auto()
     FAILED = auto()
 
@@ -54,6 +60,8 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
         send_nav_goal: Optional[Callable[[float, float, float], bool]] = None,
         set_nav2_mode: Optional[Callable[[str], None]] = None,
         set_keepout_filter: Optional[Callable[[bool], None]] = None,
+        set_inflation: Optional[Callable[[bool], None]] = None,
+        get_current_pose: Optional[Callable[[], tuple[float, float, float]]] = None,
         on_nav_failed: Optional[Callable[[], None]] = None,
     ) -> None:
         super().__init__(name)
@@ -63,9 +71,14 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
         self._send_nav_goal = send_nav_goal
         self._set_nav2_mode = set_nav2_mode
         self._set_keepout_filter = set_keepout_filter
+        self._set_inflation = set_inflation
+        self._get_current_pose = get_current_pose
         self._on_nav_failed = on_nav_failed
         self._phase = _Phase.INIT
         self._slot: Optional[dict] = None
+        self._pre_nav_thread: Optional[threading.Thread] = None
+        self._pre_nav_done: bool = False
+        self._pre_nav_success: bool = False
         self._nav_thread: Optional[threading.Thread] = None
         self._nav_done: bool = False
         self._nav_success: bool = False
@@ -76,6 +89,9 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
     def initialise(self) -> None:
         self._phase = _Phase.INIT
         self._slot = None
+        self._pre_nav_thread = None
+        self._pre_nav_done = False
+        self._pre_nav_success = False
         self._nav_thread = None
         self._nav_done = False
         self._nav_success = False
@@ -97,6 +113,9 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
 
         if self._phase == _Phase.GET_SLOT:
             return self._tick_get_slot()
+
+        if self._phase == _Phase.PRE_NAVIGATE:
+            return self._tick_pre_navigate()
 
         if self._phase == _Phase.NAVIGATING:
             return self._tick_navigate()
@@ -138,8 +157,62 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
             return py_trees.common.Status.FAILURE
 
         logger.info('ReturnToCharger: slot=%s', self._slot.get('zone_id'))
+        # 결제구역/출구 근처(y < threshold)일 때만 하단_복도 경유
+        if self._get_current_pose:
+            _, cy, _ = self._get_current_pose()
+            if cy < LOWER_AREA_THRESHOLD_Y:
+                logger.info('ReturnToCharger: y=%.2f < %.2f → 하단_복도 경유',
+                            cy, LOWER_AREA_THRESHOLD_Y)
+                self._phase = _Phase.PRE_NAVIGATE
+                return py_trees.common.Status.RUNNING
+        logger.info('ReturnToCharger: 하단_복도 스킵 → 열 입구 직행')
         self._phase = _Phase.NAVIGATING
         return py_trees.common.Status.RUNNING
+
+    def _tick_pre_navigate(self) -> py_trees.common.Status:
+        """0단계: 하단_복도 노드까지 이동 (inflation OFF로 좁은 구간 통과)."""
+        if self._send_nav_goal is None:
+            self._fail()
+            return py_trees.common.Status.FAILURE
+
+        if self._pre_nav_thread is None:
+            cx, cy, ctheta = LOWER_CORRIDOR_NODE
+            logger.info('ReturnToCharger: [0단계] 하단_복도 (%.2f, %.2f) inflation OFF',
+                        cx, cy)
+            if self._set_nav2_mode:
+                self._set_nav2_mode('guiding')
+            # 좁은 복도 통과를 위해 inflation 비활성화
+            if self._set_inflation:
+                self._set_inflation(False)
+
+            def _run():
+                try:
+                    self._pre_nav_success = self._send_nav_goal(cx, cy, ctheta)
+                except Exception as e:
+                    logger.error('ReturnToCharger: pre-nav exception: %s', e)
+                    self._pre_nav_success = False
+                finally:
+                    self._pre_nav_done = True
+
+            self._pre_nav_thread = threading.Thread(target=_run, daemon=True)
+            self._pre_nav_thread.start()
+            return py_trees.common.Status.RUNNING
+
+        if not self._pre_nav_done:
+            return py_trees.common.Status.RUNNING
+
+        # 하단_복도 통과 후 inflation 복원
+        if self._set_inflation:
+            self._set_inflation(True)
+
+        if self._pre_nav_success:
+            logger.info('ReturnToCharger: 하단_복도 도착, inflation ON → 열 입구 이동')
+            self._phase = _Phase.NAVIGATING
+            return py_trees.common.Status.RUNNING
+        else:
+            logger.warning('ReturnToCharger: 하단_복도 이동 실패')
+            self._fail()
+            return py_trees.common.Status.FAILURE
 
     def _tick_navigate(self) -> py_trees.common.Status:
         """1단계: 열 입구 노드까지 이동 (충돌 감지 ON)."""
@@ -256,6 +329,8 @@ def create_returning_tree(
     send_nav_goal: Optional[Callable[[float, float, float], bool]] = None,
     set_nav2_mode: Optional[Callable[[str], None]] = None,
     set_keepout_filter: Optional[Callable[[bool], None]] = None,
+    set_inflation: Optional[Callable[[bool], None]] = None,
+    get_current_pose: Optional[Callable[[], tuple[float, float, float]]] = None,
     on_nav_failed: Optional[Callable[[], None]] = None,
 ) -> py_trees.behaviour.Behaviour:
     """BT5 트리를 생성하여 반환."""
@@ -267,5 +342,7 @@ def create_returning_tree(
         send_nav_goal=send_nav_goal,
         set_nav2_mode=set_nav2_mode,
         set_keepout_filter=set_keepout_filter,
+        set_inflation=set_inflation,
+        get_current_pose=get_current_pose,
         on_nav_failed=on_nav_failed,
     )
