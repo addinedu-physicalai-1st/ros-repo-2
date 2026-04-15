@@ -29,11 +29,12 @@ let currentMode = "IDLE";
 let followDisabled = false;
 // WAITING 카운트다운: main.html 이 `window.__SHOPPINKKI_WAITING_TIMEOUT_SEC__` 로
 // shoppinkki_core.config.WAITING_TIMEOUT 과 동기. 이후 status.waiting_timeout_sec 로 덮어씀.
+const WAITING_TIMEOUT_INJECT_FALLBACK_SEC = 300;
 const DEFAULT_WAITING_TIMEOUT_SEC = (typeof window !== "undefined" &&
   typeof window.__SHOPPINKKI_WAITING_TIMEOUT_SEC__ === "number" &&
   window.__SHOPPINKKI_WAITING_TIMEOUT_SEC__ > 0)
   ? Math.floor(window.__SHOPPINKKI_WAITING_TIMEOUT_SEC__)
-  : 300;
+  : WAITING_TIMEOUT_INJECT_FALLBACK_SEC;
 let waitingDeadlineMs = null;
 let waitingTimerId = null;
 let waitingTimeoutSec = DEFAULT_WAITING_TIMEOUT_SEC;

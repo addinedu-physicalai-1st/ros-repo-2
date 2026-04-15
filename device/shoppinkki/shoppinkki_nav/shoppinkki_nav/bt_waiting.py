@@ -14,12 +14,7 @@ from typing import Callable, List, Optional, Tuple
 import py_trees
 
 from shoppinkki_interfaces import RobotPublisherInterface
-
-try:
-    from shoppinkki_core.config import MIN_DIST, WAITING_TIMEOUT
-except ImportError:
-    MIN_DIST = 0.25
-    WAITING_TIMEOUT = 300
+from shoppinkki_core.config import MIN_DIST, WAITING_TIMEOUT
 
 AVOIDANCE_STEP = 0.30
 
