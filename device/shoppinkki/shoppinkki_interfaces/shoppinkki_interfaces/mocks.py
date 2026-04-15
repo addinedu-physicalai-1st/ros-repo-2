@@ -53,42 +53,6 @@ class MockDollDetector:
         self._ready = ready
 
 
-# ──────────────────────────────────────────────
-# MockQRScanner
-# ──────────────────────────────────────────────
-
-class MockQRScanner:
-    """Controllable mock for QRScannerInterface."""
-
-    def __init__(self) -> None:
-        self._on_scanned: Optional[Callable[[str], None]] = None
-        self._on_timeout: Optional[Callable[[], None]] = None
-        self._running: bool = False
-
-    def start(
-        self,
-        on_scanned: Callable[[str], None],
-        on_timeout: Callable[[], None],
-    ) -> None:
-        self._on_scanned = on_scanned
-        self._on_timeout = on_timeout
-        self._running = True
-
-    def stop(self) -> None:
-        self._running = False
-
-    # ── test helpers ──
-
-    def simulate_scan(self, qr_data: str) -> None:
-        """Simulate a successful QR scan."""
-        if self._on_scanned and self._running:
-            self._on_scanned(qr_data)
-
-    def simulate_timeout(self) -> None:
-        """Simulate a scan timeout."""
-        if self._on_timeout and self._running:
-            self._on_timeout()
-
 
 # ──────────────────────────────────────────────
 # MockNavBT

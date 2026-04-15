@@ -8,7 +8,6 @@ from shoppinkki_interfaces import (
     MockBoundaryMonitor,
     MockDollDetector,
     MockNavBT,
-    MockQRScanner,
     MockRobotPublisher,
     DollDetectorInterface,
     NavBTInterface,
@@ -60,29 +59,6 @@ class TestMockDollDetector:
     def test_implements_protocol(self):
         assert isinstance(self.det, DollDetectorInterface)
 
-
-class TestMockQRScanner:
-    def test_scan_callback(self):
-        scanner = MockQRScanner()
-        results = []
-        scanner.start(on_scanned=results.append, on_timeout=lambda: None)
-        scanner.simulate_scan('product:42')
-        assert results == ['product:42']
-
-    def test_timeout_callback(self):
-        scanner = MockQRScanner()
-        timed_out = []
-        scanner.start(on_scanned=lambda x: None, on_timeout=lambda: timed_out.append(True))
-        scanner.simulate_timeout()
-        assert timed_out
-
-    def test_no_callback_after_stop(self):
-        scanner = MockQRScanner()
-        results = []
-        scanner.start(on_scanned=results.append, on_timeout=lambda: None)
-        scanner.stop()
-        scanner.simulate_scan('product:99')
-        assert results == []
 
 
 class TestMockNavBT:
