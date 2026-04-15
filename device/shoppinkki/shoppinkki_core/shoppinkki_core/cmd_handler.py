@@ -139,10 +139,10 @@ class CmdHandler:
                 return
 
             unpaid = self._has_unpaid_items() if self._has_unpaid_items else False
-            if unpaid and state == 'WAITING':
-                self.sm.enter_locked()      # WAITING에서만 LOCKED
+            if state == 'WAITING':
+                self.sm.waiting_exit_by_unpaid(unpaid)
             else:
-                self.sm.enter_returning()   # → RETURNING
+                self.sm.enter_returning()
 
         else:
             logger.warning('mode: unknown value=%s', value)

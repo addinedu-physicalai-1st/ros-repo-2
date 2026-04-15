@@ -281,17 +281,13 @@ class BTRunner:
         elif state == 'WAITING':
             if status == py_trees.common.Status.FAILURE:
                 logger.info('BTRunner: BT3 WAITING timeout')
-                # WAITING 타임아웃 시 미결제 여부에 따라 LOCKED/RETURNING 분기.
                 unpaid = False
                 if self._has_unpaid_items:
                     try:
                         unpaid = bool(self._has_unpaid_items())
                     except Exception:
                         logger.exception('BTRunner: has_unpaid_items callback failed')
-                if unpaid:
-                    self.sm.enter_locked()   # LOCKED 유지
-                else:
-                    self.sm.enter_returning()
+                self.sm.waiting_exit_by_unpaid(unpaid)
 
     def _get_active_bt(self, state: str):
         """현재 SM 상태에 대응하는 leaf BT를 반환."""

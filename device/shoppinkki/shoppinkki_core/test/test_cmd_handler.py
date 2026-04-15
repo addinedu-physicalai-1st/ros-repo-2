@@ -19,12 +19,14 @@ def cmd(sm, handler, **payload):
 class TestStartSession:
     def test_charging_to_idle(self):
         sm, h = make_handler()
+        sm.charging_completed()
         cmd(sm, h, cmd='start_session', user_id='test01')
         assert sm.state == 'IDLE'
 
     def test_callback_fired(self):
         users = []
         sm, h = make_handler(on_start_session=users.append)
+        sm.charging_completed()
         cmd(sm, h, cmd='start_session', user_id='test01')
         assert users == ['test01']
 
