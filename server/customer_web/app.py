@@ -19,7 +19,9 @@ Flask + Flask-SocketIO 진입점. 포트 8501.
 
 import logging
 import os
+import re
 import yaml
+from pathlib import Path
 
 import eventlet
 eventlet.monkey_patch()  # noqa: E402 — 반드시 최상단에서 패치
@@ -38,15 +40,47 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# WAITING 카운트다운/BT3 — ``shoppinkki_core.config.WAITING_TIMEOUT`` 과 동일 소스
-try:
-    from shoppinkki_core.config import WAITING_TIMEOUT as _WAITING_TIMEOUT_SEC
-except ImportError:  # customer_web 단독 실행 시 (테스트 등)
-    _WAITING_TIMEOUT_SEC = 300
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_CORE_CONFIG_PATH = (
+    _REPO_ROOT / "device/shoppinkki/shoppinkki_core/shoppinkki_core/config.py"
+)
+_WAITING_TIMEOUT_RE = re.compile(
+    r"^WAITING_TIMEOUT:\s*int\s*=\s*(\d+)", re.MULTILINE
+)
+
+
+def _load_waiting_timeout_sec() -> int:
+    """WAITING seconds: edit only ``shoppinkki_core.config.WAITING_TIMEOUT``.
+
+    Try package import, then parse monorepo ``config.py`` if import fails.
+    """
+    try:
+        from shoppinkki_core.config import WAITING_TIMEOUT
+
+        return int(WAITING_TIMEOUT)
+    except ImportError:
+        pass
+    try:
+        if _CORE_CONFIG_PATH.is_file():
+            text = _CORE_CONFIG_PATH.read_text(encoding="utf-8")
+            m = _WAITING_TIMEOUT_RE.search(text)
+            if m:
+                v = int(m.group(1))
+                logger.info(
+                    "WAITING_TIMEOUT=%ss (parsed repo config.py; package not importable)",
+                    v,
+                )
+                return v
+    except OSError as e:
+        logger.warning("config.py read failed: %s", e)
     logger.warning(
-        "shoppinkki_core.config 미가능: waiting_timeout 기본 %ss (워크스페이스 소스 권장)",
-        _WAITING_TIMEOUT_SEC,
+        "WAITING_TIMEOUT fallback300 (fix path or install shoppinkki_core): %s",
+        _CORE_CONFIG_PATH,
     )
+    return 300
+
+
+_WAITING_TIMEOUT_SEC = _load_waiting_timeout_sec()
 
 # ── 환경 변수 ──────────────────────────────────────────────────
 PORT = int(os.environ.get("PORT", 8501))
