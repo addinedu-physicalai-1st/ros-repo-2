@@ -224,6 +224,22 @@ class ShoppinkiSM:
         else:
             self.resume_to_tracking()
 
+    def waiting_exit_by_unpaid(self, has_unpaid: bool) -> None:
+        """Leave WAITING: unpaid cart -> LOCKED, else -> RETURNING.
+
+        Used by BTRunner (BT3 timeout) and CmdHandler (mode RETURNING while WAITING).
+        """
+        if self.state != 'WAITING':
+            logger.warning(
+                'waiting_exit_by_unpaid ignored in state=%s (expected WAITING)',
+                self.state,
+            )
+            return
+        if has_unpaid:
+            self.enter_locked()
+        else:
+            self.enter_returning()
+
     def handle_staff_resolved(self) -> None:
         """Handle staff_resolved command from admin.
 
