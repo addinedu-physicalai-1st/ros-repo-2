@@ -232,6 +232,29 @@ class TestLocked:
         assert sm.is_locked_return is False
 
 
+class TestWaitingExitByUnpaid:
+    def test_unpaid_to_locked(self):
+        sm = make_sm()
+        reach_tracking(sm)
+        sm.enter_waiting()
+        sm.waiting_exit_by_unpaid(True)
+        assert sm.state == 'LOCKED'
+        assert sm.is_locked_return is True
+
+    def test_paid_to_returning(self):
+        sm = make_sm()
+        reach_tracking(sm)
+        sm.enter_waiting()
+        sm.waiting_exit_by_unpaid(False)
+        assert sm.state == 'RETURNING'
+
+    def test_ignored_when_not_waiting(self):
+        sm = make_sm()
+        reach_tracking(sm)
+        sm.waiting_exit_by_unpaid(True)
+        assert sm.state == 'TRACKING'
+
+
 class TestHalted:
     def test_tracking_to_halted(self):
         sm = make_sm()
@@ -264,6 +287,7 @@ class TestHalted:
     def test_staff_resolved_clears_locked_return(self):
         sm = make_sm()
         reach_tracking(sm)
+        sm.enter_waiting()
         sm.enter_locked()     # → LOCKED, is_locked_return=True
         sm.handle_staff_resolved()
         assert sm.state == 'CHARGING'
@@ -317,6 +341,7 @@ class TestCallbacks:
         locked_events = []
         sm = make_sm(on_locked=lambda: locked_events.append(True))
         reach_tracking(sm)
+        sm.enter_waiting()
         sm.enter_locked()
         assert locked_events == [True]
 
