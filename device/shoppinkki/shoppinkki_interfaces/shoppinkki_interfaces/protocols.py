@@ -85,22 +85,6 @@ class DollDetectorInterface(Protocol):
         ...
 
 
-@runtime_checkable
-class QRScannerInterface(Protocol):
-    """Scans QR codes from the camera and reports results via callbacks."""
-
-    def start(
-        self,
-        on_scanned: Callable[[str], None],
-        on_timeout: Callable[[], None],
-    ) -> None:
-        """Start scanning. Calls on_scanned(data) or on_timeout() after 30 s."""
-        ...
-
-    def stop(self) -> None:
-        """Stop scanning."""
-        ...
-
 
 @runtime_checkable
 class NavBTInterface(Protocol):
