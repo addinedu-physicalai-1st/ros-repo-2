@@ -22,7 +22,7 @@ import py_trees
 from shoppinkki_interfaces import DollDetectorInterface, RobotPublisherInterface
 
 try:
-    from shoppinkki_core.config import ANGULAR_Z_MAX, MIN_DIST, SEARCH_TIMEOUT
+    from shoppinkki_core.config import ANGULAR_Z_MAX, MIN_DIST, SEARCH_TIMEOUT, SEARCH_MIN_DURATION
 except ImportError:
     ANGULAR_Z_MAX = 1.0
     MIN_DIST = 0.25
@@ -135,13 +135,18 @@ class CheckDirection(py_trees.behaviour.Behaviour):
                 return py_trees.common.Status.FAILURE
 
             now = time.monotonic()
-            # Debounce direction flips to avoid shaking around one angle.
-            if (now - self._ctx.last_switch_time) >= 1.2:
+            # ── [PERFECTION] Debounce direction flips ──
+            # 최소 SEARCH_MIN_DURATION 동안은 한 방향으로 회전하도록 강제함 (Wiggly search 방지)
+            if (now - self._ctx.last_switch_time) >= SEARCH_MIN_DURATION:
                 self._ctx.direction = -self._ctx.direction
                 self._ctx.last_switch_time = now
                 self._ctx.blocked_streak = 0
-                logger.info('CheckDirection: switched to %s (after stable block)',
+                logger.info('CheckDirection: switching direction to %s (after stable block)',
                             'CCW' if self._ctx.direction > 0 else 'CW')
+            else:
+                # 아직 시간이 안 됐으면 비록 막혔더라도 FAILURE 를 반환하여 Rotate를 건너뜀 (잠시 멈춤 효과)
+                # 이는 좁은 공간에서 계속 부딪히는 것을 방지함.
+                return py_trees.common.Status.FAILURE
 
         return py_trees.common.Status.SUCCESS
 
@@ -153,11 +158,13 @@ class CheckDirection(py_trees.behaviour.Behaviour):
             n = len(distances)
             step = n / 360.0
             if direction > 0:
-                start_idx = int(45 * step)
-                end_idx = int(135 * step)
+                # ── Narrower Check Arc (25°~75°) ──
+                # 너무 넓게(45~135) 보면 복도의 반대편 벽까지 감지해서 계속 Flip 됨.
+                start_idx = int(25 * step)
+                end_idx = int(75 * step)
             else:
-                start_idx = int(225 * step)
-                end_idx = int(315 * step)
+                start_idx = int(285 * step)
+                end_idx = int(335 * step)
             arc = [distances[i % n] for i in range(start_idx, end_idx)]
             # Filter noise and very close points (some lidars have internal noise < 0.05m)
             valid = [d for d in arc if d > 0.05]
