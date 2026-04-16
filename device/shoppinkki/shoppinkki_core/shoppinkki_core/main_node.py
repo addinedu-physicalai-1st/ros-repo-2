@@ -875,11 +875,9 @@ class ShoppinkiMainNode(Node):
 
             try:
                 if _PINKYLIB_AVAILABLE and isinstance(cap, PinkyCamera):
-                    frame_rgb = cap.get_frame()
-                    if frame_rgb is None:
+                    frame = cap.get_frame()
+                    if frame is None:
                         raise RuntimeError('pinky camera returned empty frame')
-                    # BGR로 변환 (기존 시스템 스펙)
-                    frame = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
                 else:
                     ret, frame = cap.read()
                     if not ret:

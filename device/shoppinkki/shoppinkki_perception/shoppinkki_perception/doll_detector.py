@@ -28,6 +28,8 @@ import threading
 import time
 from typing import Dict, List, Optional, Tuple
 import os
+import cv2
+import numpy as np
 try:
     from ultralytics import YOLO
     _ULTRALYTICS_AVAILABLE = True
@@ -42,16 +44,59 @@ from .reid_engine import ReIDEngine
 logger = logging.getLogger(__name__)
 
 # ── 상수 ──────────────────────────────────────────────────────────────────────
-MIN_CONFIDENCE: float = float(os.environ.get('MIN_CONFIDENCE', '0.45'))  # YOLO 최소 신뢰도 (0.25 -> 0.45)
+MIN_CONFIDENCE: float = float(os.environ.get('MIN_CONFIDENCE', '0.42'))  # YOLO 최소 신뢰도 (0.45 -> 0.42)
 REGISTRATION_MIN_CONFIDENCE: float = 0.20  # 등록 단계 추가 신뢰도 임계값
 REGISTRATION_MIN_AREA_RATIO: float = 0.005  # 등록 단계 bbox 최소 화면 점유율
 REGISTRATION_SNAPSHOT_COOLDOWN: float = 0.4  # 등록 스냅샷 최소 간격(초)
 REGISTRATION_STABLE_FRAMES: int = 1  # 동일 후보 연속 감지 필요 프레임 수
-REID_THRESHOLD: float = float(os.environ.get('REID_THRESHOLD', '0.55')) # ReID 임계값 (0.40 -> 0.55)
-HSV_THRESHOLD: float = 0.45       # HSV 히스토그램 상관계수 임계값 (0.25 -> 0.45)
+REID_THRESHOLD: float = float(os.environ.get('REID_THRESHOLD', '0.48')) # ReID 임계값 (0.55 -> 0.48)
+HSV_THRESHOLD: float = 0.38       # HSV 히스토그램 상관계수 임계값 (0.45 -> 0.38)
 CALIBRATION_ADD_THRESHOLD: float = 0.94  # 이 이상이면 이미 커버됨 → 갤러리 추가 안 함
 MAX_GALLERY_SIZE: int = 50        # 최대 갤러리 크기
 VERIFY_FRAMES: int = 5            # safe_id 잠금 필요 연속 매칭 횟수
+
+# ── Smoothing & Prediction ────────────────────────────────────────────────────
+class BBoxSmoother:
+    """객체 추종 안정화를 위한 Alpha-Beta 필터 (초경량 Kalman)."""
+    def __init__(self, alpha: float = 0.45, beta: float = 0.15):
+        self.alpha = alpha
+        self.beta = beta
+        self.state = None # [cx, cy, area]
+        self.velocity = np.zeros(3)
+        self.last_time = 0.0
+
+    def update(self, measurement: np.ndarray):
+        now = time.monotonic()
+        dt = 0.1 # 기본값
+        if self.last_time > 0:
+            dt = max(0.01, min(0.5, now - self.last_time))
+        self.last_time = now
+
+        if self.state is None:
+            self.state = measurement
+            self.velocity = np.zeros(3)
+            return self.state
+
+        # Prediction
+        pred_state = self.state + self.velocity * dt
+        
+        # Correction
+        res = measurement - pred_state
+        self.state = pred_state + self.alpha * res
+        self.velocity = self.velocity + (self.beta / dt) * res
+        
+        return self.state
+
+    def predict(self, dt: float = 0.05) -> np.ndarray:
+        """현재 속도를 기반으로 미래 시점의 위치 예측."""
+        if self.state is None:
+            return np.zeros(3)
+        return self.state + self.velocity * dt
+
+    def reset(self):
+        self.state = None
+        self.velocity = np.zeros(3)
+        self.last_time = 0.0
 CALIBRATION_INTERVAL: int = 30    # 자동 보정 프레임 간격
 
 
@@ -77,6 +122,10 @@ class DollDetector:
         self._host = yolo_host
         self._port = yolo_port
         self._lock = threading.Lock()
+        # ── Smoothing ──
+        self._smoother = BBoxSmoother()
+        self._smoother_miss_count = 0
+        self._predict_dt = 0.05 # 50ms prediction to mask latency
         # Owner following defaults to remote server to save Pi 5 resources.
         self._force_local_ncnn = os.environ.get('FORCE_LOCAL_NCNN', 'false').lower() == 'true'
         # Runtime NCNN confidence threshold (0.0~1.0), default 0.25
@@ -498,15 +547,17 @@ class DollDetector:
                 break
 
             # 원격 서버에서 준 피처가 있으면 활용, 없으면 추출
-            if d.get('features'):
+            if d.get('features') and any(v != 0 for v in d['features']):
                 reid_vec = d['features']
+                # ReID가 이미 서버에서 처리되었으므로 ROI 추출은 생략 가능 (HSV 가 필요할 때만 수행)
             else:
                 roi = self._extract_roi(frame, d)
                 if roi is None:
                     continue
                 reid_vec = self._reid.extract_features(roi).tolist()
                 
-            # HSV 는 로컬에서 보조적으로 계산 (색상 필터용)
+            # HSV 는 로컬에서 보조적으로 계산 (색상 필터용 - 조명 변화 대응)
+            # ReID 피처가 서버에서 왔더라도 ROI가 필요하므로 추출 (이미 추출했으면 재사용)
             roi = self._extract_roi(frame, d)
             if roi is None:
                 continue
@@ -538,6 +589,10 @@ class DollDetector:
         # _latest 갱신
         with self._lock:
             if best_det is not None:
+                # ── Smoothing Update ──
+                m = np.array([best_det.get('cx', 0), best_det.get('cy', 0), best_det.get('area', 0)])
+                self._smoother.update(m)
+
                 self._latest = Detection(
                     cx=float(best_det.get('cx', 0)),
                     cy=float(best_det.get('cy', 0)),
@@ -577,6 +632,7 @@ class DollDetector:
                     self._latest = None
             else:
                 self._latest = None
+                self._smoother.reset()
 
         # 자동 보정: 30프레임마다 갤러리 확장
         if (best_det is not None and best_reid_vec is not None
@@ -584,8 +640,37 @@ class DollDetector:
             self._try_calibrate(best_reid_vec)
 
     def get_latest(self) -> Optional[Detection]:
+        """최신 감지 결과 반환 (Smoothing/Prediction 적용)."""
         with self._lock:
-            return self._latest
+            # ── Extrapolation (Momentum) ──
+            # 감지 결과가 없더라도 최근 10프레임 내에 감지가 있었다면 예측값 반환
+            # (Short-term occlusion or frame drop 보정)
+            if self._latest is None:
+                if self._smoother.state is not None and self._smoother_miss_count < 10:
+                    self._smoother_miss_count += 1
+                    pred = self._smoother.predict(0.1 * self._smoother_miss_count) # 점진적 가중치 예측
+                    return Detection(
+                        cx=float(pred[0]), cy=float(pred[1]), area=float(pred[2]),
+                        confidence=0.1, # 확신도는 낮춤
+                    )
+                return None
+            
+            # ── Latency Compensation Prediction ──
+            # 서버에서 오는 지연 시간(약 50ms)을 상쇄하기 위해 현재 속도로 예측
+            self._smoother_miss_count = 0
+            pred = self._smoother.predict(self._predict_dt)
+            
+            # 원본을 복제한 뒤 예측값 덮어쓰기
+            d = self._latest
+            return Detection(
+                cx=float(pred[0]),
+                cy=float(pred[1]),
+                area=float(pred[2]),
+                confidence=d.confidence,
+                bbox=d.bbox,
+                mask=d.mask,
+                features=d.features
+            )
 
     def is_ready(self) -> bool:
         with self._lock:

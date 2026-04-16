@@ -31,12 +31,15 @@ LINEAR_X_MAX: float = 0.12    # max linear  velocity (m/s)
 ANGULAR_Z_MAX: float = 0.60   # Lowered to 0.60 to prevent overshooting turns
 
 # ── Obstacle avoidance (LiDAR) ────────────────
-MIN_DIST: float = 0.25        # min obstacle distance before stopping (m)
+MIN_DIST: float = 0.20        # lowered for more freedom during search (0.25 -> 0.20)
+AVOID_DIST: float = 0.40      # start "shying away" from side obstacles (m)
+AVOID_KP: float = 0.50        # avoidance steering strength
 
 # ── State machine timeouts ────────────────────
-N_MISS_FRAMES: int = 16       # tolerate brief close-range occlusions before SEARCHING
-SEARCH_TIMEOUT: float = 30.0  # SEARCHING → WAITING timeout (s)
-WAITING_TIMEOUT: int = 5      # WAITING timeout for test (restore to 300 for production)
+N_MISS_FRAMES: int = 40       # tolerate brief close-range occlusions before SEARCHING
+SEARCH_TIMEOUT: float = 600.0 # SEARCHING → WAITING timeout (s)
+SEARCH_MIN_DURATION: float = 3.0  # Increased to 3.0 to force longer search turns
+WAITING_TIMEOUT: int = 300    # WAITING  → RETURNING timeout (s)
 
 # ── Battery ───────────────────────────────────
 BATTERY_THRESHOLD: int = 20          # battery % below which HALTED triggers

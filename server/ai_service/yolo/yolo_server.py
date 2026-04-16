@@ -56,7 +56,7 @@ CONFIG_PATH = os.path.join(_script_dir, 'active_model.json')
 # ── 환경 변수 ──────────────────────────────────────────────────────────────────
 MODEL_PATH = os.environ.get('MODEL_PATH', os.path.join(MODELS_DIR, 'best1.pt'))
 FALLBACK_MODEL = os.environ.get('FALLBACK_MODEL', 'best1.pt')
-YOLO_CONF = float(os.environ.get('YOLO_CONFIDENCE', '0.60')) # Stricter detection
+YOLO_CONF = float(os.environ.get('YOLO_CONFIDENCE', '0.55')) # Slightly less strict
 HOST = os.environ.get('HOST', '0.0.0.0')
 PORT = int(os.environ.get('PORT', '5005'))
 ENABLE_REID = os.environ.get('ENABLE_REID', 'true').lower() == 'true'
