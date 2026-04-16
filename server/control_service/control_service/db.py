@@ -203,6 +203,16 @@ def get_active_session_by_user(user_id: str) -> Optional[Dict]:
 
 def end_session(session_id: int) -> None:
     with _cursor() as cur:
+        cur.execute(
+            'SELECT cart_id FROM CART WHERE session_id = %s',
+            (session_id,),
+        )
+        cart = cur.fetchone()
+        if cart and cart.get('cart_id'):
+            cur.execute(
+                'DELETE FROM CART_ITEM WHERE cart_id = %s',
+                (cart['cart_id'],),
+            )
         # Update session
         cur.execute(
             'UPDATE SESSION SET is_active = FALSE WHERE session_id = %s',

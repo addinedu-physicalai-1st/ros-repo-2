@@ -75,6 +75,8 @@ class RobotManager:
         self._lock = threading.Lock()
         self._running = False
         self._cleanup_thread: Optional[threading.Thread] = None
+        # Debounce repeated checkout_zone_enter (pose jitter) for auto-return.
+        self._last_checkout_auto_return: dict[str, float] = {}
 
         # Inject after construction
         self.publish_cmd:      Optional[Callable[[str, dict], None]] = None
@@ -251,14 +253,70 @@ class RobotManager:
             if not cart:
                 logger.debug('checkout_zone_enter: no cart robot=%s', robot_id)
                 return
-            if not db.has_unpaid_items(cart['cart_id']):
-                logger.info('checkout_zone_enter: no unpaid items robot=%s', robot_id)
+            if db.has_unpaid_items(cart['cart_id']):
+                self._push_web(robot_id, {
+                    'type': 'checkout_zone_enter',
+                    'robot_id': robot_id,
+                })
+                logger.info('checkout_zone_enter → web robot=%s', robot_id)
                 return
-            self._push_web(robot_id, {
-                'type': 'checkout_zone_enter',
-                'robot_id': robot_id,
-            })
-            logger.info('checkout_zone_enter → web robot=%s', robot_id)
+
+            # No unpaid items (empty or all paid): RETURNING + end session.
+            with self._lock:
+                st = self._states.get(robot_id)
+                cached_mode = st.mode if st is not None else 'OFFLINE'
+            if cached_mode not in ('TRACKING', 'TRACKING_CHECKOUT'):
+                logger.info(
+                    'checkout_zone_enter: empty cart, skip auto-return '
+                    '(robot=%s mode=%s)',
+                    robot_id, cached_mode,
+                )
+                return
+
+            _CHECKOUT_AUTO_RETURN_DEBOUNCE_S = 5.0
+            now = time.monotonic()
+            last = self._last_checkout_auto_return.get(robot_id, 0.0)
+            if now - last < _CHECKOUT_AUTO_RETURN_DEBOUNCE_S:
+                logger.debug(
+                    'checkout_zone_enter: auto-return debounced robot=%s',
+                    robot_id,
+                )
+                return
+            self._last_checkout_auto_return[robot_id] = now
+
+            user_id = session.get('user_id')
+            self._relay_to_pi(robot_id, {'cmd': 'mode', 'value': 'RETURNING'})
+            with self._lock:
+                st = self._get_or_create(robot_id)
+                prev_mode = st.mode
+                st.mode = 'RETURNING'
+            if prev_mode != 'RETURNING':
+                db.update_robot(robot_id, current_mode='RETURNING')
+            with self._lock:
+                st = self._states[robot_id]
+            self._push_status(robot_id, st)
+
+            self._clear_active_cart(
+                robot_id, reason='checkout_zone_enter_auto_end_empty_cart',
+            )
+            try:
+                db.end_session(session['session_id'])
+                db.update_robot(robot_id, active_user_id=None)
+            except Exception:
+                logger.exception(
+                    'checkout_zone_enter: session end failed robot=%s', robot_id,
+                )
+            self.set_cached_active_user_id(robot_id, None)
+            self._push_event(
+                robot_id, 'SESSION_END',
+                detail='checkout_zone_enter_auto_end_empty_cart',
+                user_id=user_id,
+            )
+            self._push_web(robot_id, {'type': 'session_ended', 'robot_id': robot_id})
+            logger.info(
+                'checkout_zone_enter: empty cart → RETURNING + session end robot=%s',
+                robot_id,
+            )
 
     def _end_session_if_no_unpaid_on_returning(self, robot_id: str) -> None:
         """Auto-end session on RETURNING when there are no unpaid items."""
