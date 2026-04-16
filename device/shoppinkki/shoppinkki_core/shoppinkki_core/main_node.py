@@ -311,6 +311,7 @@ class ShoppinkiMainNode(Node):
 
         # ── 결제 구역 (BoundaryMonitor) ── REST에서 폴리곤 로드, AMCL로 진입 감지
         self._boundary_monitor: Optional[object] = None
+        self._last_checkout_blocked_toast: float = 0.0
         try:
             from shoppinkki_core.boundary_monitor import (
                 BoundaryMonitor,
@@ -320,6 +321,8 @@ class ShoppinkiMainNode(Node):
             self._boundary_monitor = BoundaryMonitor(
                 boundaries=_bounds,
                 on_checkout_enter=self._emit_checkout_zone_enter,
+                on_checkout_exit_blocked=self._on_checkout_exit_blocked,
+                on_checkout_reenter=self._on_checkout_reenter,
                 get_state=lambda: self.sm.state,
                 node=None,
             )
@@ -394,6 +397,38 @@ class ShoppinkiMainNode(Node):
         msg.data = payload
         self._customer_event_pub.publish(msg)
         self.get_logger().info('Published customer_event checkout_zone_enter')
+
+    def _is_checkout_exit_allowed(self) -> bool:
+        """결제 구역 밖으로 이동 허용 상태."""
+        return self.sm.state in ('TRACKING_CHECKOUT', 'RETURNING')
+
+    def _on_checkout_exit_blocked(self) -> None:
+        """결제 구역 이탈 시도: 허용 상태가 아니면 속도 0으로 차단."""
+        if self._is_checkout_exit_allowed():
+            if hasattr(self._robot_publisher, 'set_motion_blocked'):
+                self._robot_publisher.set_motion_blocked(False)
+            return
+
+        if hasattr(self._robot_publisher, 'set_motion_blocked'):
+            self._robot_publisher.set_motion_blocked(True)
+
+        # 웹 토스트용 이벤트 (rate-limit)
+        now = time.monotonic()
+        if now - self._last_checkout_blocked_toast >= 1.0:
+            self._last_checkout_blocked_toast = now
+            payload = json.dumps({'type': 'checkout_blocked'})
+            msg = String()
+            msg.data = payload
+            self._customer_event_pub.publish(msg)
+            self.get_logger().info(
+                'Published customer_event checkout_blocked (state=%s)',
+                self.sm.state,
+            )
+
+    def _on_checkout_reenter(self) -> None:
+        """결제 구역 재진입: 차단 해제."""
+        if hasattr(self._robot_publisher, 'set_motion_blocked'):
+            self._robot_publisher.set_motion_blocked(False)
 
     def _cmd_callback(self, msg: String) -> None:
         self.cmd_handler.handle(msg.data)

@@ -317,6 +317,25 @@ class RobotManager:
                 'checkout_zone_enter: empty cart → RETURNING + session end robot=%s',
                 robot_id,
             )
+        elif et == 'checkout_blocked':
+            # 고객 UI 토스트용 (결제 구역 이탈 차단)
+            try:
+                session = db.get_active_session_by_robot(robot_id)
+                user_id = session.get('user_id') if session else None
+            except Exception:
+                logger.exception('checkout_blocked: failed to fetch session robot=%s', robot_id)
+                user_id = None
+            self._push_event(
+                robot_id,
+                'CHECKOUT_BLOCKED',
+                detail='checkout_zone_exit_blocked',
+                user_id=user_id,
+            )
+            self._push_web(robot_id, {
+                'type': 'checkout_blocked',
+                'robot_id': robot_id,
+            })
+            logger.info('checkout_blocked → web robot=%s', robot_id)
 
     def _end_session_if_no_unpaid_on_returning(self, robot_id: str) -> None:
         """Auto-end session on RETURNING when there are no unpaid items."""

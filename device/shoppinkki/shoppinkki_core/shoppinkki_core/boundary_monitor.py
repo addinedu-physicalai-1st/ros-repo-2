@@ -111,9 +111,6 @@ class BoundaryMonitor:
             return
 
         state = self._get_state() if self._get_state else ''
-        if state not in ('TRACKING', 'TRACKING_CHECKOUT'):
-            return
-
         now_inside = self._checkout.contains(x, y)
 
         if now_inside and not self._in_checkout:
@@ -123,18 +120,17 @@ class BoundaryMonitor:
                 logger.info('BoundaryMonitor: entered checkout → enter_tracking_checkout')
                 if self._on_checkout_enter:
                     self._on_checkout_enter()
-            elif state == 'TRACKING_CHECKOUT':
-                logger.info('BoundaryMonitor: re-entered checkout zone')
+            else:
+                logger.info('BoundaryMonitor: entered checkout (state=%s)', state)
                 if self._on_checkout_reenter:
                     self._on_checkout_reenter()
 
         elif not now_inside and self._in_checkout:
             # Exited checkout zone
             self._in_checkout = False
-            if state == 'TRACKING_CHECKOUT':
-                logger.info('BoundaryMonitor: exited checkout zone (blocked in checkout state)')
-                if self._on_checkout_exit_blocked:
-                    self._on_checkout_exit_blocked()
+            logger.info('BoundaryMonitor: exited checkout zone (state=%s)', state)
+            if self._on_checkout_exit_blocked:
+                self._on_checkout_exit_blocked()
 
     # ── ROS wiring ────────────────────────────
 
