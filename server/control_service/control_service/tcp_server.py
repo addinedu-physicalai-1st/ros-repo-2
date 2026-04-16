@@ -172,7 +172,7 @@ class TCPServer:
                         clients.remove(client)
 
     def _send_snapshot_admin(self, client: '_Client') -> None:
-        """Send current robot states to newly connected admin."""
+        """Send current robot states + recent events to newly connected admin."""
         states = self._rm.get_all_states()
         for robot_id, state in states.items():
             msg = {
@@ -187,6 +187,26 @@ class TCPServer:
                 'bbox': state.bbox,
             }
             client.send(json.dumps(msg) + '\n')
+
+        # Send recent event history
+        try:
+            from . import db
+            rows = db.get_events(limit=50)
+            events = []
+            for r in rows:
+                ts = r.get('occurred_at')
+                events.append({
+                    'robot_id': r.get('robot_id', ''),
+                    'event_type': r.get('event_type', ''),
+                    'detail': r.get('event_detail') or '',
+                    'timestamp': ts.strftime('%H:%M:%S') if ts else '',
+                })
+            client.send(json.dumps({
+                'type': 'event_history',
+                'events': events,
+            }) + '\n')
+        except Exception:
+            logger.exception('Failed to send event history')
 
 
 class _Client:

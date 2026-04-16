@@ -101,13 +101,16 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('ShopPinkki — 관제 패널')
         self.resize(1400, 900)
 
+        # 선택된 로봇 (확장성 — 로봇 셀렉터) — _build_ui 전에 초기화
+        self._selected_robot: str | None = self._robot_ids[0] if self._robot_ids else None
+
         self._build_ui()
         self._fetch_fleet_graph()
         self._start_tcp()
 
-        # OFFLINE 감지 타이머 (5초 주기)
+        # OFFLINE 감지 + last_seen 갱신 타이머 (2초 주기)
         self._offline_timer = QTimer(self)
-        self._offline_timer.setInterval(5000)
+        self._offline_timer.setInterval(2000)
         self._offline_timer.timeout.connect(self._check_offline)
         self._offline_timer.start()
 
@@ -170,15 +173,37 @@ class MainWindow(QMainWindow):
         main_splitter.setStretchFactor(0, 1)
         main_splitter.setStretchFactor(1, 1)
 
-        # 우상: 로봇 카드 (상하좌우 중앙)
+        # 우상: 로봇 셀렉터 + 선택된 카드
         card_container = QWidget()
         card_outer = QVBoxLayout(card_container)
-        card_outer.setContentsMargins(0, 0, 0, 0)
-        card_outer.addStretch()
-        card_row = QHBoxLayout()
-        card_row.setSpacing(8)
-        card_row.addStretch()
+        card_outer.setContentsMargins(4, 4, 4, 4)
+        card_outer.setSpacing(4)
 
+        # 로봇 셀렉터 바 (확장성 — 로봇 수 증가에도 스크롤 가능)
+        selector_row = QHBoxLayout()
+        selector_row.setSpacing(4)
+        self._selector_buttons: dict[str, QPushButton] = {}
+        for rid in self._robot_ids:
+            btn = QPushButton(f'#{rid}')
+            btn.setCheckable(True)
+            btn.setMinimumWidth(70)
+            btn.setFixedHeight(32)
+            btn.clicked.connect(lambda checked, r=rid: self._select_robot(r))
+            selector_row.addWidget(btn)
+            self._selector_buttons[rid] = btn
+        selector_row.addStretch()
+        card_outer.addLayout(selector_row)
+
+        # pending actions 배너 (#6)
+        self._lbl_pending = QLabel('')
+        self._lbl_pending.setStyleSheet(
+            'background-color: #f39c12; color: white; font-weight: bold; '
+            'padding: 4px 8px; border-radius: 4px;'
+        )
+        self._lbl_pending.hide()
+        card_outer.addWidget(self._lbl_pending)
+
+        # 각 로봇 카드 (모두 생성, 선택된 것만 표시)
         self._robot_cards: dict[str, RobotCard] = {}
         for rid in self._robot_ids:
             card = RobotCard(rid)
@@ -188,12 +213,16 @@ class MainWindow(QMainWindow):
             card.position_adjustment_mode_activated.connect(
                 self._on_position_adjustment_mode_activated
             )
-            card_row.addWidget(card)
+            card.hide()
+            card_outer.addWidget(card)
             self._robot_cards[rid] = card
-        card_row.addStretch()
-        card_outer.addLayout(card_row)
+
         card_outer.addStretch()
         right_splitter.addWidget(card_container)
+
+        # 초기 선택
+        if self._selected_robot:
+            self._select_robot(self._selected_robot)
 
         # 우중: 카메라 디버그 패널 (기본 숨김)
         self._camera_panel = CameraDebugPanel(
@@ -248,6 +277,44 @@ class MainWindow(QMainWindow):
         self._tcp.connection_changed.connect(self._on_connection_changed)
         self._tcp.start()
 
+    def _select_robot(self, robot_id: str):
+        """로봇 셀렉터에서 로봇 선택."""
+        self._selected_robot = robot_id
+        for rid, btn in self._selector_buttons.items():
+            btn.setChecked(rid == robot_id)
+            state = self._robot_states.get(rid, {})
+            mode = state.get('mode', 'OFFLINE')
+            from .robot_card import MODE_COLORS
+            color = MODE_COLORS.get(mode, '#aaaaaa')
+            if rid == robot_id:
+                btn.setStyleSheet(
+                    f'QPushButton {{ background-color: {color}; color: white; '
+                    f'font-weight: bold; border-radius: 4px; }}'
+                )
+            else:
+                btn.setStyleSheet(
+                    f'QPushButton {{ border: 2px solid {color}; border-radius: 4px; }}'
+                )
+        for rid, card in self._robot_cards.items():
+            card.setVisible(rid == robot_id)
+
+    def _update_selector_buttons(self):
+        """셀렉터 버튼의 모드 색상 갱신."""
+        for rid, btn in self._selector_buttons.items():
+            state = self._robot_states.get(rid, {})
+            mode = state.get('mode', 'OFFLINE')
+            from .robot_card import MODE_COLORS
+            color = MODE_COLORS.get(mode, '#aaaaaa')
+            if rid == self._selected_robot:
+                btn.setStyleSheet(
+                    f'QPushButton {{ background-color: {color}; color: white; '
+                    f'font-weight: bold; border-radius: 4px; }}'
+                )
+            else:
+                btn.setStyleSheet(
+                    f'QPushButton {{ border: 2px solid {color}; border-radius: 4px; }}'
+                )
+
     def _on_connection_changed(self, connected: bool):
         if connected:
             self._lbl_conn.setText(
@@ -259,6 +326,13 @@ class MainWindow(QMainWindow):
             self._lbl_conn.setText(f'연결 끊김 — {self._tcp_port} 재연결 대기 중...')
             self._lbl_conn.setStyleSheet('color: #e74c3c; font-weight: bold; padding: 0 8px;')
             self.statusBar().showMessage('TCP 연결 끊김')
+            # #5: pending 상태 전부 리셋
+            self._goto_pending_robot = None
+            self._position_adjustment_pending_robot = None
+            for card in self._robot_cards.values():
+                card.reset_pending()
+            self._map_widget.set_pending_overlay(None)
+            self._update_pending_banner()
 
     # ------------------------------------------------------------------
     # TCP 메시지 처리
@@ -275,6 +349,8 @@ class MainWindow(QMainWindow):
             self._handle_staff_resolved(data)
         elif msg_type == 'event':
             self._handle_event(data)
+        elif msg_type == 'event_history':
+            self._event_log_panel.load_initial(data.get('events', []))
         elif msg_type == 'admin_goto_rejected':
             self._handle_goto_rejected(data)
         elif msg_type == 'position_adjustment_rejected':
@@ -323,6 +399,9 @@ class MainWindow(QMainWindow):
         if bbox:
             self._camera_panel.update_bbox(robot_id, bbox)
 
+        # 셀렉터 버튼 색상 갱신
+        self._update_selector_buttons()
+
         # 상세 다이얼로그 상태 갱신
         dlg = self._detail_dialogs.get(robot_id)
         if dlg and dlg.isVisible():
@@ -361,6 +440,23 @@ class MainWindow(QMainWindow):
     # 맵 클릭 → admin_goto 흐름
     # ------------------------------------------------------------------
 
+    def _update_pending_banner(self):
+        """#6: 글로벌 pending actions 배너 + #1: 맵 오버레이 갱신."""
+        parts = []
+        if self._goto_pending_robot:
+            parts.append(f'#{self._goto_pending_robot} 이동 명령 대기')
+        if self._position_adjustment_pending_robot:
+            parts.append(f'#{self._position_adjustment_pending_robot} 위치 재조정 대기')
+        if parts:
+            self._lbl_pending.setText('  |  '.join(parts) + '  — 맵을 클릭하세요')
+            self._lbl_pending.show()
+            self._map_widget.set_pending_overlay(
+                '  |  '.join(parts) + '  — 맵을 클릭하세요'
+            )
+        else:
+            self._lbl_pending.hide()
+            self._map_widget.set_pending_overlay(None)
+
     def _on_goto_mode_activated(self, robot_id: str):
         """[이동 명령] 버튼 클릭 — 맵 클릭 대기 모드 진입/취소."""
         # 위치 재조정 대기 상태 해제
@@ -371,9 +467,9 @@ class MainWindow(QMainWindow):
                 self._robot_cards[prev].set_position_adjustment_pending(False)
 
         if not robot_id:
-            # 취소
             self._goto_pending_robot = None
             self.statusBar().showMessage('이동 명령 취소')
+            self._update_pending_banner()
             return
 
         # 다른 카드의 대기 상태 해제
@@ -385,6 +481,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             f'Robot #{robot_id} — 맵에서 목적지를 클릭하세요'
         )
+        self._update_pending_banner()
 
     def _on_position_adjustment_mode_activated(self, robot_id: str):
         """[위치 재조정] 버튼 클릭 — 맵 클릭 대기 모드 진입/취소."""
@@ -398,6 +495,7 @@ class MainWindow(QMainWindow):
         if not robot_id:
             self._position_adjustment_pending_robot = None
             self.statusBar().showMessage('위치 재조정 취소')
+            self._update_pending_banner()
             return
 
         # 다른 카드의 대기 상태 해제
@@ -411,12 +509,23 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             f'Robot #{robot_id} — 맵에서 재조정할 위치를 클릭하세요'
         )
+        self._update_pending_banner()
 
     def _on_map_clicked(self, x: float, y: float, theta: float):
         """맵 클릭+드래그: 대기 중인 로봇에 admin_goto(위치+방향) 전송."""
-        # 위치 재조정: 기존 admin_goto 흐름과 분리 (시뮬 전용)
+        import math as _math
+
+        # 위치 재조정
         tr = self._position_adjustment_pending_robot
         if tr is not None:
+            reply = QMessageBox.question(
+                self, '위치 재조정 확인',
+                f'Robot #{tr} 위치를 ({x:.3f}, {y:.3f})로 재조정하시겠습니까?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
             payload = {
                 'cmd': 'admin_position_adjustment',
                 'robot_id': tr,
@@ -425,14 +534,14 @@ class MainWindow(QMainWindow):
                 'theta': round(theta, 4),
             }
             self._tcp.send(payload)
-            import math as _math
             self.statusBar().showMessage(
-                f'Robot #{tr} → admin_position_adjustment '
+                f'Robot #{tr} → 위치 재조정 '
                 f'({x:.3f}, {y:.3f}, {_math.degrees(theta):.0f}°) 전송'
             )
             self._position_adjustment_pending_robot = None
             if tr in self._robot_cards:
                 self._robot_cards[tr].set_position_adjustment_pending(False)
+            self._update_pending_banner()
             return
 
         rid = self._goto_pending_robot
@@ -446,6 +555,15 @@ class MainWindow(QMainWindow):
             )
             return
 
+        reply = QMessageBox.question(
+            self, '이동 명령 확인',
+            f'Robot #{rid}를 ({x:.3f}, {y:.3f})로 이동시키겠습니까?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
         payload = {
             'cmd': 'admin_goto',
             'robot_id': rid,
@@ -454,16 +572,15 @@ class MainWindow(QMainWindow):
             'theta': round(theta, 4),
         }
         self._tcp.send(payload)
-        # 마커는 드래그 시점에 이미 표시됨 (display_theta 기준)
-        import math as _math
         self.statusBar().showMessage(
-            f'Robot #{rid} → admin_goto ({x:.3f}, {y:.3f}, {_math.degrees(theta):.0f}°) 전송'
+            f'Robot #{rid} → 이동 명령 ({x:.3f}, {y:.3f}, {_math.degrees(theta):.0f}°) 전송'
         )
 
         # 대기 상태 해제
         self._goto_pending_robot = None
         if rid in self._robot_cards:
             self._robot_cards[rid].set_goto_pending(False)
+        self._update_pending_banner()
 
     # ------------------------------------------------------------------
     # 로봇 카드 클릭 → 상세 다이얼로그
@@ -517,6 +634,12 @@ class MainWindow(QMainWindow):
         now = time.monotonic()
         for robot_id in self._robot_ids:
             last = self._last_status_time.get(robot_id)
+            # #7: 마지막 수신 경과 시간 카드에 전달
+            if robot_id in self._robot_cards:
+                if last is not None:
+                    self._robot_cards[robot_id].update_last_seen(now - last)
+                else:
+                    self._robot_cards[robot_id].update_last_seen(-1)
             if last is None:
                 continue
             if now - last > OFFLINE_TIMEOUT_SEC:
@@ -527,6 +650,7 @@ class MainWindow(QMainWindow):
                     if robot_id in self._robot_cards:
                         self._robot_cards[robot_id].update_state(state)
                     self._map_widget.update_robot(robot_id, state)
+        self._update_selector_buttons()
 
     # ------------------------------------------------------------------
     # 카메라 패널 토글

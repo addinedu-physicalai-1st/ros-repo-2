@@ -602,11 +602,13 @@ function _animateQrBar() {
 function openMapOverlay() {
   const overlay = document.getElementById("map-overlay");
   if (overlay) overlay.classList.remove("hidden");
+  if (typeof MapRenderer !== "undefined") MapRenderer.setVisible(true);
 }
 
 function closeMapOverlay() {
   const overlay = document.getElementById("map-overlay");
   if (overlay) overlay.classList.add("hidden");
+  if (typeof MapRenderer !== "undefined") MapRenderer.setVisible(false);
 }
 
 // ── 쇼핑 종료 ──────────────────────────────────────────────────

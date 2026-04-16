@@ -26,7 +26,7 @@
     resolve_requested = pyqtSignal(str)  # robot_id
 """
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QFrame,
@@ -151,6 +151,19 @@ class StaffCallPanel(QWidget):
         self._items[robot_id] = item
 
     def mark_resolved(self, robot_id: str):
-        """해당 로봇의 호출을 처리됨으로 표시."""
+        """해당 로봇의 호출을 처리됨으로 표시, 10초 후 자동 제거."""
         if robot_id in self._items:
             self._items[robot_id].mark_resolved()
+            QTimer.singleShot(10_000, lambda rid=robot_id: self._remove_item(rid))
+
+    def _remove_item(self, robot_id: str):
+        """해결된 항목 제거."""
+        item = self._items.pop(robot_id, None)
+        if item is None:
+            return
+        if not item._resolved:
+            # 아직 해결 안 된 건 제거하지 않음 (새 호출이 들어온 경우)
+            self._items[robot_id] = item
+            return
+        self._items_layout.removeWidget(item)
+        item.deleteLater()

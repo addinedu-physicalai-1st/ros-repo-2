@@ -31,7 +31,7 @@ ROW_ENTRANCE_NODES: dict[str, tuple[float, float, float]] = {
 }
 
 # 하단_복도 노드 — 결제구역/출구 근처에서 RETURNING 시 경유
-LOWER_CORRIDOR_NODE: tuple[float, float, float] = (0.12, -1.137, 0.0)
+LOWER_CORRIDOR_NODE: tuple[float, float, float] = (0.0, -1.137, 0.0)
 # 이 y좌표 이하면 결제구역/출구 근처 → 하단_복도 경유
 LOWER_AREA_THRESHOLD_Y: float = -1.2
 

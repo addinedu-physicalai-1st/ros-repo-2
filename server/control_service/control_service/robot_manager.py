@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import threading
 import time
 from dataclasses import dataclass, field
@@ -85,6 +86,10 @@ class RobotManager:
         self.adjust_position_in_sim: Optional[
             Callable[[str, float, float, float], bool]
         ] = None
+        # RMF task dispatch (wired by ros_node when rmf_task_msgs available)
+        self.dispatch_rmf_navigate: Optional[
+            Callable[[str, str], bool]
+        ] = None
         self.push_to_admin:    Optional[Callable[[dict], None]] = None
         self.push_to_web:      Optional[Callable[[str, dict], None]] = None
 
@@ -150,6 +155,12 @@ class RobotManager:
                 robot_id,
                 current_mode=state.mode,
             )
+            if prev_mode == 'OFFLINE':
+                self._push_event(robot_id, 'ONLINE')
+            self._push_event(
+                robot_id, 'MODE_CHANGE',
+                detail=f'{prev_mode} → {state.mode}',
+            )
             if state.mode == 'RETURNING':
                 self._end_session_if_no_unpaid_on_returning(robot_id)
 
@@ -178,7 +189,7 @@ class RobotManager:
             user_id = state.active_user_id
 
         db.log_staff_call(robot_id, user_id, event)
-        db.log_event(robot_id, event, user_id)
+        self._push_event(robot_id, event, user_id=user_id)
 
         self._push_admin({'type': 'alarm', 'robot_id': robot_id, 'event': event})
         self._push_web(robot_id, {'type': 'alarm', 'event': event})
@@ -236,11 +247,10 @@ class RobotManager:
 
             db.end_session(session['session_id'])
             db.update_robot(robot_id, active_user_id=None)
-            db.log_event(
-                robot_id,
-                'SESSION_END',
-                session.get('user_id'),
+            self._push_event(
+                robot_id, 'SESSION_END',
                 detail='auto_end_on_returning_empty_cart',
+                user_id=session.get('user_id'),
             )
             self.set_cached_active_user_id(robot_id, None)
             self._push_web(robot_id, {'type': 'session_ended', 'robot_id': robot_id})
@@ -372,15 +382,31 @@ class RobotManager:
             self._handle_delete_item(robot_id, payload)
         elif cmd == 'navigate_to':
             zone_id = payload.get('zone_id')
-            if zone_id is not None and 'x' not in payload:
-                zone = db.get_zone(zone_id)
-                if zone:
-                    payload = dict(payload,
-                                   x=zone['waypoint_x'], y=zone['waypoint_y'],
-                                   theta=zone.get('waypoint_theta', 0.0))
-                else:
-                    logger.warning('navigate_to: zone_id=%s not found in DB', zone_id)
-            self._relay_to_pi(robot_id, payload)
+            if zone_id is None:
+                logger.warning('navigate_to: zone_id missing')
+                return
+            wp_name = self._pick_waypoint_for_zone(robot_id, zone_id)
+            if not wp_name:
+                logger.warning('navigate_to: zone_id=%s has no waypoints', zone_id)
+                return
+            # UI용 목적지 좌표 즉시 저장
+            wps = db.get_waypoints_by_zone(zone_id)
+            wp = next((w for w in wps if w['name'] == wp_name), None)
+            if wp:
+                with self._lock:
+                    st = self._get_or_create(robot_id)
+                    st.dest_x = float(wp['x'])
+                    st.dest_y = float(wp['y'])
+            # RMF 경유, 불가 시 직접 relay
+            if self.dispatch_rmf_navigate is not None:
+                self.dispatch_rmf_navigate(robot_id, wp_name)
+                logger.info('navigate_to zone=%s → RMF waypoint=%s', zone_id, wp_name)
+            else:
+                if wp:
+                    payload = dict(payload, x=wp['x'], y=wp['y'],
+                                   theta=wp.get('theta', 0.0))
+                self._relay_to_pi(robot_id, payload)
+                logger.info('navigate_to zone=%s → direct relay (no RMF)', zone_id)
         elif cmd in ('mode', 'resume_tracking',
                      'start_session', 'enter_simulation',
                      'return', 'registration_confirm', 'enter_registration',
@@ -454,7 +480,7 @@ class RobotManager:
             return
 
         db.mark_items_paid(cart['cart_id'])
-        db.log_event(robot_id, 'PAYMENT_SUCCESS', session['user_id'])
+        self._push_event(robot_id, 'PAYMENT_SUCCESS', user_id=session['user_id'])
         self._relay_to_pi(robot_id, {'cmd': 'payment_success'})
         self._push_web(robot_id, {'type': 'payment_success'})
         logger.info('Payment processed for robot=%s', robot_id)
@@ -557,8 +583,9 @@ class RobotManager:
             if not cart:
                 return
             db.delete_cart_items(cart['cart_id'])
-            db.log_event(robot_id, 'CART_CLEARED', session.get('user_id'),
-                         detail=f'reason={reason}')
+            self._push_event(robot_id, 'CART_CLEARED',
+                             detail=f'reason={reason}',
+                             user_id=session.get('user_id'))
             # 브라우저 장바구니 즉시 비우기
             self._push_web(robot_id, {'type': 'cart', 'items': []})
             logger.info('Cleared cart for robot=%s (reason=%s)', robot_id, reason)
@@ -642,12 +669,52 @@ class RobotManager:
                     current_mode='OFFLINE',
                     active_user_id=None,
                 )
-                db.log_event(robot_id, 'OFFLINE')
+                self._push_event(robot_id, 'OFFLINE')
                 self._push_status(robot_id, state)
 
     # ──────────────────────────────────────────
     # Internal helpers
     # ──────────────────────────────────────────
+
+    _OCCUPY_DIST = 0.25
+
+    def _pick_waypoint_for_zone(self, robot_id: str, zone_id: int) -> Optional[str]:
+        """zone_id에 속하는 waypoint 중 다른 로봇과 충돌하지 않는 것을 선택."""
+        waypoints = db.get_waypoints_by_zone(zone_id)
+        if not waypoints:
+            return None
+
+        candidates = [wp for wp in waypoints if wp.get('pickup_zone')]
+        if not candidates:
+            candidates = waypoints
+
+        if len(candidates) == 1:
+            return candidates[0]['name']
+
+        # 다른 로봇의 현재 위치 및 목적지 기반 점유 판정
+        occupied: set[str] = set()
+        with self._lock:
+            for rid, state in self._states.items():
+                if rid == robot_id:
+                    continue
+                for wp in candidates:
+                    wx, wy = float(wp['x']), float(wp['y'])
+                    dist = math.sqrt((wx - state.pos_x) ** 2 +
+                                     (wy - state.pos_y) ** 2)
+                    if dist <= self._OCCUPY_DIST:
+                        occupied.add(wp['name'])
+                    if (state.mode == 'GUIDING'
+                            and state.dest_x is not None
+                            and state.dest_y is not None):
+                        dd = math.sqrt((wx - state.dest_x) ** 2 +
+                                       (wy - state.dest_y) ** 2)
+                        if dd <= self._OCCUPY_DIST:
+                            occupied.add(wp['name'])
+
+        free = [wp for wp in candidates if wp['name'] not in occupied]
+        if free:
+            return free[0]['name']
+        return candidates[0]['name']
 
     def _get_or_create(self, robot_id: str) -> RobotState:
         """Get or create a RobotState (must be called under self._lock)."""
@@ -709,6 +776,18 @@ class RobotManager:
         }
         self._push_admin(msg)
         self._push_web(robot_id, self._enrich_status_for_web(robot_id, state, msg))
+
+    def _push_event(self, robot_id: str, event_type: str,
+                    detail: str = '', user_id: str | None = None) -> None:
+        """DB 기록 + admin UI 실시간 전송."""
+        db.log_event(robot_id, event_type, user_id, detail=detail or None)
+        self._push_admin({
+            'type': 'event',
+            'robot_id': robot_id,
+            'event_type': event_type,
+            'detail': detail,
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+        })
 
     def _push_admin(self, msg: dict) -> None:
         if self.push_to_admin:

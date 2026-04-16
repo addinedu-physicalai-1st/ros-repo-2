@@ -208,6 +208,9 @@ class MapWidget(QLabel):
         self._goto_theta: float = 0.0  # 목적지 방향 (rad)
         self._click_label: str = ''  # 클릭 좌표 텍스트
 
+        # 맵 클릭 대기 모드 오버레이
+        self._pending_overlay: str | None = None  # None이면 미표시
+
         # 드래그 상태 (클릭=위치, 드래그=방향)
         self._drag_origin_px: tuple[int, int] | None = None  # 클릭 위치 (px)
         self._drag_origin_world: tuple[float, float] | None = None  # 클릭 위치 (world)
@@ -387,6 +390,11 @@ class MapWidget(QLabel):
         self._goto_marker = None
         self.update()
 
+    def set_pending_overlay(self, text: str | None):
+        """맵 클릭 대기 모드 오버레이 텍스트 설정 (None이면 해제)."""
+        self._pending_overlay = text
+        self.update()
+
     # ── 이벤트 핸들링 ──────────────────────────────
 
     def mousePressEvent(self, event: QMouseEvent):
@@ -435,7 +443,7 @@ class MapWidget(QLabel):
 
     def _toggle_blink(self):
         self._blink_on = not self._blink_on
-        needs = any(
+        needs = self._pending_overlay is not None or any(
             s.get('mode') in ('LOCKED', 'HALTED') or s.get('is_locked_return')
             for s in self._robot_states.values()
         )
@@ -724,6 +732,33 @@ class MapWidget(QLabel):
             p.setPen(color)
             p.drawText(tx, my - 4, self._click_label)
 
+    def _draw_pending_overlay(self, p: QPainter):
+        """맵 클릭 대기 모드 오버레이 (상단 배너)."""
+        if self._pending_overlay is None:
+            return
+        font = QFont('Segoe UI', 11)
+        font.setBold(True)
+        p.setFont(font)
+        fm = p.fontMetrics()
+        text = self._pending_overlay
+        tw = fm.horizontalAdvance(text)
+        th = fm.height()
+        pad_x, pad_y = 16, 8
+        bw = tw + pad_x * 2
+        bh = th + pad_y * 2
+        bx = (self.width() - bw) // 2
+        by = 10
+        # 반투명 배경
+        if self._blink_on:
+            bg = QColor(52, 152, 219, 210)
+        else:
+            bg = QColor(41, 128, 185, 210)
+        p.setBrush(bg)
+        p.setPen(QPen(QColor(255, 255, 255, 80), 1))
+        p.drawRoundedRect(bx, by, bw, bh, 6, 6)
+        p.setPen(QColor('#ffffff'))
+        p.drawText(bx + pad_x, by + pad_y + fm.ascent(), text)
+
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -756,4 +791,5 @@ class MapWidget(QLabel):
             self._draw_robot(p, rid, st)
 
         self._draw_goto_marker(p)
+        self._draw_pending_overlay(p)
         p.end()
