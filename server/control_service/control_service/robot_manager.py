@@ -165,7 +165,24 @@ class RobotManager:
                 self._end_session_if_no_unpaid_on_returning(robot_id)
                 # RETURNING 진입 시 충전소까지 경로 계산
                 charger = 'P2' if robot_id == '54' else 'P1'
-                route = self._compute_graph_route(robot_id, charger)
+                # 하단 구역(y < -1.2)이면 출구2 → 하단_복도 경유 경로
+                if state.pos_y < -1.2:
+                    exit2 = {'x': 0.0, 'y': -1.402}
+                    lower_corridor = {'x': 0.0, 'y': -1.137}
+                    lower_entrance = {'x': 0.245, 'y': -1.137}
+                    row3_entrance = {'x': 0.245, 'y': -0.899}
+                    if charger == 'P2':
+                        route = [{'x': state.pos_x, 'y': state.pos_y},
+                                 exit2, lower_corridor, lower_entrance,
+                                 row3_entrance, {'x': 0.0, 'y': -0.899}]
+                    else:
+                        row2_entrance = {'x': 0.245, 'y': -0.606}
+                        route = [{'x': state.pos_x, 'y': state.pos_y},
+                                 exit2, lower_corridor, lower_entrance,
+                                 row3_entrance, row2_entrance,
+                                 {'x': 0.0, 'y': -0.606}]
+                else:
+                    route = self._compute_graph_route(robot_id, charger)
                 state.path = route
             # 경로 클리어: 도착(GUIDING→WAITING) 또는 비활성(IDLE/CHARGING) 시
             if state.mode in ('IDLE', 'CHARGING', 'WAITING'):

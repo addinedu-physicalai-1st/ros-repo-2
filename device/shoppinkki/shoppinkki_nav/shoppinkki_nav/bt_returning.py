@@ -23,10 +23,24 @@ from shoppinkki_interfaces import RobotPublisherInterface
 
 logger = logging.getLogger(__name__)
 
-# 하단_복도 노드 — 결제구역/출구 근처에서 RETURNING 시 경유
-LOWER_CORRIDOR_NODE: tuple[float, float, float] = (0.0, -1.137, 0.0)
-# 이 y좌표 이하면 결제구역/출구 근처 → 하단_복도 경유
+# 경유 노드 좌표
+EXIT2_NODE: tuple[float, float, float] = (0.0, -1.402, 0.0)       # 출구2
+LOWER_CORRIDOR_NODE: tuple[float, float, float] = (0.0, -1.137, 0.0)  # 하단_복도
+# 이 y좌표 이하면 결제구역/출구 근처 → 출구2 → 하단_복도 경유
 LOWER_AREA_THRESHOLD_Y: float = -1.2
+
+# 하단_복도 → 충전소 graph route (노드간 순차 이동)
+ROUTE_LOWER_TO_P1: list[tuple[float, float, float]] = [
+    (0.245, -1.137, 0.0),   # 하단_입구
+    (0.245, -0.899, 0.0),   # 3열_입구
+    (0.245, -0.606, 0.0),   # 2열_입구
+    (0.0,   -0.606, 0.0),   # P1
+]
+ROUTE_LOWER_TO_P2: list[tuple[float, float, float]] = [
+    (0.245, -1.137, 0.0),   # 하단_입구
+    (0.245, -0.899, 0.0),   # 3열_입구
+    (0.0,   -0.899, 0.0),   # P2
+]
 
 
 
@@ -153,28 +167,73 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
         return py_trees.common.Status.RUNNING
 
     def _tick_pre_navigate(self) -> py_trees.common.Status:
-        """0단계: 하단_복도 노드까지 이동 (inflation OFF로 좁은 구간 통과)."""
-        if self._send_nav_goal is None:
+        """출구2 → 하단_복도 (inflation OFF) → graph route → 충전소 순차 이동."""
+        if self._send_nav_goal is None or self._slot is None:
             self._fail()
             return py_trees.common.Status.FAILURE
 
         if self._pre_nav_thread is None:
-            cx, cy, ctheta = LOWER_CORRIDOR_NODE
-            logger.info('ReturnToCharger: [0단계] 하단_복도 (%.2f, %.2f) inflation OFF',
-                        cx, cy)
+            charger_y = float(self._slot.get('waypoint_y', -0.606))
+            # 충전소에 따라 하단_복도 이후 경로 선택
+            if charger_y < -0.75:
+                route_after = ROUTE_LOWER_TO_P2
+            else:
+                route_after = ROUTE_LOWER_TO_P1
+
+            # 전체 경로: 출구2 → 하단_복도 (inflation OFF) + 이후 경로 (inflation ON) + 충전소
+            corridor_pts = [EXIT2_NODE, LOWER_CORRIDOR_NODE]
+            charger_pt = (
+                float(self._slot.get('waypoint_x', 0.0)),
+                float(self._slot.get('waypoint_y', -0.606)),
+                float(self._slot.get('waypoint_theta', 0.0)),
+            )
+            # route_after 마지막이 충전소이므로 charger_pt는 별도 추가 불필요
+            after_pts = list(route_after)
+
+            logger.info('ReturnToCharger: 출구2 → 하단_복도 → %d pts → 충전소',
+                        len(after_pts))
+
             if self._set_nav2_mode:
-                self._set_nav2_mode('guiding')
-            # 좁은 복도 통과를 위해 inflation 비활성화
+                self._set_nav2_mode('returning')
             if self._set_inflation:
                 self._set_inflation(False)
 
             def _run():
                 try:
-                    self._pre_nav_success = self._send_nav_goal(cx, cy, ctheta)
+                    # Phase 1: 출구2 → 하단_복도 (inflation OFF)
+                    for i, (gx, gy, gt) in enumerate(corridor_pts):
+                        logger.info('ReturnToCharger: corridor [%d/%d] → (%.2f, %.2f)',
+                                    i + 1, len(corridor_pts), gx, gy)
+                        if not self._send_nav_goal(gx, gy, gt):
+                            logger.warning('ReturnToCharger: corridor nav failed')
+                            self._pre_nav_success = False
+                            return
+
+                    # Phase 2: inflation ON → graph route to charger
+                    if self._set_inflation:
+                        self._set_inflation(True)
+                    logger.info('ReturnToCharger: inflation ON → graph route %d pts',
+                                len(after_pts))
+
+                    for i, (gx, gy, gt) in enumerate(after_pts):
+                        # 마지막 waypoint (충전소)는 returning 모드로
+                        if i == len(after_pts) - 1:
+                            if self._set_nav2_mode:
+                                self._set_nav2_mode('returning')
+                        logger.info('ReturnToCharger: route [%d/%d] → (%.2f, %.2f)',
+                                    i + 1, len(after_pts), gx, gy)
+                        if not self._send_nav_goal(gx, gy, gt):
+                            logger.warning('ReturnToCharger: route nav failed at [%d]',
+                                           i + 1)
+                            self._pre_nav_success = False
+                            return
+
+                    self._pre_nav_success = True
                 except Exception as e:
-                    logger.error('ReturnToCharger: pre-nav exception: %s', e)
+                    logger.error('ReturnToCharger: sequential nav exception: %s', e)
                     self._pre_nav_success = False
                 finally:
+                    self._set_keepout(False)
                     self._pre_nav_done = True
 
             self._pre_nav_thread = threading.Thread(target=_run, daemon=True)
@@ -184,21 +243,21 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
         if not self._pre_nav_done:
             return py_trees.common.Status.RUNNING
 
-        # 하단_복도 통과 후 inflation 복원
-        if self._set_inflation:
-            self._set_inflation(True)
-
         if self._pre_nav_success:
-            logger.info('ReturnToCharger: 하단_복도 도착, inflation ON → 충전소 직행')
-            self._phase = _Phase.DOCKING
-            return py_trees.common.Status.RUNNING
+            logger.info('ReturnToCharger: 충전소 도착 → SUCCESS')
+            if self._set_nav2_mode:
+                self._set_nav2_mode('guiding')
+            self._phase = _Phase.DONE
+            return py_trees.common.Status.SUCCESS
         else:
-            logger.warning('ReturnToCharger: 하단_복도 이동 실패')
+            logger.warning('ReturnToCharger: 순차 네비게이션 실패')
+            if self._set_nav2_mode:
+                self._set_nav2_mode('guiding')
             self._fail()
             return py_trees.common.Status.FAILURE
 
     def _tick_docking(self) -> py_trees.common.Status:
-        """충전소까지 직행 (충돌 감지 OFF)."""
+        """충전소까지 직행 (하단 구역이 아닌 경우)."""
         if self._send_nav_goal is None or self._slot is None:
             self._fail()
             return py_trees.common.Status.FAILURE
@@ -207,7 +266,7 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
             charger_x = float(self._slot.get('waypoint_x', 0.0))
             charger_y = float(self._slot.get('waypoint_y', 0.0))
             charger_theta = float(self._slot.get('waypoint_theta', 0.0))
-            logger.info('ReturnToCharger: 충전소 직행 → (%.2f, %.2f) 충돌감지 OFF',
+            logger.info('ReturnToCharger: 충전소 직행 → (%.2f, %.2f)',
                         charger_x, charger_y)
             if self._set_nav2_mode:
                 self._set_nav2_mode('returning')
