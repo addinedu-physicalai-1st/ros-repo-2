@@ -76,7 +76,7 @@ class TestModeReturning:
         sm.enter_tracking()
         sm.enter_waiting()
         cmd(sm, h, cmd='mode', value='RETURNING')
-        assert sm.state == 'LOCKED'
+        assert sm.state == 'RETURNING'
         assert sm.is_locked_return is True
 
     def test_tracking_checkout_to_returning(self):
@@ -119,6 +119,31 @@ class TestModeReturning:
         cmd(sm, h, cmd='mode', value='RETURNING')
         assert sm.state == 'RETURNING'
         assert sm.is_locked_return is False
+
+    def test_locked_returning_sets_flag(self):
+        sm, h = make_handler(has_unpaid_items=lambda: False)
+        sm.charging_completed()
+        sm.enter_tracking()
+        cmd(sm, h, cmd='mode', value='RETURNING', is_locked_return=True)
+        assert sm.state == 'RETURNING'
+        assert sm.is_locked_return is True
+
+
+class TestModeLocked:
+    def test_mode_locked_only_allowed_in_waiting(self):
+        sm, h = make_handler()
+        sm.charging_completed()
+        sm.enter_tracking()
+        # Not WAITING → ignored
+        cmd(sm, h, cmd='mode', value='LOCKED')
+        assert sm.state == 'TRACKING'
+        assert sm.is_locked_return is False
+
+        # WAITING → LOCKED
+        sm.enter_waiting()
+        cmd(sm, h, cmd='mode', value='LOCKED')
+        assert sm.state == 'LOCKED'
+        assert sm.is_locked_return is True
 
 
 class TestResumeTracking:

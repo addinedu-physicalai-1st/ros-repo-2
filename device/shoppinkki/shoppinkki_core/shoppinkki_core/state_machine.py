@@ -106,7 +106,7 @@ class ShoppinkiSM:
 
         # TRACKING / TRACKING_CHECKOUT / WAITING / GUIDING / SEARCHING → RETURNING
         {'trigger': 'enter_returning',
-         'source': ['TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'GUIDING', 'SEARCHING'],
+         'source': ['TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'GUIDING', 'SEARCHING', 'LOCKED'],
          'dest': 'RETURNING'},
 
         # RETURNING → CHARGING  (BT5 Nav2 SUCCESS)
@@ -237,7 +237,10 @@ class ShoppinkiSM:
             )
             return
         if has_unpaid:
+            # Timeout + unpaid: enter LOCKED to set flag/raise alarm, then
+            # immediately start returning to charger while keeping the flag.
             self.enter_locked()
+            self.enter_returning()
         else:
             self.enter_returning()
 
