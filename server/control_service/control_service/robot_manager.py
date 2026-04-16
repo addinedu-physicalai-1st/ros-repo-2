@@ -476,6 +476,16 @@ class RobotManager:
         elif cmd in ('force_terminate', 'staff_resolved'):
             # 세션을 강제 종료하거나 잠금 해제 처리 시, 다음 로그인에 장바구니가 남지 않도록 정리한다.
             self._clear_active_cart(robot_id, reason=cmd)
+            # staff_resolved: also end the active session so the next login starts clean.
+            if cmd == 'staff_resolved':
+                try:
+                    session = db.get_active_session_by_robot(robot_id)
+                    if session:
+                        db.end_session(session['session_id'])
+                    # Cache should reflect DB cleanup immediately (Pi status may lag).
+                    self.set_cached_active_user_id(robot_id, None)
+                except Exception:
+                    logger.exception('staff_resolved: failed to end session (robot=%s)', robot_id)
             self._relay_to_pi(robot_id, payload)
 
         else:
@@ -540,14 +550,33 @@ class RobotManager:
                      'return', 'registration_confirm', 'enter_registration',
                      'retake_registration'):
             if cmd == 'return':
-                # 쇼핑 종료: customer_web의 return 이벤트를 Pi가 이해하는 mode=RETURNING으로 변환해 전달한다.
-                # (Pi는 cmd='return'을 처리하지 않음)
+                # 쇼핑 종료: 미결제 물건이 있으면 LOCKED 귀환(세션 유지),
+                # 비어있으면 RETURNING 귀환(세션/장바구니 정리).
                 #
-                # Pi로 RETURNING을 보낸 뒤에 세션/장바구니를 정리한다. (이전에는 먼저 세션을 끊어
-                # 캐시 모드와 실제 SM이 어긋나거나, GUIDING 등에서 릴레이가 스킵된 채 DB만 비워지는
-                # 경우가 있었음)
+                # Pi는 cmd='return'을 처리하지 않으므로 mode로 변환해 전달한다.
+
+                def _has_unpaid_items() -> bool:
+                    try:
+                        session = db.get_active_session_by_robot(robot_id)
+                        if not session:
+                            return False
+                        cart = db.get_cart_by_session(session['session_id'])
+                        if not cart:
+                            return False
+                        return bool(db.has_unpaid_items(cart['cart_id']))
+                    except Exception:
+                        logger.exception('return: failed to check unpaid (robot=%s)', robot_id)
+                        return False
+
+                has_unpaid = _has_unpaid_items()
+                # UX: even for unpaid cart, keep mode=RETURNING so UIs show
+                # "returning to charger", while is_locked_return drives the locked styling.
+                target_mode = 'RETURNING'
 
                 def _finish_shopping_session() -> None:
+                    # Only finish session when cart is empty/all-paid.
+                    if has_unpaid:
+                        return
                     self._clear_active_cart(robot_id, reason='return')
                     try:
                         session = db.get_active_session_by_robot(robot_id)
@@ -565,27 +594,39 @@ class RobotManager:
                 cached_mode = st.mode if st is not None else 'OFFLINE'
                 if cached_mode not in _RETURN_RELAY_MODES:
                     logger.info(
-                        'return: skip Pi RETURNING (robot=%s cached_mode=%s; '
+                        'return: skip Pi %s (robot=%s cached_mode=%s; '
                         'need TRACKING/TRACKING_CHECKOUT/WAITING/GUIDING/SEARCHING)',
-                        robot_id, cached_mode,
+                        target_mode, robot_id, cached_mode,
                     )
+                    # If unpaid exists, keep session and do not clear cart.
                     _finish_shopping_session()
                     return
                 payload = dict(payload)
                 payload.pop('cmd', None)
                 payload_to_pi = {
                     'cmd': 'mode',
-                    'value': 'RETURNING',
+                    'value': target_mode,
                 }
+                if has_unpaid:
+                    payload_to_pi['is_locked_return'] = True
                 payload_to_pi.update(payload)
                 self._relay_to_pi(robot_id, payload_to_pi)
                 # 관제 UI·REST용 메모리/DB 즉시 반영 (Pi status 수신 전 지연 방지)
                 with self._lock:
                     st = self._get_or_create(robot_id)
                     prev_mode = st.mode
-                    st.mode = 'RETURNING'
-                if prev_mode != 'RETURNING':
-                    db.update_robot(robot_id, current_mode='RETURNING')
+                    st.mode = target_mode
+                    if has_unpaid:
+                        st.is_locked_return = True
+                if prev_mode != target_mode:
+                    if has_unpaid:
+                        db.update_robot(
+                            robot_id,
+                            current_mode=target_mode,
+                            is_locked_return=True,
+                        )
+                    else:
+                        db.update_robot(robot_id, current_mode=target_mode)
                 with self._lock:
                     st = self._states[robot_id]
                 self._push_status(robot_id, st)

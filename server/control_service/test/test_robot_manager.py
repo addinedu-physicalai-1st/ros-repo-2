@@ -132,6 +132,35 @@ class TestAdminCmd:
                                    'robot_id': '54', 'x': 1.0, 'y': 0.5, 'theta': 0.0})
         assert any(c[1]['cmd'] == 'admin_goto' for c in cmds)
 
+    def test_staff_resolved_ends_session_and_clears_active_user(self):
+        with patch('control_service.robot_manager.db') as mock_db:
+            mock_db.get_all_robots.return_value = [
+                {'robot_id': '54', 'current_mode': 'CHARGING', 'pos_x': 0.0,
+                 'pos_y': 0.0, 'battery_level': 100, 'is_locked_return': 1,
+                 'active_user_id': 'u1'},
+            ]
+            mock_db.update_robot.return_value = None
+            mock_db.log_event.return_value = None
+            mock_db.log_staff_call.return_value = 1
+            mock_db.get_active_session_by_robot.return_value = {
+                'session_id': 11,
+                'user_id': 'u1',
+            }
+            mock_db.get_cart_by_session.return_value = {'cart_id': 22}
+            mock_db.delete_cart_items.return_value = None
+
+            rm = RobotManager()
+            rm.start()
+            rm.publish_cmd = MagicMock()
+
+            rm.handle_admin_cmd('54', {'cmd': 'staff_resolved', 'robot_id': '54'})
+
+            mock_db.end_session.assert_called_once_with(11)
+            # Cache should be cleared even before next status arrives
+            st = rm.get_state('54')
+            assert st is not None
+            assert st.active_user_id is None
+
     def test_admin_position_adjustment_rejected_when_not_wired(self):
         admin_msgs = []
         rm = make_rm()
@@ -199,6 +228,7 @@ class TestWebReturn:
             mock_db.log_event.return_value = None
             mock_db.log_staff_call.return_value = 1
             mock_db.get_active_session_by_robot.return_value = None
+            mock_db.get_cart_by_session.return_value = None
 
             rm = RobotManager()
             rm.start()
@@ -214,6 +244,40 @@ class TestWebReturn:
             assert payload.get('cmd') == 'mode'
             assert payload.get('value') == 'RETURNING'
 
+    @pytest.mark.parametrize(
+        'mode',
+        ['TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'GUIDING', 'SEARCHING'],
+    )
+    def test_return_relays_locked_when_unpaid_items(self, mode):
+        with patch('control_service.robot_manager.db') as mock_db:
+            mock_db.get_all_robots.return_value = [
+                {'robot_id': '54', 'current_mode': mode, 'pos_x': 0.0,
+                 'pos_y': 0.0, 'battery_level': 100, 'is_locked_return': 0,
+                 'active_user_id': 'u1'},
+            ]
+            mock_db.update_robot.return_value = None
+            mock_db.log_event.return_value = None
+            mock_db.log_staff_call.return_value = 1
+            mock_db.get_active_session_by_robot.return_value = {'session_id': 11, 'user_id': 'u1'}
+            mock_db.get_cart_by_session.return_value = {'cart_id': 22}
+            mock_db.has_unpaid_items.return_value = True
+
+            rm = RobotManager()
+            rm.start()
+            rm.publish_cmd = MagicMock()
+            rm.push_to_admin = MagicMock()
+            rm.push_to_web = MagicMock()
+
+            rm.handle_web_cmd('54', {'cmd': 'return', 'robot_id': '54'})
+
+            rm.publish_cmd.assert_called_once()
+            _rid, payload = rm.publish_cmd.call_args[0]
+            assert _rid == '54'
+            assert payload.get('cmd') == 'mode'
+            assert payload.get('value') == 'RETURNING'
+            assert payload.get('is_locked_return') is True
+            mock_db.end_session.assert_not_called()
+
     def test_return_skips_pi_when_idle(self):
         with patch('control_service.robot_manager.db') as mock_db:
             mock_db.get_all_robots.return_value = [
@@ -225,6 +289,7 @@ class TestWebReturn:
             mock_db.log_event.return_value = None
             mock_db.log_staff_call.return_value = 1
             mock_db.get_active_session_by_robot.return_value = None
+            mock_db.get_cart_by_session.return_value = None
 
             rm = RobotManager()
             rm.start()

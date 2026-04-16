@@ -124,7 +124,14 @@ class CmdHandler:
         logger.info('Session started for user=%s', user_id)
 
     def _handle_mode(self, payload: dict) -> None:
-        """mode: WAITING | RETURNING."""
+        """mode: WAITING | RETURNING | LOCKED.
+
+        Note:
+            - RETURNING in WAITING consults has_unpaid_items() to decide
+              LOCKED vs RETURNING (timeout/exit behaviour).
+            - LOCKED is used by the server when the user requests shopping end
+              but there are unpaid items; it keeps the session until staff_resolved.
+        """
         value = payload.get('value', '')
         state = self.sm.state
 
@@ -140,11 +147,28 @@ class CmdHandler:
                 logger.warning('mode=RETURNING ignored in state=%s', state)
                 return
 
+            # Server may request "locked returning": keep mode=RETURNING but
+            # flip the flag so UI/LED can show the locked-return styling.
+            if 'is_locked_return' in payload:
+                try:
+                    self.sm.is_locked_return = bool(payload.get('is_locked_return'))
+                except Exception:
+                    # Best-effort; don't block transition on bad payload types.
+                    pass
+
             unpaid = self._has_unpaid_items() if self._has_unpaid_items else False
             if state == 'WAITING':
                 self.sm.waiting_exit_by_unpaid(unpaid)
             else:
                 self.sm.enter_returning()
+
+        elif value == 'LOCKED':
+            # LOCKED is only meaningful as a WAITING-exit path (unpaid timeout).
+            # Other flows should use RETURNING + is_locked_return flag.
+            if state != 'WAITING':
+                logger.warning('mode=LOCKED ignored in state=%s (expected WAITING)', state)
+                return
+            self.sm.enter_locked()
 
         else:
             logger.warning('mode: unknown value=%s', value)

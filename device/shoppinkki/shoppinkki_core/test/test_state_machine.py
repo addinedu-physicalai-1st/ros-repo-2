@@ -233,12 +233,12 @@ class TestLocked:
 
 
 class TestWaitingExitByUnpaid:
-    def test_unpaid_to_locked(self):
+    def test_unpaid_to_locked_returning(self):
         sm = make_sm()
         reach_tracking(sm)
         sm.enter_waiting()
         sm.waiting_exit_by_unpaid(True)
-        assert sm.state == 'LOCKED'
+        assert sm.state == 'RETURNING'
         assert sm.is_locked_return is True
 
     def test_paid_to_returning(self):
