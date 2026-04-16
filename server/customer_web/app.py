@@ -85,7 +85,7 @@ _WAITING_TIMEOUT_SEC = _load_waiting_timeout_sec()
 # ── 환경 변수 ──────────────────────────────────────────────────
 PORT = int(os.environ.get("PORT", 8501))
 KNOWN_ROBOT_IDS: list[str] = [
-    r.strip() for r in os.environ.get("ROBOT_IDS", "11,54,18").split(",") if r.strip()
+    r.strip() for r in os.environ.get("ROBOT_IDS", "18,54").split(",") if r.strip()
 ]
 CONTROL_HOST = os.environ.get("CONTROL_SERVICE_HOST", "127.0.0.1")
 CONTROL_PORT = int(os.environ.get("CONTROL_SERVICE_PORT", 8080))

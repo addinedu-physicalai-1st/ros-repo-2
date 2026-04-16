@@ -81,9 +81,11 @@ TMUX_SETUP_FILE=""
 # 현재 쉘이 bash 이면 .bash 우선, 아니면 .zsh 우선
 if [ -n "$BASH_VERSION" ]; then
     for _f in \
+        "$HOME/ros_ws/install/setup.bash" \
         "$_ROS_WS/install/setup.bash" \
         "$_CONDA_ENV_DIR/setup.bash" \
         "/opt/ros/jazzy/setup.bash" \
+        "$HOME/ros_ws/install/setup.zsh" \
         "$_ROS_WS/install/setup.zsh" \
         "$_CONDA_ENV_DIR/setup.zsh" \
         "/opt/ros/jazzy/setup.zsh"
@@ -92,7 +94,9 @@ if [ -n "$BASH_VERSION" ]; then
     done
 else
     for _f in \
+        "$HOME/ros_ws/install/setup.zsh" \
         "$_ROS_WS/install/setup.zsh" \
+        "$HOME/ros_ws/install/setup.bash" \
         "$_ROS_WS/install/setup.bash" \
         "$_CONDA_ENV_DIR/setup.zsh" \
         "$_CONDA_ENV_DIR/setup.bash" \
@@ -105,9 +109,11 @@ fi
 
 # tmux 창용은 항상 .zsh 우선 (macOS tmux 기본 쉘 = zsh)
 for _f in \
+    "$HOME/ros_ws/install/setup.zsh" \
     "$_ROS_WS/install/setup.zsh" \
     "$_CONDA_ENV_DIR/setup.zsh" \
     "/opt/ros/jazzy/setup.zsh" \
+    "$HOME/ros_ws/install/setup.bash" \
     "$_ROS_WS/install/setup.bash" \
     "$_CONDA_ENV_DIR/setup.bash" \
     "/opt/ros/jazzy/setup.bash"

@@ -235,7 +235,7 @@ def create_app(robot_manager: 'RobotManager',
         try:
             session_id = db.create_session(robot_id, user_id)
             db.update_robot(robot_id, active_user_id=user_id)
-            db.log_event(robot_id, 'SESSION_START', user_id)
+            robot_manager._push_event(robot_id, 'SESSION_START', user_id=user_id)
         except psycopg2.errors.UniqueViolation:
             # Race condition: another request created an active session.
             # Re-query and return idempotent response.
@@ -307,7 +307,7 @@ def create_app(robot_manager: 'RobotManager',
             rid = session['robot_id']
             db.end_session(session_id)
             db.update_robot(rid, active_user_id=None)
-            db.log_event(rid, 'SESSION_END', session.get('user_id'))
+            robot_manager._push_event(rid, 'SESSION_END', user_id=session.get('user_id'))
             robot_manager.set_cached_active_user_id(rid, None)
         return jsonify({'ok': True})
 

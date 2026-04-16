@@ -161,3 +161,10 @@ CREATE TABLE fleet_lane (
     to_idx   INT NOT NULL REFERENCES fleet_waypoint(idx),
     PRIMARY KEY (from_idx, to_idx)
 );
+
+-- 다대다 zone↔waypoint 매핑 (경계 노드가 복수 zone에 속하는 경우)
+CREATE TABLE zone_waypoint_map (
+    zone_id      INT NOT NULL REFERENCES zone(zone_id),
+    waypoint_idx INT NOT NULL REFERENCES fleet_waypoint(idx),
+    PRIMARY KEY (zone_id, waypoint_idx)
+);

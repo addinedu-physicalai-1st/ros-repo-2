@@ -76,6 +76,8 @@ _RESUME_MODES = {'WAITING', 'SEARCHING'}
 _RETURNING_MODES = {'TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'SEARCHING'}
 # 위치 초기화 가능 모드 (시뮬/실물 AMCL 초기 위치 설정)
 _INIT_POSE_MODES = {'CHARGING', 'IDLE'}
+# OFFLINE 판정 기준 (main_window와 동기화)
+OFFLINE_TIMEOUT_SEC = 30
 # admin_position_adjustment — 맵 좌표 기준 위치 재조정 (시뮬/실물 공통)
 _POSITION_ADJUSTMENT_BTN_LABEL = '위치 재조정'
 _POSITION_ADJUSTMENT_MODES = frozenset({'IDLE', 'TRACKING', 'TRACKING_CHECKOUT'})
@@ -137,11 +139,14 @@ class RobotCard(QFrame):
         batt_layout.addWidget(self._progress_battery)
         layout.addLayout(batt_layout)
 
-        # 사용자 / 좌표
+            # 사용자 / 좌표 / 마지막 수신
         self._lbl_user = QLabel('사용자: -')
         self._lbl_pos = QLabel('위치: (-, -)')
+        self._lbl_last_seen = QLabel('')
+        self._lbl_last_seen.setStyleSheet('color: #888; font-size: 11px;')
         layout.addWidget(self._lbl_user)
         layout.addWidget(self._lbl_pos)
+        layout.addWidget(self._lbl_last_seen)
 
         # 상태 전환 버튼 행
         trans_layout = QHBoxLayout()
@@ -259,15 +264,23 @@ class RobotCard(QFrame):
             self.setStyleSheet('')
 
         # 배터리 바
-        self._progress_battery.setValue(int(battery))
-        if battery <= 20:
+        batt_int = int(battery)
+        self._progress_battery.setValue(batt_int)
+        if battery <= 10:
             self._progress_battery.setStyleSheet(
                 'QProgressBar::chunk { background-color: #e74c3c; }'
             )
+            self._progress_battery.setFormat(f'{batt_int}% LOW')
+        elif battery <= 20:
+            self._progress_battery.setStyleSheet(
+                'QProgressBar::chunk { background-color: #e67e22; }'
+            )
+            self._progress_battery.setFormat(f'{batt_int}%')
         else:
             self._progress_battery.setStyleSheet(
                 'QProgressBar::chunk { background-color: #27ae60; }'
             )
+            self._progress_battery.setFormat(f'{batt_int}%')
 
         self._lbl_user.setText(f'사용자: {user_id}')
         self._lbl_pos.setText(f'위치: ({pos_x:.2f}, {pos_y:.2f})')
@@ -293,24 +306,84 @@ class RobotCard(QFrame):
         else:
             self._btn_position_adjustment.setText(_POSITION_ADJUSTMENT_BTN_LABEL)
 
+    def update_last_seen(self, seconds_ago: float):
+        """마지막 status 수신 이후 경과 시간 표시."""
+        if seconds_ago < 0:
+            self._lbl_last_seen.setText('')
+            return
+        sec = int(seconds_ago)
+        if sec < 5:
+            self._lbl_last_seen.setText('')
+            self._lbl_last_seen.setStyleSheet('color: #888; font-size: 11px;')
+        elif sec < OFFLINE_TIMEOUT_SEC:
+            self._lbl_last_seen.setText(f'마지막 수신 {sec}초 전')
+            self._lbl_last_seen.setStyleSheet('color: #e67e22; font-size: 11px;')
+        else:
+            self._lbl_last_seen.setText(f'응답 없음 ({sec}초)')
+            self._lbl_last_seen.setStyleSheet('color: #e74c3c; font-size: 11px; font-weight: bold;')
+
+    def reset_pending(self):
+        """모든 pending 상태 초기화 (TCP 연결 끊김 시 호출)."""
+        self._goto_pending = False
+        self._btn_admin_goto.setText('이동 명령')
+        self._btn_admin_goto.setStyleSheet('')
+        self._position_adjustment_pending = False
+        self._btn_position_adjustment.setText(_POSITION_ADJUSTMENT_BTN_LABEL)
+
     def _update_button_states(self):
         mode = self._current_state.get('mode', 'OFFLINE')
         is_locked_return = self._current_state.get('is_locked_return', False)
 
+        # 활성/비활성 + 동적 tooltip
         self._btn_waiting.setEnabled(mode in _WAITING_MODES)
+        if mode not in _WAITING_MODES:
+            self._btn_waiting.setToolTip(f'WAITING 전환 (현재 {mode} — TRACKING/SEARCHING에서 가능)')
+        else:
+            self._btn_waiting.setToolTip('WAITING 전환')
+
         self._btn_resume.setEnabled(mode in _RESUME_MODES)
+        if mode not in _RESUME_MODES:
+            self._btn_resume.setToolTip(f'추종 재개 (현재 {mode} — WAITING/SEARCHING에서 가능)')
+        else:
+            self._btn_resume.setToolTip('추종 재개')
+
         self._btn_returning.setEnabled(mode in _RETURNING_MODES)
+        if mode not in _RETURNING_MODES:
+            self._btn_returning.setToolTip(f'복귀 (현재 {mode} — TRACKING/WAITING에서 가능)')
+        else:
+            self._btn_returning.setToolTip('충전소로 복귀')
+
         self._btn_force_terminate.setEnabled(mode not in _FORCE_TERMINATE_DISABLED)
-        # admin_goto: IDLE이면 항상 활성 (맵 클릭 대기 모드 진입/취소)
-        self._btn_admin_goto.setEnabled(mode == 'IDLE')
-        # admin_position_adjustment: IDLE 또는 TRACKING / TRACKING_CHECKOUT
-        self._btn_position_adjustment.setEnabled(mode in _POSITION_ADJUSTMENT_MODES)
-        # staff_resolved: HALTED 또는 is_locked_return
-        self._btn_staff_resolved.setEnabled(
-            mode == 'HALTED' or is_locked_return
-        )
-        # init_pose: CHARGING 또는 IDLE (시뮬 Gazebo / 실물 AMCL 초기화용)
+        if mode in _FORCE_TERMINATE_DISABLED:
+            self._btn_force_terminate.setToolTip(f'강제 종료 불가 (현재 {mode})')
+        else:
+            self._btn_force_terminate.setToolTip('세션 강제 종료')
+
+        self._btn_admin_goto.setEnabled(mode == 'IDLE' or self._goto_pending)
+        if mode != 'IDLE' and not self._goto_pending:
+            self._btn_admin_goto.setToolTip(f'이동 명령 (현재 {mode} — IDLE에서만 가능)')
+        else:
+            self._btn_admin_goto.setToolTip('맵 클릭으로 목적지 지정')
+
+        self._btn_position_adjustment.setEnabled(mode in _POSITION_ADJUSTMENT_MODES
+                                                  or self._position_adjustment_pending)
+        if mode not in _POSITION_ADJUSTMENT_MODES and not self._position_adjustment_pending:
+            self._btn_position_adjustment.setToolTip(
+                f'위치 재조정 불가 (현재 {mode} — IDLE/TRACKING에서 가능)')
+        else:
+            self._btn_position_adjustment.setToolTip('맵 클릭으로 위치 재조정')
+
+        self._btn_staff_resolved.setEnabled(mode == 'HALTED' or is_locked_return)
+        if not (mode == 'HALTED' or is_locked_return):
+            self._btn_staff_resolved.setToolTip(f'잠금 해제 불가 (현재 {mode}, HALTED/LOCKED에서 가능)')
+        else:
+            self._btn_staff_resolved.setToolTip('잠금 해제')
+
         self._btn_init_pose.setEnabled(mode in _INIT_POSE_MODES)
+        if mode not in _INIT_POSE_MODES:
+            self._btn_init_pose.setToolTip(f'위치 초기화 불가 (현재 {mode} — CHARGING/IDLE에서 가능)')
+        else:
+            self._btn_init_pose.setToolTip('AMCL 초기 위치 설정')
 
     def _send_cmd(self, payload: dict):
         self.command_requested.emit(self._robot_id, payload)

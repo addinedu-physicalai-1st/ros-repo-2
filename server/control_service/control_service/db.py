@@ -355,6 +355,18 @@ def get_fleet_lanes() -> List[Dict]:
         return cur.fetchall()
 
 
+def get_waypoints_by_zone(zone_id: int) -> List[Dict]:
+    """zone_waypoint_map을 통해 해당 zone에 속하는 fleet_waypoint 목록 반환."""
+    with _cursor() as cur:
+        cur.execute(
+            'SELECT w.* FROM fleet_waypoint w '
+            'JOIN zone_waypoint_map m ON w.idx = m.waypoint_idx '
+            'WHERE m.zone_id = %s ORDER BY w.idx',
+            (zone_id,),
+        )
+        return cur.fetchall()
+
+
 def get_parking_slots() -> List[Dict]:
     """Return ZONE rows for parking slots 140, 141."""
     with _cursor() as cur:
