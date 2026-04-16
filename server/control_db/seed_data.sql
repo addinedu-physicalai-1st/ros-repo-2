@@ -97,7 +97,7 @@ ON CONFLICT (zone_id) DO UPDATE SET
 
 -- BOUNDARY_CONFIG
 INSERT INTO boundary_config (description, x_min, x_max, y_min, y_max) VALUES
-('결제 구역',    -0.10,  0.40, -1.70, -1.20),
+('결제 구역',     0.08,  0.18, -1.71, -1.29),
 ('맵 외곽 경계', -0.20,  1.35, -1.80,  0.20)
 ON CONFLICT (description) DO UPDATE SET
     x_min = EXCLUDED.x_min,
