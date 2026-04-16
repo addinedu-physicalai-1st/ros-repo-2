@@ -272,3 +272,117 @@ class TestReturningSessionCleanup:
                 rid == '54' and msg.get('type') == 'session_ended'
                 for rid, msg in web_msgs
             )
+
+
+class TestCheckoutZoneAutoReturnEmptyCart:
+    """장바구니가 비었을 때 결제 구역 진입 → RETURNING + 세션 종료."""
+
+    def test_empty_cart_triggers_returning_and_session_end(self):
+        web_msgs = []
+        with patch('control_service.robot_manager.db') as mock_db:
+            mock_db.get_all_robots.return_value = [
+                {'robot_id': '54', 'current_mode': 'TRACKING', 'pos_x': 0.0,
+                 'pos_y': 0.0, 'battery_level': 100, 'is_locked_return': 0,
+                 'active_user_id': 'u1'},
+            ]
+            mock_db.update_robot.return_value = None
+            mock_db.log_event.return_value = None
+            mock_db.log_staff_call.return_value = 1
+            mock_db.get_active_session_by_robot.return_value = {
+                'session_id': 11,
+                'user_id': 'u1',
+            }
+            mock_db.get_cart_by_session.return_value = {'cart_id': 22}
+            mock_db.has_unpaid_items.return_value = False
+
+            rm = RobotManager()
+            rm.start()
+            rm.publish_cmd = MagicMock()
+            rm.push_to_web = lambda rid, msg: web_msgs.append((rid, msg))
+
+            rm.on_status('54', {
+                'mode': 'TRACKING', 'pos_x': 0.0, 'pos_y': 0.0,
+                'battery': 100.0, 'is_locked_return': False,
+            })
+
+            rm.on_customer_event('54', {'type': 'checkout_zone_enter'})
+
+            rm.publish_cmd.assert_called_once()
+            _rid, payload = rm.publish_cmd.call_args[0]
+            assert _rid == '54'
+            assert payload == {'cmd': 'mode', 'value': 'RETURNING'}
+            mock_db.end_session.assert_called_once_with(11)
+            mock_db.update_robot.assert_any_call('54', current_mode='RETURNING')
+            mock_db.update_robot.assert_any_call('54', active_user_id=None)
+            assert any(
+                rid == '54' and msg.get('type') == 'session_ended'
+                for rid, msg in web_msgs
+            )
+
+    def test_unpaid_cart_still_pushes_checkout_zone_enter(self):
+        web_msgs = []
+        with patch('control_service.robot_manager.db') as mock_db:
+            mock_db.get_all_robots.return_value = [
+                {'robot_id': '54', 'current_mode': 'TRACKING', 'pos_x': 0.0,
+                 'pos_y': 0.0, 'battery_level': 100, 'is_locked_return': 0,
+                 'active_user_id': 'u1'},
+            ]
+            mock_db.update_robot.return_value = None
+            mock_db.log_event.return_value = None
+            mock_db.log_staff_call.return_value = 1
+            mock_db.get_active_session_by_robot.return_value = {
+                'session_id': 11,
+                'user_id': 'u1',
+            }
+            mock_db.get_cart_by_session.return_value = {'cart_id': 22}
+            mock_db.has_unpaid_items.return_value = True
+
+            rm = RobotManager()
+            rm.start()
+            rm.publish_cmd = MagicMock()
+            rm.push_to_web = lambda rid, msg: web_msgs.append((rid, msg))
+
+            rm.on_status('54', {
+                'mode': 'TRACKING', 'pos_x': 0.0, 'pos_y': 0.0,
+                'battery': 100.0, 'is_locked_return': False,
+            })
+
+            rm.on_customer_event('54', {'type': 'checkout_zone_enter'})
+
+            rm.publish_cmd.assert_not_called()
+            mock_db.end_session.assert_not_called()
+            assert any(
+                rid == '54' and m.get('type') == 'checkout_zone_enter'
+                for rid, m in web_msgs
+            )
+
+    def test_empty_cart_non_tracking_mode_skips_auto_return(self):
+        with patch('control_service.robot_manager.db') as mock_db:
+            mock_db.get_all_robots.return_value = [
+                {'robot_id': '54', 'current_mode': 'WAITING', 'pos_x': 0.0,
+                 'pos_y': 0.0, 'battery_level': 100, 'is_locked_return': 0,
+                 'active_user_id': 'u1'},
+            ]
+            mock_db.update_robot.return_value = None
+            mock_db.log_event.return_value = None
+            mock_db.log_staff_call.return_value = 1
+            mock_db.get_active_session_by_robot.return_value = {
+                'session_id': 11,
+                'user_id': 'u1',
+            }
+            mock_db.get_cart_by_session.return_value = {'cart_id': 22}
+            mock_db.has_unpaid_items.return_value = False
+
+            rm = RobotManager()
+            rm.start()
+            rm.publish_cmd = MagicMock()
+
+            rm.on_status('54', {
+                'mode': 'WAITING', 'pos_x': 0.0, 'pos_y': 0.0,
+                'battery': 100.0, 'is_locked_return': False,
+            })
+
+            rm.on_customer_event('54', {'type': 'checkout_zone_enter'})
+
+            rm.publish_cmd.assert_not_called()
+            mock_db.end_session.assert_not_called()
