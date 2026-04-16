@@ -35,6 +35,8 @@ try:
         N_MISS_FRAMES,
         TARGET_SIZE,
         ANGLE_DEADZONE,
+        AVOID_DIST,
+        AVOID_KP,
     )
 except ImportError:
     KP_ANGLE = 0.002
@@ -186,15 +188,42 @@ class ObstacleAvoidance(py_trees.behaviour.Behaviour):
         linear_x = self._ctx.linear_x
         angular_z = self._ctx.angular_z
 
-        # LiDAR 감속
-        if self._ctx.get_scan is not None and linear_x > 0.0:
+        # LiDAR 기반 장애물 회피 (감속 + 회피 조향)
+        if self._ctx.get_scan is not None:
             try:
                 distances = self._ctx.get_scan()
                 if distances:
-                    min_fwd = min(d for d in distances if d > 0.01)
-                    if min_fwd < MIN_DIST:
-                        factor = max(0.0, min_fwd / MIN_DIST)
+                    n = len(distances)
+                    step = n / 360.0
+                    
+                    # ── 1. 전방 감속 (Front Arc: -15° ~ +15°) ──
+                    front_indices = [int(i * step) % n for i in range(-15, 16)]
+                    front_dist = min([distances[i] for i in front_indices if distances[i] > 0.05] or [10.0])
+                    
+                    if front_dist < MIN_DIST:
+                        # 전방 장애물 → 비례 감속
+                        factor = max(0.0, front_dist / MIN_DIST)
                         linear_x *= factor
+                    
+                    # ── 2. 회피 조향 (Side Arcs: 좌/우 20°~70°) ──
+                    # 좌측에 벽이 있으면 우측으로, 우측에 벽이 있으면 좌측으로 '밀어냄'
+                    left_indices = [int(i * step) % n for i in range(20, 71)]
+                    right_indices = [int(i * step) % n for i in range(290, 341)]
+                    
+                    left_min = min([distances[i] for i in left_indices if distances[i] > 0.05] or [10.0])
+                    right_min = min([distances[i] for i in right_indices if distances[i] > 0.05] or [10.0])
+                    
+                    steer_offset = 0.0
+                    if left_min < AVOID_DIST:
+                        # 좌측 장애물 → 우측(-) 조향
+                        steer_offset -= (AVOID_DIST - left_min) * AVOID_KP
+                    if right_min < AVOID_DIST:
+                        # 우측 장애물 → 좌측(+) 조향
+                        steer_offset += (AVOID_DIST - right_min) * AVOID_KP
+                    
+                    angular_z += steer_offset
+                    # 속도 제한 재적용
+                    angular_z = max(-ANGULAR_Z_MAX, min(ANGULAR_Z_MAX, angular_z))
             except Exception as e:
                 logger.debug('ObstacleAvoidance: scan error: %s', e)
 
