@@ -5,25 +5,25 @@
 /* ── Slide loader ── */
 var SLIDES = [
   '01-title.html',              // 0
-  '02-shopping-time.html',      // 1
-  '03-problem.html',            // 2
-  '04-we-came.html',            // 3
-  '05-shoppinkki-reveal.html',  // 4
-  '06-solution.html',           // 5
-  '07-idea.html',               // 6
-  '08-ux.html',                 // 7
-  '09-hardware-intro.html',     // 8
-  '10-robot.html',              // 9
-  '11-doll.html',               // 10
-  '12-doll-25000.html',         // 11
-  '13-system-intro.html',       // 12
-  '14-architecture.html',       // 13
-  '15-techstack.html',          // 14
-  '16-structure-overview.html', // 15
-  '17-structure-device.html',   // 16
-  '18-structure-interface.html',// 17
-  '19-structure-mainnode.html', // 18
-  '20-structure-server.html',   // 19
+  '02-shopping-stat.html',      // 1
+  '03-shopping-time.html',      // 2
+  '04-shopping-cart.html',      // 3
+  '05-quote.html',              // 4
+  '06-shopping-pain.html',      // 5
+  '07-we-came.html',            // 6
+  '08-meeting.html',            // 7
+  '09-shoppinkki-reveal.html',  // 8
+  '10-solution.html',           // 9
+  '11-idea.html',               // 10
+  '12-ux.html',                 // 11
+  '13-hardware-intro.html',     // 12
+  '14-robot.html',              // 13
+  '15-doll.html',               // 14
+  '16-doll-25000.html',         // 15
+  '17-system-intro.html',       // 16
+  '18-network-topology.html',   // 17
+  '19-hw-architecture.html',    // 18
+  '20-architecture.html',       // 19
   '21-statemachine.html',       // 20
   '22-demoenv-intro.html',      // 21
   '23-environment.html',        // 22
@@ -42,13 +42,13 @@ var SLIDES = [
   '36-tracking-reid-intro.html',  // 35
   '37-tracking-demo.html',      // 36
   '38-tracking-pcontrol.html',  // 37
-  '39-intro-guide.html',        // 38
-  '40-guide.html',              // 39
-  '41-guide-pipeline.html',     // 40
-  '42-guide-llm-demo.html',     // 41
-  '43-multi-robot.html',        // 42
-  '44-openrmf-intro.html',      // 43
-  '45-openrmf-setup.html',      // 44
+  '39-tracking-angular.html',   // 38
+  '40-intro-guide.html',        // 39
+  '41-guide.html',              // 40
+  '42-guide-pipeline.html',     // 41
+  '43-guide-llm-demo.html',     // 42
+  '44-multi-robot.html',        // 43
+  '45-openrmf-intro.html',      // 44
   '46-fleet-map.html',          // 45
   '47-guide-demo.html',         // 46
   '48-multi-robot-demo.html',   // 47
@@ -68,61 +68,59 @@ var SLIDES = [
   '62-final-demo.html',         // 61
   '63-retrospect.html',         // 62
   '64-team.html',               // 63
-  '65-qa.html',                 // 64
-  '66-references.html',         // 65
-  '67-ref-cosine.html',         // 66
-  '68-ref-hsv.html',            // 67
-  '69-ref-kalman.html',         // 68
-  '70-ref-hungarian.html',      // 69
-  '71-ref-iou.html',            // 70
+  '65-thanks.html',             // 64
+  '66-ref-cosine.html',         // 65
+  '67-ref-hsv.html',            // 66
+  '68-ref-hungarian.html',      // 67
+  '69-ref-iou.html',            // 68
 ];
 
 var SLIDE_TITLES = [
-  '쑈삥끼',                                    // 0  01-title
-  '우리는 마트에서 얼마나 시간을 보낼까?',    // 1  02-shopping-time
-  '쇼핑의 3대 불편',                           // 2  03-problem
-  '우리가 왔읍니다',                            // 3  04-we-came
-  '쑈삥끼',                                    // 4  05-shoppinkki-reveal
-  '쑈삥끼',                                    // 5  06-solution
-  '아이디어 - Carrefour Scan\'lib',            // 6  07-idea
-  'User Journey',                              // 7  08-ux
-  '하드웨어 정보',                             // 8  09-hardware-intro
-  'Pinky Pro, Basket Edition',                 // 9  10-robot
-  '사용자 인형',                               // 10 11-doll
-  '25,000원으로 할 수 있는 일',               // 11 12-doll-25000
-  '시스템 구성',                               // 12 13-system-intro
-  'System Architecture',                       // 13 14-architecture
-  'Tech Stack',                                // 14 15-techstack
-  '프로젝트 구조',                             // 15 16-structure-overview
-  '프로젝트 구조: device/ 패키지',             // 16 17-structure-device
-  'shoppinkki_core — 클래스 관계도',           // 17 18-structure-interface
-  'ShoppinkkiMainNode — 실행 흐름',            // 18 19-structure-mainnode
-  '프로젝트 구조: server/ 패키지',             // 19 20-structure-server
+  '삥끼랩',                                    // 0  01-title
+  '45분',                                      // 1  02-shopping-stat
+  '우리가 쇼핑 시간동안 하는 일',             // 2  03-shopping-time
+  '우리가 쇼핑 시간동안 하는 일',             // 3  04-shopping-cart
+  '사람들은 항상 쇼핑을 합니다...',           // 4  05-quote
+  '쇼핑의 3대 불편',                           // 5  06-shopping-pain
+  '우리가 왔읍니다',                            // 6  07-we-came
+  '쇼핑과 핑키의 만남',                        // 7  08-meeting
+  '쑈삥끼',                                    // 8  09-shoppinkki-reveal
+  '삥끼랩의 쑈삥끼는요,',                     // 9  10-solution
+  "쑈삥끼의 아이디어 - Carrefour Scan'lib",   // 10 11-idea
+  '쑈삥끼 사용자 여정',                        // 11 12-ux
+  '하드웨어 정보',                             // 12 13-hardware-intro
+  'Pinky Pro, Basket Edition',                 // 13 14-robot
+  '사용자인형들 (무려 25000원)',               // 14 15-doll
+  '25,000원으로 할 수 있는 일',               // 15 16-doll-25000
+  '시스템 구성',                               // 16 17-system-intro
+  'Network Topology',                          // 17 18-network-topology
+  'Hardware Architecture',                     // 18 19-hw-architecture
+  'Software Architecture',                     // 19 20-architecture
   'State Diagram',                             // 20 21-statemachine
   '데모 환경',                                 // 21 22-demoenv-intro
   '미니어처 마트',                             // 22 23-environment
   '구역 구성',                                 // 23 24-zones
   '시뮬레이션 맵',                             // 24 25-simmap
   '핵심기능 7가지',                            // 25 26-features
-  '로그인',                                    // 26 27-intro-login
-  '핵심 기능 1: 로그인',                       // 27 28-login-1
-  '핵심 기능 1: 로그인',                       // 28 29-login-2
-  '핵심 기능 1: 로그인',                       // 29 30-login-3
-  '핵심 기능 1: 로그인',                       // 30 31-login-4
+  '카트 이용 시작',                            // 26 27-intro-login
+  '핵심 기능 1: 카트 이용 시작',              // 27 28-login-1
+  '핵심 기능 1: 카트 이용 시작',              // 28 29-login-2
+  '핵심 기능 1: 카트 이용 시작',              // 29 30-login-3
+  '핵심 기능 1: 카트 이용 시작',              // 30 31-login-4
   '추종',                                      // 31 32-intro-tracking
   '핵심 기능 2: 추종',                         // 32 33-tracking
   '추종: 커스텀 YOLOv8',                       // 33 34-tracking-yolo
   '추종: ByteTracker',                         // 34 35-tracking-bytetracker
   '추종: ReID와 HSV란?',                       // 35 36-tracking-reid-intro
-  '추종 테스트',                               // 36 37-tracking-demo
-  '추종: bbox 기반 PI 제어',                   // 37 38-tracking-pcontrol
-  '가이드',                                    // 38 39-intro-guide
-  '핵심 기능 3: 가이드',                       // 39 40-guide
-  '가이드: 검색 파이프라인',                   // 40 41-guide-pipeline
-  '가이드 Demo — 채팅 검색',                  // 41 42-guide-llm-demo
-  '가이드: 다중 로봇 제어',                    // 42 43-multi-robot
-  '가이드: Open-RMF란?',                       // 43 44-openrmf-intro
-  '가이드: Open-RMF 사용을 위한 준비',         // 44 45-openrmf-setup
+  '인형 인식 모델 테스트',                     // 36 37-tracking-demo
+  '추종: 선속도 제어',                          // 37 38-tracking-pcontrol
+  '추종: 각속도 제어',                          // 38 39-tracking-angular
+  '가이드',                                    // 39 40-intro-guide
+  '핵심 기능 3: 가이드',                       // 40 41-guide
+  '가이드: 검색 파이프라인',                   // 41 42-guide-pipeline
+  '가이드 Demo — 채팅 검색',                  // 42 43-guide-llm-demo
+  '가이드: 다중 로봇 제어',                    // 43 44-multi-robot
+  '가이드: Open-RMF란?',                       // 44 45-openrmf-intro
   '가이드: Fleet 웨이포인트 배치',             // 45 46-fleet-map
   '가이드 Demo — 로봇 1대',                   // 46 47-guide-demo
   '가이드 Demo — 로봇 2대',                   // 47 48-multi-robot-demo
@@ -139,16 +137,14 @@ var SLIDE_TITLES = [
   '핵심 기능 7: 복귀',                         // 58 59-return
   '복귀 Demo',                                 // 59 60-return-demo
   '최종 데모',                                 // 60 61-intro-final-demo
-  '',                                          // 61 62-final-demo
+  '최종 데모 영상',                             // 61 62-final-demo
   '회고',                                      // 62 63-retrospect
   '팀원 소개',                                 // 63 64-team
-  'Q & A',                                    // 64 65-qa
-  '참고자료',                                  // 65 66-references
-  '참고자료 1: 코사인 유사도란?',              // 66 67-ref-cosine
-  '참고자료 2: HSV 히스토그램 상관계수란?',    // 67 68-ref-hsv
-  '참고자료 3: Kalman Filter',                 // 68 69-ref-kalman
-  '참고자료 4: Hungarian Algorithm',           // 69 70-ref-hungarian
-  '참고자료 5: IoU (Intersection over Union)', // 70 71-ref-iou
+  '감사합니다',                                // 64 65-thanks
+  '참고자료 1: 코사인 유사도란?',              // 65 66-ref-cosine
+  '참고자료 2: HSV 히스토그램 상관계수란?',    // 66 67-ref-hsv
+  '참고자료 4: Hungarian Algorithm',           // 67 68-ref-hungarian
+  '참고자료 5: IoU (Intersection over Union)', // 68 69-ref-iou
 ];
 
 async function loadSlides() {
@@ -179,8 +175,11 @@ async function initPresentation() {
     transitionSpeed: 'fast',
     plugins: [RevealNotes, RevealHighlight],
     keyboard: {
-      80: function() { toggleVideo(); },   // P
+      80: function() { toggleVideo(); },      // P
       70: function() { toggleFullscreen(); }, // F
+      87: function() { toggleWebcam(); },     // W
+      67: function() { toggleDraw(); },       // C — 그리기 토글
+      88: function() { clearDraw(); },        // X — 지우기
     }
   });
 
@@ -203,6 +202,7 @@ async function initPresentation() {
     }
     initLoginPipelines();
     initVideoControls();
+    initDraw();
     forceCenterAlign();
     // Make slide number indicator clickable
     var slideNum = document.querySelector('.reveal .slide-number');
@@ -214,6 +214,7 @@ async function initPresentation() {
     }
   });
   Reveal.on('slidechanged', function(event) {
+    clearDraw();
     forceCenterAlign();
     // Update active state in panel if open
     var panel = document.getElementById('slide-panel');
@@ -247,6 +248,108 @@ function toggleVideo() {
     video.pause();
     container.classList.remove('playing');
   }
+}
+
+/* ── Drawing Overlay (C: 토글, X: 지우기) ── */
+var _drawActive = false;
+var _drawing = false;
+var _lastX = 0, _lastY = 0;
+
+function toggleDraw() {
+  _drawActive = !_drawActive;
+  var canvas = document.getElementById('draw-canvas');
+  canvas.style.pointerEvents = _drawActive ? 'auto' : 'none';
+  document.body.style.cursor = _drawActive ? 'crosshair' : '';
+}
+
+function clearDraw() {
+  var canvas = document.getElementById('draw-canvas');
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function initDraw() {
+  var canvas = document.getElementById('draw-canvas');
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  window.addEventListener('resize', function() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+  });
+
+  var ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#FF4444';
+  ctx.lineWidth   = 4;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+
+  canvas.addEventListener('mousedown', function(e) {
+    _drawing = true;
+    _lastX = e.clientX;
+    _lastY = e.clientY;
+  });
+  canvas.addEventListener('mousemove', function(e) {
+    if (!_drawing) return;
+    ctx.strokeStyle = '#FF4444';
+    ctx.lineWidth   = 4;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    ctx.beginPath();
+    ctx.moveTo(_lastX, _lastY);
+    ctx.lineTo(e.clientX, e.clientY);
+    ctx.stroke();
+    _lastX = e.clientX;
+    _lastY = e.clientY;
+  });
+  canvas.addEventListener('mouseup',    function() { _drawing = false; });
+  canvas.addEventListener('mouseleave', function() { _drawing = false; });
+}
+
+/* ── Webcam Overlay (W key) ── */
+var _wcStream = null;
+var _wcActive = false;
+var _wcAnimFrame = null;
+
+function toggleWebcam() {
+  if (_wcActive) { _stopWebcam(); } else { _startWebcam(); }
+}
+
+async function _startWebcam() {
+  var overlay = document.getElementById('webcam-overlay');
+  var video   = document.getElementById('webcam-video');
+  var canvas  = document.getElementById('webcam-canvas');
+  var ctx     = canvas.getContext('2d');
+  try {
+    _wcStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+    video.srcObject = _wcStream;
+    await video.play();
+    canvas.width  = video.videoWidth  || 640;
+    canvas.height = video.videoHeight || 480;
+    overlay.style.display = 'block';
+    _wcActive = true;
+    _startPlain(video, canvas, ctx);
+  } catch(e) {
+    console.warn('Webcam error:', e);
+  }
+}
+
+function _startPlain(video, canvas, ctx) {
+  function draw() {
+    if (!_wcActive) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    _wcAnimFrame = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+
+function _stopWebcam() {
+  _wcActive = false;
+  if (_wcAnimFrame) { cancelAnimationFrame(_wcAnimFrame); _wcAnimFrame = null; }
+  if (_wcStream) { _wcStream.getTracks().forEach(function(t) { t.stop(); }); _wcStream = null; }
+  var overlay = document.getElementById('webcam-overlay');
+  if (overlay) overlay.style.display = 'none';
 }
 
 /* ── Slide link (뒤로가기 지원) ── */
