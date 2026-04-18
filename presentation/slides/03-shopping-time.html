@@ -1,0 +1,74 @@
+<section class="flex flex-col">
+  <h2 class="text-em-xl font-black mt-0 mb-12 text-center w-full" style="color:#E2E8F0">우리가 쇼핑 시간동안 <span style="color:#FBBF24">하는 일</span></h2>
+
+  <!-- 도넛 차트 + callout 라벨 -->
+  <!-- 도넛 중심: (310, 200), 외반경: 170, 내반경: 98 -->
+  <!-- 세그먼트 외곽 중점:
+       파랑(120°): (457, 285)
+       주황(280°): (143, 171)
+       회색(340°): (252, 40) -->
+  <div class="flex-1 flex items-center justify-center w-full">
+    <div style="position:relative;width:620px;height:400px">
+
+      <!-- 도넛 원 -->
+      <div style="
+        position:absolute;left:140px;top:30px;
+        width:340px;height:340px;border-radius:50%;
+        background:conic-gradient(
+          #38BDF8 0% 66.7%,
+          #FB923C 66.7% 88.9%,
+          #475569 88.9% 100%
+        );
+      "></div>
+
+      <!-- 구멍 + 총 시간 -->
+      <div style="
+        position:absolute;left:212px;top:102px;
+        width:196px;height:196px;border-radius:50%;
+        background:#0A1D35;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+      ">
+        <span class="font-black" style="color:#FBBF24;font-size:2.6rem;line-height:1">45<span style="font-size:1rem">분</span></span>
+        <span class="font-bold" style="color:#FBBF2470;font-size:0.65rem;letter-spacing:0.05em">한국 기준</span>
+      </div>
+
+      <!-- SVG: callout 선 + 텍스트 라벨 -->
+      <svg style="position:absolute;left:0;top:0;width:620px;height:400px" overflow="visible">
+
+        <!-- 물건찾기 & 이동 (30분) — 120°, 오른쪽 하단 -->
+        <path d="M 457 285 L 480 300 L 530 300"
+              stroke="#38BDF8" stroke-width="1.5" fill="none" opacity="0.55"/>
+        <text x="534" y="278"
+              fill="#94A3B8" font-size="16" font-weight="600"
+              text-anchor="start" font-family="inherit">물건찾기 &amp; 이동</text>
+        <text x="534" y="326"
+              fill="#38BDF8" font-size="40" font-weight="900"
+              text-anchor="start" font-family="inherit">30<tspan font-size="20">분</tspan></text>
+
+        <!-- 결제대기 (10분) — 280°, 왼쪽 -->
+        <path d="M 143 171 L 112 164 L 72 164"
+              stroke="#FB923C" stroke-width="1.5" fill="none" opacity="0.55"/>
+        <text x="68" y="142"
+              fill="#94A3B8" font-size="16" font-weight="600"
+              text-anchor="end" font-family="inherit">결제대기</text>
+        <text x="68" y="190"
+              fill="#FB923C" font-size="40" font-weight="900"
+              text-anchor="end" font-family="inherit">10<tspan font-size="20">분</tspan></text>
+
+        <!-- 기타 (5분) — 340°, 왼쪽 정렬 (결제대기와 x 맞춤) -->
+        <path d="M 252 40 L 215 20 L 72 20"
+              stroke="#64748B" stroke-width="1.5" fill="none" opacity="0.55"/>
+        <text x="68" y="8"
+              fill="#64748B" font-size="16" font-weight="600"
+              text-anchor="end" font-family="inherit">기타</text>
+        <text x="68" y="56"
+              fill="#64748B" font-size="40" font-weight="900"
+              text-anchor="end" font-family="inherit">5<tspan font-size="20">분</tspan></text>
+
+      </svg>
+
+    </div>
+  </div>
+
+
+</section>

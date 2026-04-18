@@ -1,0 +1,166 @@
+<section style="word-break:keep-all">
+  <h2 class="text-em-3xl font-black text-md-primary mt-0 mb-4 text-center w-full">Software Architecture</h2>
+
+  <div class="flex flex-col gap-2 flex-1 mx-auto" style="width:80%">
+
+    <!-- 두 컬럼 (상단) -->
+    <div class="flex gap-8 flex-1 items-center">
+
+      <!-- 왼쪽: 사용자 단말 → Customer Web → LLM -->
+      <div class="flex-1 flex flex-col gap-2 self-start">
+
+        <div class="rounded-2xl px-5 py-3 flex items-center justify-center gap-3" style="background:#0A1929;border:2px solid #A78BFA">
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style="background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.3)">
+            <span class="material-icons-round" style="font-size:1.2rem;color:#A78BFA">smartphone</span>
+          </div>
+          <p class="text-em-xs font-extrabold m-0" style="color:#A78BFA">사용자 단말 <span class="font-normal text-em-xs" style="color:#7BA5C8">(핸드폰)</span></p>
+        </div>
+
+        <div class="flex justify-center items-center gap-1">
+          <span style="color:#CBD5E1;font-size:1.8rem">↕</span>
+          <span class="text-em-3xs" style="color:#94A3B8">WS · HTTP</span>
+        </div>
+
+        <!-- Web Server 컨테이너 -->
+        <div class="rounded-2xl px-3 py-3 flex flex-col gap-2" style="background:#071524;border:2px solid #FBBF24">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="material-icons-round" style="font-size:1rem;color:#FBBF24">language</span>
+            <p class="text-em-xs font-extrabold m-0" style="color:#FBBF24">Web Server</p>
+          </div>
+          <div class="flex items-center gap-2" style="font-size:0.82em">
+            <!-- LLM (왼쪽, 작게) -->
+            <div class="rounded-xl px-2 py-1.5 flex items-center gap-1.5 shrink-0" style="background:#0A1929;border:1px solid #1E3A5A">
+              <span class="material-icons-round shrink-0" style="font-size:0.85rem;color:#34D399">psychology</span>
+              <div>
+                <p class="text-em-3xs font-bold m-0" style="color:#E2E8F0;font-size:0.65em">LLM</p>
+                <p class="text-em-3xs m-0" style="color:#7BA5C8">Ollama</p>
+              </div>
+            </div>
+            <!-- ↔ HTTP -->
+            <div class="flex flex-col items-center gap-0.5 shrink-0">
+              <span style="color:#CBD5E1;font-size:1.8rem">↔</span>
+              <span class="text-em-3xs" style="color:#94A3B8">HTTP</span>
+            </div>
+            <!-- Customer Web (오른쪽, 크게) -->
+            <div class="flex-1 rounded-xl px-3 py-2.5 flex items-center gap-2" style="background:#0A1929;border:2px solid #FBBF24">
+              <span class="material-icons-round shrink-0" style="font-size:1rem;color:#FBBF24">chat</span>
+              <div>
+                <p class="text-em-3xs font-bold m-0" style="color:#E2E8F0">Customer Web</p>
+                <p class="text-em-3xs m-0" style="color:#7BA5C8">Flask · SocketIO</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ↔ Web Server ↔ Control Server -->
+      <div class="flex flex-col items-center gap-0.5 shrink-0">
+        <span style="color:#CBD5E1;font-size:1.8rem">↔</span>
+        <span class="text-em-3xs" style="color:#94A3B8">TCP</span>
+      </div>
+
+      <!-- 오른쪽: Admin UI → Control Server -->
+      <div class="flex-1 flex flex-col gap-2 self-start">
+
+        <div class="rounded-2xl px-5 py-3 flex items-center justify-center gap-3" style="background:#0A1929;border:2px solid #38BDF8">
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3)">
+            <span class="material-icons-round" style="font-size:1.2rem;color:#38BDF8">desktop_windows</span>
+          </div>
+          <p class="text-em-xs font-extrabold m-0" style="color:#38BDF8">Admin UI <span class="font-normal text-em-xs" style="color:#7BA5C8">PyQt6</span></p>
+        </div>
+
+        <div class="flex justify-center items-center gap-1">
+          <span style="color:#CBD5E1;font-size:1.8rem">↕</span>
+          <span class="text-em-3xs" style="color:#94A3B8">TCP</span>
+        </div>
+
+        <!-- Control Server -->
+        <div class="rounded-2xl px-4 py-3 flex flex-col gap-2" style="background:#071524;border:2px solid #4ADE80">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="material-icons-round" style="font-size:1rem;color:#4ADE80">dns</span>
+            <p class="text-em-xs font-extrabold m-0" style="color:#4ADE80">Control Server</p>
+          </div>
+          <div class="flex gap-2 items-stretch" style="font-size:0.82em">
+            <!-- Control Service (부모카드 스타일 테두리) -->
+            <div class="flex-1 rounded-xl px-3 py-2 flex flex-col justify-center gap-1" style="background:#0A1929;border:2px solid #4ADE80">
+              <div class="flex gap-1 items-center">
+                <span class="material-icons-round" style="font-size:1rem;color:#4ADE80">settings_ethernet</span>
+                <p class="text-em-3xs font-bold m-0" style="color:#E2E8F0">Control Service</p>
+              </div>
+              <p class="text-em-3xs m-0" style="color:#7BA5C8">ROS 2 · Flask</p>
+            </div>
+            <!-- 화살표 -->
+            <div class="flex flex-col justify-center gap-3 shrink-0">
+              <!-- Control Service ↔ Control DB: TCP -->
+              <div class="flex items-center gap-0.5">
+                <span style="color:#CBD5E1;font-size:1.4rem">↔</span>
+                <span class="text-em-3xs" style="color:#94A3B8">TCP</span>
+              </div>
+              <!-- Control Service → YOLO: UDP / Control Service ← YOLO: TCP -->
+              <div class="flex flex-col gap-0.5">
+                <div class="flex items-center gap-0.5">
+                  <span style="color:#CBD5E1;font-size:1.1rem">→</span>
+                  <span class="text-em-3xs" style="color:#94A3B8">UDP</span>
+                </div>
+                <div class="flex items-center gap-0.5">
+                  <span style="color:#CBD5E1;font-size:1.1rem">←</span>
+                  <span class="text-em-3xs" style="color:#94A3B8">TCP</span>
+                </div>
+              </div>
+            </div>
+            <!-- Control DB + YOLO -->
+            <div class="flex flex-col gap-2" style="flex:1">
+              <div class="flex-1 rounded-xl px-3 py-2 flex items-center gap-2" style="background:#0A1929;border:1px solid #1E3A5A">
+                <span class="material-icons-round shrink-0" style="font-size:1rem;color:#FBBF24">storage</span>
+                <div>
+                  <p class="text-em-3xs font-bold m-0" style="color:#E2E8F0">Control DB</p>
+                  <p class="text-em-3xs m-0" style="color:#7BA5C8">PostgreSQL</p>
+                </div>
+              </div>
+              <div class="rounded-xl px-3 py-2 flex items-center gap-2" style="background:#0A1929;border:1px solid #1E3A5A">
+                <span class="material-icons-round shrink-0" style="font-size:1rem;color:#A78BFA">visibility</span>
+                <div>
+                  <p class="text-em-3xs font-bold py-2" style="color:#E2E8F0">YOLO</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 화살표 (Control Server → Shoppinkki) — Control Service 카드 아래 정렬 -->
+    <div class="flex gap-16 w-full">
+      <div class="flex-1"></div><!-- 왼쪽 컬럼 빈 공간 -->
+      <div class="flex-1 flex gap-2">
+        <!-- Control Service 아래 (flex-1) -->
+        <div class="flex-1 flex justify-center items-center gap-8">
+          <div class="flex flex-col items-center gap-0.5">
+            <span style="color:#CBD5E1;font-size:1.8rem">↕</span>
+            <span class="text-em-3xs" style="color:#94A3B8">ROS2 DDS · TCP</span>
+          </div>
+          <div class="flex flex-col items-center gap-0.5">
+            <span style="color:#CBD5E1;font-size:1.8rem">↑</span>
+            <span class="text-em-3xs" style="color:#94A3B8">UDP</span>
+          </div>
+        </div>
+        <div style="flex:1"></div><!-- DB+YOLO 아래 빈 공간 -->
+      </div>
+    </div>
+
+    <!-- Shoppinkki (전체 너비) -->
+    <div class="rounded-2xl px-4 py-3 flex flex-col gap-2" style="background:#071524;border:2px solid #FB7185">
+      <p class="text-em-3xs font-bold uppercase tracking-widest text-center m-0" style="color:#FB7185">Shoppinkki × 2</p>
+      <div class="flex gap-2 flex-wrap justify-center mt-1">
+        <span class="rounded-lg px-2 py-0.5 text-em-3xs font-bold" style="background:rgba(251,113,133,0.1);color:#FB7185;border:1px solid rgba(251,113,133,0.3)">ROS 2</span>
+        <span class="rounded-lg px-2 py-0.5 text-em-3xs font-bold" style="background:rgba(251,113,133,0.1);color:#FB7185;border:1px solid rgba(251,113,133,0.3)">Nav2</span>
+        <span class="rounded-lg px-2 py-0.5 text-em-3xs font-bold" style="background:rgba(251,113,133,0.1);color:#FB7185;border:1px solid rgba(251,113,133,0.3)">SLAM</span>
+        <span class="rounded-lg px-2 py-0.5 text-em-3xs font-bold" style="background:rgba(251,113,133,0.1);color:#FB7185;border:1px solid rgba(251,113,133,0.3)">State Machine</span>
+        <span class="rounded-lg px-2 py-0.5 text-em-3xs font-bold" style="background:rgba(251,113,133,0.1);color:#FB7185;border:1px solid rgba(251,113,133,0.3)">Behavior Tree</span>
+      </div>
+    </div>
+
+  </div>
+</section>
