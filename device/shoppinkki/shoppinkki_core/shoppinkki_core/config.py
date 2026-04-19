@@ -39,7 +39,7 @@ AVOID_KP: float = 0.50        # avoidance steering strength
 N_MISS_FRAMES: int = 40       # tolerate brief close-range occlusions before SEARCHING
 SEARCH_TIMEOUT: float = 600.0 # SEARCHING → WAITING timeout (s)
 SEARCH_MIN_DURATION: float = 3.0  # Increased to 3.0 to force longer search turns
-WAITING_TIMEOUT: int = 5    # WAITING  → RETURNING timeout (s)
+WAITING_TIMEOUT: int = 300  # WAITING  → RETURNING timeout (s) — 5분
 
 # ── Battery ───────────────────────────────────
 BATTERY_THRESHOLD: int = 20          # battery % below which HALTED triggers

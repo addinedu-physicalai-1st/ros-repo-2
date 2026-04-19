@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 
 from . import db
+from .fleet_router import FleetRouter
 from shoppinkki_core.config import ROBOT_TIMEOUT_SEC, WAITING_TIMEOUT
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ class RobotState:
     bbox: Optional[Dict] = None          # latest detection bbox from AI server
     dest_x: Optional[float] = None       # navigate_to 목적지 x
     dest_y: Optional[float] = None       # navigate_to 목적지 y
-    path: List[Dict[str, float]] = field(default_factory=list) # RMF path sequence
+    path: List[Dict[str, float]] = field(default_factory=list)
 
 
 # ──────────────────────────────────────────────
@@ -77,6 +78,12 @@ class RobotManager:
         self._cleanup_thread: Optional[threading.Thread] = None
         # Debounce repeated checkout_zone_enter (pose jitter) for auto-return.
         self._last_checkout_auto_return: dict[str, float] = {}
+        self._router = FleetRouter()
+        # 다른 로봇이 경로를 막고 있어 대기 중인 navigate_to payload.
+        # robot_id → 원본 payload. on_status 때마다 재시도해서 길이 열리면 dispatch.
+        self._pending_navigate: dict[str, dict] = {}
+        # 마지막 navigate_to dispatch 시각 (로봇별) — dispatch 간 최소 시차 enforce
+        self._last_navigate_dispatch: dict[str, float] = {}
 
         # Inject after construction
         self.publish_cmd:      Optional[Callable[[str, dict], None]] = None
@@ -87,10 +94,6 @@ class RobotManager:
         # position adjustment in simulation world (Gazebo SetEntityPose)
         self.adjust_position_in_sim: Optional[
             Callable[[str, float, float, float], bool]
-        ] = None
-        # RMF task dispatch (wired by ros_node when rmf_task_msgs available)
-        self.dispatch_rmf_navigate: Optional[
-            Callable[[str, str], bool]
         ] = None
         self.push_to_admin:    Optional[Callable[[dict], None]] = None
         self.push_to_web:      Optional[Callable[[str, dict], None]] = None
@@ -184,29 +187,33 @@ class RobotManager:
                                  row3_entrance, row2_entrance,
                                  {'x': 0.0, 'y': -0.606}]
                 else:
-                    route = self._compute_graph_route(robot_id, charger)
+                    route = self._router.plan(
+                        robot_id, (state.pos_x, state.pos_y), charger)
                 state.path = route
+                self._router.reserve(robot_id, route)
             # 경로 클리어: 도착(GUIDING→WAITING) 또는 비활성(IDLE/CHARGING) 시
+            # dest도 같이 비워야 다른 로봇의 navigate_to pick 로직이 이 로봇의
+            # 과거 목적지를 "점유 중"으로 오인하지 않는다.
             if state.mode in ('IDLE', 'CHARGING', 'WAITING'):
                 state.path = []
+                state.dest_x = None
+                state.dest_y = None
+                self._router.release(robot_id)
 
         # Push status update to admin and web
         self._push_status(robot_id, state)
+
+        # 경로가 막혀 대기 중인 navigate_to가 있으면 재시도 (상대 로봇이 움직였을 수 있음)
+        if self._pending_navigate:
+            try:
+                self._retry_pending_navigates()
+            except Exception:
+                logger.exception('pending navigate retry failed')
 
         # Detect IDLE → TRACKING (registration_done)
         if prev_mode == 'IDLE' and state.mode == 'TRACKING':
             self._push_web(robot_id, {'type': 'registration_done',
                                       'robot_id': robot_id})
-
-    def on_rmf_path(self, robot_id: str, path: list[dict]) -> None:
-        """RMF FleetState에서 수신된 경로 데이터를 로봇 상태에 저장하고 UI로 전파.
-        빈 path는 무시 — navigate_to에서 설정한 graph route를 보존."""
-        if not path:
-            return
-        with self._lock:
-            st = self._get_or_create(robot_id)
-            st.path = path
-        self._push_status(robot_id, st)
 
     def on_alarm(self, robot_id: str, payload: dict) -> None:
         """Process /robot_<id>/alarm JSON (event: LOCKED | HALTED)."""
@@ -372,7 +379,8 @@ class RobotManager:
         cmd = payload.get('cmd')
 
         if cmd == 'admin_goto':
-            # Only allowed in IDLE state
+            # 이동 명령: 그래프 라우팅을 거치지 않고 Nav2로 직행.
+            # Only allowed in IDLE state.
             with self._lock:
                 state = self._get_or_create(robot_id)
                 if state.mode != 'IDLE':
@@ -382,18 +390,19 @@ class RobotManager:
                         'reason': f'Robot is in {state.mode}, not IDLE',
                     })
                     return
-            # 목적지 좌표에 가장 가까운 waypoint로 경로 계산
             gx = payload.get('x')
             gy = payload.get('y')
             if gx is not None and gy is not None:
-                dest_name = self._find_nearest_waypoint(float(gx), float(gy))
-                if dest_name:
-                    route = self._compute_graph_route(robot_id, dest_name)
-                    with self._lock:
-                        state.dest_x = float(gx)
-                        state.dest_y = float(gy)
-                        state.path = route
-                    self._push_status(robot_id, state)
+                with self._lock:
+                    state.dest_x = float(gx)
+                    state.dest_y = float(gy)
+                    # 직선 가시화: 현재 위치에서 목적지까지.
+                    state.path = [
+                        {'x': state.pos_x, 'y': state.pos_y},
+                        {'x': float(gx), 'y': float(gy)},
+                    ]
+                self._router.release(robot_id)
+                self._push_status(robot_id, state)
             self._relay_to_pi(robot_id, payload)
 
         elif cmd == 'init_pose':
@@ -470,6 +479,19 @@ class RobotManager:
                     'apply_mode': apply_mode,
                 })
 
+        elif cmd == 'navigate_to':
+            # admin_ui의 "안내 이동" — IDLE에서만 허용. 나머지 라우팅은 handle_web_cmd와 동일.
+            with self._lock:
+                mode = self._get_or_create(robot_id).mode
+            if mode != 'IDLE':
+                self._push_admin({
+                    'type': 'admin_goto_rejected',
+                    'robot_id': robot_id,
+                    'reason': f'Robot is in {mode}, not IDLE',
+                })
+                return
+            self.handle_web_cmd(robot_id, payload)
+
         elif cmd in ('mode', 'resume_tracking', 'start_session'):
             self._relay_to_pi(robot_id, payload)
 
@@ -521,43 +543,7 @@ class RobotManager:
                     'path': route
                 })
         elif cmd == 'navigate_to':
-            zone_id = payload.get('zone_id')
-            if zone_id is None:
-                logger.warning('navigate_to: zone_id missing')
-                return
-            wp_name = self._pick_waypoint_for_zone(robot_id, zone_id)
-            if not wp_name:
-                logger.warning('navigate_to: zone_id=%s has no waypoints', zone_id)
-                return
-            # UI용 목적지 좌표 + nav graph 경로 즉시 저장
-            # wp_name은 zone_id 외 waypoint(과자_해산물 등)일 수 있으므로
-            # fleet_waypoint 전체에서 이름으로 조회
-            all_wps = db.get_fleet_waypoints()
-            wp = next((w for w in all_wps if w['name'] == wp_name), None)
-            route = self._compute_graph_route(robot_id, wp_name)
-            logger.info('navigate_to: wp=%s, route=%d points', wp_name, len(route))
-            with self._lock:
-                st = self._get_or_create(robot_id)
-                if wp:
-                    st.dest_x = float(wp['x'])
-                    st.dest_y = float(wp['y'])
-                st.path = route
-            self._push_status(robot_id, st)
-            # 경로가 2개 이상이면 navigate_through_poses로 전체 경로 전송
-            if route and len(route) > 1:
-                poses = self._route_to_poses(route, wp_name)
-                self._relay_to_pi(robot_id, {
-                    'cmd': 'navigate_through_poses',
-                    'poses': poses,
-                })
-                logger.info('navigate_to zone=%s → through_poses %d pts',
-                            zone_id, len(poses))
-            elif wp:
-                payload = dict(payload, x=wp['x'], y=wp['y'],
-                               theta=wp.get('theta', 0.0))
-                self._relay_to_pi(robot_id, payload)
-                logger.info('navigate_to zone=%s → single waypoint', zone_id)
-                logger.info('navigate_to zone=%s → direct relay (no RMF)', zone_id)
+            self._dispatch_navigate_to(robot_id, payload)
         elif cmd in ('mode', 'resume_tracking',
                      'start_session', 'enter_simulation',
                      'return', 'registration_confirm', 'enter_registration',
@@ -863,83 +849,6 @@ class RobotManager:
 
     _OCCUPY_DIST = 0.25
 
-    @staticmethod
-    def _find_nearest_waypoint(x: float, y: float) -> Optional[str]:
-        """좌표에 가장 가까운 waypoint 이름 반환."""
-        try:
-            waypoints = db.get_fleet_waypoints()
-        except Exception:
-            return None
-        best, best_d = None, float('inf')
-        for w in waypoints:
-            d = math.sqrt((w['x'] - x) ** 2 + (w['y'] - y) ** 2)
-            if d < best_d:
-                best_d = d
-                best = w['name']
-        return best
-
-    def _compute_graph_route(self, robot_id: str, dest_wp_name: str) -> list[dict]:
-        """nav graph에서 로봇 현재 위치 → 목적지 waypoint까지 최단 경로 계산 (BFS)."""
-        try:
-            waypoints = db.get_fleet_waypoints()
-            lanes = db.get_fleet_lanes()
-        except Exception:
-            logger.exception('Failed to load nav graph for route')
-            return []
-
-        if not waypoints or not lanes:
-            return []
-
-        # idx → waypoint 매핑
-        wp_by_idx: dict[int, dict] = {w['idx']: w for w in waypoints}
-        wp_by_name: dict[str, dict] = {w['name']: w for w in waypoints}
-
-        dest_wp = wp_by_name.get(dest_wp_name)
-        if not dest_wp:
-            return []
-        dest_idx = dest_wp['idx']
-
-        # 인접 리스트 (방향 그래프)
-        adj: dict[int, list[int]] = {}
-        for lane in lanes:
-            f, t = lane['from_idx'], lane['to_idx']
-            adj.setdefault(f, []).append(t)
-
-        # 로봇 현재 위치에서 가장 가까운 waypoint 찾기
-        with self._lock:
-            st = self._states.get(robot_id)
-            if not st:
-                return []
-            rx, ry = st.pos_x, st.pos_y
-
-        closest_idx = None
-        closest_dist = float('inf')
-        for w in waypoints:
-            d = math.sqrt((w['x'] - rx) ** 2 + (w['y'] - ry) ** 2)
-            if d < closest_dist:
-                closest_dist = d
-                closest_idx = w['idx']
-
-        if closest_idx is None or closest_idx == dest_idx:
-            return [{'x': dest_wp['x'], 'y': dest_wp['y']}]
-
-        # BFS
-        from collections import deque
-        queue = deque([(closest_idx, [closest_idx])])
-        visited = {closest_idx}
-        while queue:
-            node, path = queue.popleft()
-            if node == dest_idx:
-                return [{'x': float(wp_by_idx[i]['x']),
-                         'y': float(wp_by_idx[i]['y'])} for i in path]
-            for nxt in adj.get(node, []):
-                if nxt not in visited:
-                    visited.add(nxt)
-                    queue.append((nxt, path + [nxt]))
-
-        # 경로 못 찾으면 직선
-        return [{'x': rx, 'y': ry}, {'x': dest_wp['x'], 'y': dest_wp['y']}]
-
     def _route_to_poses(self, route: list[dict], dest_wp_name: str) -> list[dict]:
         """route [{x,y}, ...] 에 theta를 추가하여 [{x,y,theta}, ...] 반환."""
         waypoints = db.get_fleet_waypoints()
@@ -947,20 +856,14 @@ class RobotManager:
 
         poses = []
         for i, pt in enumerate(route):
-            # 좌표 일치하는 waypoint 찾아서 orientation 가져오기
-            wp = next((w for w in waypoints
-                       if abs(w['x'] - pt['x']) < 0.01
-                       and abs(w['y'] - pt['y']) < 0.01), None)
-
             if i == len(route) - 1:
                 # 최종 목적지: 저장된 orientation 사용
                 dest = wp_by_name.get(dest_wp_name)
                 theta = float(dest['theta']) if dest and dest.get('theta') else 0.0
-            elif wp and wp.get('theta') is not None and wp.get('pickup_zone'):
-                # pickup zone은 저장된 orientation 사용
-                theta = float(wp['theta'])
             else:
-                # 중간 waypoint: 다음 waypoint 방향으로 heading
+                # 중간 waypoint: 무조건 "다음 waypoint 방향"으로 heading.
+                # pickup_zone 이 중간에 끼어도 선반 쪽을 쳐다보지 않게 하여,
+                # 로봇이 중간에 멈춰서 회전하는 걸 방지한다.
                 dx = route[i + 1]['x'] - pt['x']
                 dy = route[i + 1]['y'] - pt['y']
                 theta = math.atan2(dy, dx) if (abs(dx) > 0.001 or abs(dy) > 0.001) else 0.0
@@ -968,8 +871,155 @@ class RobotManager:
             poses.append({'x': pt['x'], 'y': pt['y'], 'theta': round(theta, 4)})
         return poses
 
+    # ──────────────────────────────────────────
+    # navigate_to dispatch (with path-blocking wait queue)
+    # ──────────────────────────────────────────
+
+    _BLOCK_RADIUS = 0.3  # 다른 로봇이 경로 vertex 근처 이 거리 이내면 "막혔다"
+    # Dispatch 시차: 직전 N초 이내에 다른 로봇이 dispatch됐고, 내가 그 로봇에
+    # _STAGGER_RADIUS 이내로 가까이 있으면 스스로도 잠깐 대기. 두 로봇이
+    # 동시에 출발하며 서로의 lidar 간섭으로 local_costmap에 장애물로 찍혀
+    # 멈추는 것을 방지.
+    _STAGGER_WINDOW_S = 5.0
+    _STAGGER_RADIUS = 1.0
+
+    def _path_blocked_by(
+        self, robot_id: str, route: list[dict]
+    ) -> Optional[str]:
+        """route의 최종 목적지를 제외한 중간 vertex들이 다른 로봇에게
+        점유 중이면 해당 로봇 ID 반환. 자유로우면 None.
+
+        최종 목적지 자체에 상대 로봇이 있는 경우는 "이미 다른 로봇이 도착"
+        이므로 _pick_waypoint_for_zone 단계에서 이미 피했다고 보고 여기서는
+        무시한다.
+        """
+        if len(route) <= 2:
+            return None
+        intermediates = route[1:-1]
+        with self._lock:
+            for rid, state in self._states.items():
+                if rid == robot_id:
+                    continue
+                for pt in intermediates:
+                    if math.hypot(pt['x'] - state.pos_x,
+                                  pt['y'] - state.pos_y) <= self._BLOCK_RADIUS:
+                        return rid
+        return None
+
+    def _dispatch_navigate_to(self, robot_id: str, payload: dict) -> None:
+        """navigate_to 처리 — 경로 계획 후 막혀 있으면 대기 큐에 저장."""
+        zone_id = payload.get('zone_id')
+        if zone_id is None:
+            logger.warning('navigate_to: zone_id missing')
+            return
+
+        all_wps = db.get_fleet_waypoints()
+        with self._lock:
+            wp_name = self._pick_waypoint_for_zone_locked(robot_id, zone_id)
+            if not wp_name:
+                logger.warning('navigate_to: zone_id=%s has no waypoints', zone_id)
+                self._pending_navigate.pop(robot_id, None)
+                return
+            wp = next((w for w in all_wps if w['name'] == wp_name), None)
+            st = self._get_or_create(robot_id)
+            rx, ry = st.pos_x, st.pos_y
+            if wp:
+                st.dest_x = float(wp['x'])
+                st.dest_y = float(wp['y'])
+
+        route = self._router.plan(robot_id, (rx, ry), wp_name)
+        logger.info('navigate_to: wp=%s, route=%d points', wp_name, len(route))
+
+        # Stagger: 다른 로봇이 최근에 dispatch됐고 가까이 있으면 대기
+        now_ts = time.monotonic()
+        for other_id, last_ts in self._last_navigate_dispatch.items():
+            if other_id == robot_id:
+                continue
+            if now_ts - last_ts > self._STAGGER_WINDOW_S:
+                continue
+            with self._lock:
+                other = self._states.get(other_id)
+                my_state = self._states.get(robot_id)
+            if not other or not my_state:
+                continue
+            if math.hypot(other.pos_x - my_state.pos_x,
+                          other.pos_y - my_state.pos_y) <= self._STAGGER_RADIUS:
+                self._pending_navigate[robot_id] = dict(payload)
+                logger.info(
+                    'navigate_to: robot=%s staggered — robot=%s dispatched '
+                    '%.1fs ago and is within %.1fm. Will retry.',
+                    robot_id, other_id,
+                    now_ts - last_ts, self._STAGGER_RADIUS,
+                )
+                return
+
+        blocker = self._path_blocked_by(robot_id, route)
+        if blocker is not None:
+            # 중간 경유점을 다른 로봇이 점유 → 대기 큐에 저장
+            self._pending_navigate[robot_id] = dict(payload)
+            logger.info(
+                'navigate_to: robot=%s queued — path blocked by robot=%s at '
+                'intermediate waypoint. Will retry on next status update.',
+                robot_id, blocker,
+            )
+            self._push_admin({
+                'type': 'navigate_to_queued',
+                'robot_id': robot_id,
+                'reason': f'path blocked by robot {blocker}',
+                'zone_id': zone_id,
+            })
+            return
+
+        # 경로 확보 — dispatch
+        self._pending_navigate.pop(robot_id, None)
+        self._last_navigate_dispatch[robot_id] = time.monotonic()
+        with self._lock:
+            st.path = route
+        self._router.reserve(robot_id, route)
+        self._push_status(robot_id, st)
+
+        if route and len(route) > 1:
+            poses = self._route_to_poses(route, wp_name)
+            self._relay_to_pi(robot_id, {
+                'cmd': 'navigate_through_poses',
+                'poses': poses,
+            })
+            logger.info('navigate_to zone=%s → through_poses %d pts',
+                        zone_id, len(poses))
+        elif wp:
+            out = dict(payload, x=wp['x'], y=wp['y'],
+                       theta=wp.get('theta', 0.0))
+            self._relay_to_pi(robot_id, out)
+            logger.info('navigate_to zone=%s → single waypoint', zone_id)
+
+    def _retry_pending_navigates(self) -> None:
+        """on_status 콜백에서 1Hz 호출. 대기 중인 navigate_to 중 경로 열린 것 dispatch."""
+        if not self._pending_navigate:
+            return
+        for rid in list(self._pending_navigate.keys()):
+            payload = self._pending_navigate.get(rid)
+            if not payload:
+                continue
+            # 재검사
+            self._dispatch_navigate_to(rid, payload)
+
     def _pick_waypoint_for_zone(self, robot_id: str, zone_id: int) -> Optional[str]:
-        """zone_id에 속하는 waypoint 중 다른 로봇과 충돌하지 않는 것을 선택."""
+        """Thread-safe public wrapper — 필요 시 외부에서 사용."""
+        with self._lock:
+            return self._pick_waypoint_for_zone_locked(robot_id, zone_id)
+
+    def _pick_waypoint_for_zone_locked(
+        self, robot_id: str, zone_id: int
+    ) -> Optional[str]:
+        """zone_id에 속한 waypoint 중 비어 있는 것을 선택.
+
+        caller가 ``self._lock``을 이미 잡고 있어야 한다. 반환 직후 caller가
+        ``state.dest_x/dest_y``를 세팅해야 후속 요청이 점유로 인식한다.
+
+        점유 판정 기준 (다른 로봇):
+        - 현재 위치(pos_x/pos_y)가 waypoint 0.25m 이내 → 그 자리에 있음
+        - GUIDING 중이고 dest_x/dest_y가 0.25m 이내 → 그리로 가는 중
+        """
         waypoints = db.get_waypoints_by_zone(zone_id)
         if not waypoints:
             return None
@@ -981,30 +1031,37 @@ class RobotManager:
         if len(candidates) == 1:
             return candidates[0]['name']
 
-        # 다른 로봇의 현재 위치 및 목적지 기반 점유 판정
+        # 점유 판정:
+        # - pos 기반: 로봇이 이 waypoint 근처(0.25m 이내)에 물리적으로 있음
+        # - dest 기반: 다른 로봇의 목적지 좌표가 이 waypoint와 "같은 지점"(5cm 이내)
+        #   → 같은 zone 안의 다른 waypoint(거리 20cm 수준)를 오점유로 막지 않기 위함
+        _DEST_SAME_POINT = 0.05
         occupied: set[str] = set()
-        with self._lock:
-            for rid, state in self._states.items():
-                if rid == robot_id:
-                    continue
-                for wp in candidates:
-                    wx, wy = float(wp['x']), float(wp['y'])
-                    dist = math.sqrt((wx - state.pos_x) ** 2 +
-                                     (wy - state.pos_y) ** 2)
-                    if dist <= self._OCCUPY_DIST:
-                        occupied.add(wp['name'])
-                    if (state.mode == 'GUIDING'
-                            and state.dest_x is not None
-                            and state.dest_y is not None):
-                        dd = math.sqrt((wx - state.dest_x) ** 2 +
-                                       (wy - state.dest_y) ** 2)
-                        if dd <= self._OCCUPY_DIST:
-                            occupied.add(wp['name'])
+        for rid, state in self._states.items():
+            if rid == robot_id:
+                continue
+            for wp in candidates:
+                wx, wy = float(wp['x']), float(wp['y'])
+                if math.hypot(wx - state.pos_x, wy - state.pos_y) <= self._OCCUPY_DIST:
+                    occupied.add(wp['name'])
+                if (state.dest_x is not None and state.dest_y is not None
+                        and math.hypot(wx - state.dest_x, wy - state.dest_y)
+                        <= _DEST_SAME_POINT):
+                    occupied.add(wp['name'])
 
         free = [wp for wp in candidates if wp['name'] not in occupied]
-        if free:
-            return free[0]['name']
-        return candidates[0]['name']
+        # 갈 수 있는 후보가 여럿이면 현재 위치에서 가장 가까운 waypoint 선택.
+        # (zone=육류인데 육류1/육류2 중 로봇과 가까운 쪽으로 가야 최단 경로)
+        pool = free if free else candidates
+        my = self._states.get(robot_id)
+        if my is not None:
+            pool = sorted(
+                pool,
+                key=lambda w: math.hypot(
+                    float(w['x']) - my.pos_x, float(w['y']) - my.pos_y
+                ),
+            )
+        return pool[0]['name']
 
     def _get_or_create(self, robot_id: str) -> RobotState:
         """Get or create a RobotState (must be called under self._lock)."""

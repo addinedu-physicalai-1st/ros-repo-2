@@ -26,7 +26,22 @@ _ROS_WS="$(dirname "$_SCRIPTS_DIR")"
 # 모든 tmux 실행 스크립트에서 단일 소스로 사용한다.
 # 외부에서 ROS_DOMAIN_ID 를 지정하면 그 값을 우선 사용한다.
 export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-14}"
-TMUX_ROS_ENV="export ROS_DOMAIN_ID=${ROS_DOMAIN_ID}"
+
+# macOS에서 FastDDS는 shared memory 포트 바인딩 실패 / 스레드 affinity 에러가
+# 자주 발생해 동시에 여러 Nav2 노드를 띄우면 일부 노드가 discovery에 실패한다.
+# CycloneDDS로 고정하면 안정적이다. (Ubuntu에서도 권장되는 조합이라 공통 적용)
+export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
+
+# macOS CycloneDDS: SHM 비활성화 + MaxAutoParticipantIndex 상향 (Nav2 멀티로봇용)
+_CDDS_CFG="$_SCRIPTS_DIR/cyclonedds_macos.xml"
+if [ "$(uname)" = "Darwin" ] && [ -f "$_CDDS_CFG" ]; then
+    export CYCLONEDDS_URI="${CYCLONEDDS_URI:-file://$_CDDS_CFG}"
+fi
+
+TMUX_ROS_ENV="export ROS_DOMAIN_ID=${ROS_DOMAIN_ID} RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION}"
+if [ -n "${CYCLONEDDS_URI:-}" ]; then
+    TMUX_ROS_ENV="$TMUX_ROS_ENV CYCLONEDDS_URI=${CYCLONEDDS_URI}"
+fi
 
 # ── 1. conda env 탐색 ─────────────────────────────────────────────────────────
 # conda env 가 존재하면 activate 하여 pip 패키지를 사용할 수 있도록 한다.

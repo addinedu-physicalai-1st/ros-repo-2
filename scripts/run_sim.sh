@@ -31,28 +31,73 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
     echo "[run_sim] 기존 '$SESSION' 세션 종료..."
     tmux kill-session -t "$SESSION"
 fi
-# tmux kill-session 후에도 살아남는 Gazebo/Nav2 프로세스 강제 종료
-pkill -f "gz sim"              2>/dev/null || true
-pkill -f "gz_sim"              2>/dev/null || true
-pkill -f "robot_state_publisher" 2>/dev/null || true
-pkill -f "nav2"                2>/dev/null || true
-pkill -f "shoppinkki_core"     2>/dev/null || true
-# SIGKILL로 끝까지 살아남는 프로세스 처리 (SIGTERM 무시하는 Gazebo 대비)
+
+# Gazebo 및 관련 프로세스 전부 정리 (이전 run이 tmux 밖에서 띄운 것도 포함).
+# 순서: SIGTERM → 잠시 대기 → SIGKILL → 최종 대기 (shm/UDP 포트 해제 시간 포함).
+echo "[run_sim] Gazebo/Nav2/core 잔존 프로세스 정리..."
+_PATTERNS=(
+    "gz sim"
+    "gz_sim"
+    "ruby.*gz sim"
+    "parameter_bridge"
+    "robot_state_publisher"
+    "nav2_lifecycle_manager"
+    "nav2_"
+    "lifecycle_manager"
+    "ros_gz_bridge"
+    "ros_gz_sim"
+    "shoppinkki_core"
+    "shoppinkki_main"
+    "ros2 launch shoppinkki_nav"
+)
+for pat in "${_PATTERNS[@]}"; do
+    pkill -f "$pat" 2>/dev/null || true
+done
 sleep 2
-pkill -9 -f "gz sim"           2>/dev/null || true
-pkill -9 -f "gz_sim"           2>/dev/null || true
-# 완전히 종료될 때까지 대기
-sleep 2
+for pat in "${_PATTERNS[@]}"; do
+    pkill -9 -f "$pat" 2>/dev/null || true
+done
+
+# Gazebo SHM / 임시파일 잔존 정리 (macOS + fastrtps/cyclonedds SHM)
+rm -f /dev/shm/fastrtps_* /tmp/gz-* 2>/dev/null || true
+rm -rf /tmp/fastrtps_* 2>/dev/null || true
+
+# 포트 해제 & 프로세스 소멸 대기
+sleep 3
+
+# 실제 남아있는지 확인
+_leftover=$(pgrep -fl "gz sim|nav2_|shoppinkki_core" 2>/dev/null || true)
+if [ -n "$_leftover" ]; then
+    echo "[run_sim] ⚠️  여전히 잔존 프로세스 있음:"
+    echo "$_leftover"
+    echo "[run_sim] 수동 확인 필요: pkill -9 -f 'gz sim' 후 재실행"
+fi
 
 echo "[run_sim] tmux 세션 '$SESSION' 생성 중..."
 tmux set-option -g mouse on 2>/dev/null || true
 
 # ── 창 생성 ────────────────────────────────────────────────────────────────────
 
-# 창 0: Gazebo + Nav2 x2
+# 창 0: Gazebo server + Nav2 (GUI 제외)
 tmux new-session -d -s "$SESSION" -n "gz"
 tmux send-keys -t "${SESSION}:gz" \
     "$TMUX_SRC && $ROS_ENV && cd $ROS_WS && ros2 launch shoppinkki_nav gz_multi_robot.launch.py" Enter
+
+# 창 "gz_gui": macOS에서는 GUI를 interactive shell에서 직접 띄운다
+# (launch 내 ExecuteProcess 환경 전달 불안정 회피). 서버 로딩 대기 후 실행.
+if [ "$(uname)" = "Darwin" ]; then
+    tmux new-window -t "${SESSION}" -n "gz_gui"
+    # 15초 대기 후 resource path 명시 export 하고 gz sim -g 기동.
+    # 에러 시 5초 후 재시작 루프로 자동 복구.
+    _GZ_GUI_CMD='until [ -n "$(pgrep -f "gz sim -s")" ]; do sleep 1; done; sleep 10; \
+        P=$(ros2 pkg prefix pinky_description)/share; \
+        G=$(ros2 pkg prefix pinky_gz_sim)/share/pinky_gz_sim/models; \
+        export GZ_SIM_RESOURCE_PATH="$P:$G:$HOME/.gazebo/models"; \
+        echo "[gz_gui] GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH"; \
+        while true; do gz sim -g -v4; echo "[gz_gui] exited, restart in 5s..."; sleep 5; done'
+    tmux send-keys -t "${SESSION}:gz_gui" \
+        "$TMUX_SRC && $ROS_ENV && $_GZ_GUI_CMD" Enter
+fi
 
 # 창 1–2: shoppinkki_core
 # macOS SIP 가 /usr/bin/env 경유 시 DYLD_LIBRARY_PATH 를 제거하므로 python3 직접 호출
@@ -68,11 +113,6 @@ tmux new-window -t "${SESSION}" -n "core18"
 tmux send-keys -t "${SESSION}:core18" \
     "$TMUX_SRC && $ROS_ENV && ROBOT_ID=18 python3 $_SHOP_CORE_MAIN --ros-args -p use_sim_time:=true" Enter
 
-# 창 3: RMF fleet adapter
-tmux new-window -t "${SESSION}" -n "rmf"
-tmux send-keys -t "${SESSION}:rmf" \
-    "$TMUX_SRC && $ROS_ENV && cd $ROS_WS && ros2 launch shoppinkki_rmf rmf_fleet.launch.py use_sim_time:=true" Enter
-
 tmux select-window -t "${SESSION}:gz"
 
 # ── 안내 ───────────────────────────────────────────────────────────────────────
@@ -80,10 +120,10 @@ echo ""
 echo "┌──────────────────────────────────────────────────────────────┐"
 echo "│         쑈삥끼 시뮬레이션 기동                               │"
 echo "├──────────────────────────────────────────────────────────────┤"
-echo "│  0. gz      — Gazebo + Nav2 (로봇 54, 18)                   │"
-echo "│  1. core54  — shoppinkki_core 로봇 54                       │"
-echo "│  2. core18  — shoppinkki_core 로봇 18                       │"
-echo "│  3. rmf     — RMF traffic schedule + fleet adapter          │"
+echo "│  gz       — Gazebo server + Nav2                            │"
+echo "│  gz_gui   — Gazebo GUI (macOS 전용, 자동 재시작)             │"
+echo "│  core54   — shoppinkki_core 로봇 54                          │"
+echo "│  core18   — shoppinkki_core 로봇 18                          │"
 echo "├──────────────────────────────────────────────────────────────┤"
 echo "├──────────────────────────────────────────────────────────────┤"
 echo "│  실행 순서:                                                   │"

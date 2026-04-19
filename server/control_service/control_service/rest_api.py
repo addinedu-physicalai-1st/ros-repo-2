@@ -152,6 +152,28 @@ def create_app(robot_manager: 'RobotManager',
             ],
         })
 
+    @app.get('/fleet/route')
+    def fleet_route():
+        """그래프 기반 경로 계산.
+
+        Query params:
+            from_x, from_y: 출발 좌표 (map frame)
+            dest: 목적지 waypoint name (e.g. "P1")
+            robot_id: (선택) reservation penalty 적용용 — 자기 reservation 제외
+        Returns: {"route": [{"x": .., "y": ..}, ...]}
+        """
+        try:
+            from_x = float(request.args.get('from_x'))
+            from_y = float(request.args.get('from_y'))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'from_x/from_y required'}), 400
+        dest = request.args.get('dest')
+        if not dest:
+            return jsonify({'error': 'dest required'}), 400
+        rid = request.args.get('robot_id', '')
+        route = robot_manager._router.plan(rid, (from_x, from_y), dest)
+        return jsonify({'route': route})
+
     # ── Boundary ──────────────────────────────
 
     @app.get('/boundary')

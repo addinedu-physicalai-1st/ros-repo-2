@@ -62,6 +62,7 @@ from .robot_card import RobotCard
 from .robot_detail_dialog import RobotDetailDialog
 from .staff_panel import StaffCallPanel
 from .tcp_client import TCPClientThread
+from .zone_select_dialog import ZoneSelectDialog
 
 # OFFLINE 판정 기준 (초)
 OFFLINE_TIMEOUT_SEC = 30
@@ -237,6 +238,7 @@ class MainWindow(QMainWindow):
             card.position_adjustment_mode_activated.connect(
                 self._on_position_adjustment_mode_activated
             )
+            card.guide_requested.connect(self._on_guide_requested)
             card.hide()
             card_outer.addWidget(card)
             self._robot_cards[rid] = card
@@ -682,6 +684,43 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage(
                 f"Robot #{robot_id} → {payload.get('cmd', '?')} 전송 완료"
+            )
+
+    def _on_guide_requested(self, robot_id: str):
+        """카드의 [안내 이동] 클릭 — 구역 선택 다이얼로그를 띄우고 navigate_to 전송."""
+        state = self._robot_states.get(robot_id, {})
+        if state.get('mode') != 'IDLE':
+            QMessageBox.information(
+                self, '안내 이동 불가',
+                f"Robot #{robot_id} 는 현재 {state.get('mode')} 상태입니다. "
+                'IDLE 상태에서만 안내 이동을 시작할 수 있습니다.',
+            )
+            return
+
+        dlg = ZoneSelectDialog(self._rest_base, robot_id, parent=self)
+        from PyQt6.QtWidgets import QDialog
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        zone = dlg.selected_zone()
+        if not zone:
+            return
+
+        payload = {
+            'cmd': 'navigate_to',
+            'robot_id': robot_id,
+            'zone_id': int(zone['zone_id']),
+            'x': float(zone['x']),
+            'y': float(zone['y']),
+            'theta': float(zone.get('theta', 0.0)),
+        }
+        if self._tcp.send(payload):
+            self.statusBar().showMessage(
+                f"Robot #{robot_id} → 안내 이동 [{zone['zone_name']}] 전송"
+            )
+        else:
+            QMessageBox.warning(
+                self, '전송 실패',
+                f'Robot #{robot_id} 안내 이동 명령 전송 실패.',
             )
 
     def _on_resolve_requested(self, robot_id: str):

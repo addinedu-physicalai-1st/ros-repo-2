@@ -7,9 +7,6 @@
 #
 # ROS 2 바인딩(rclpy, ament_*, 메시지 타입 등)은 pip가 아니라 Ubuntu 패키지와
 # colcon 빌드로 설치합니다 (예: sudo apt install ros-jazzy-desktop).
-#
-# Open-RMF Fleet Adapter는 apt + pip 조합입니다:
-#   sudo apt install ros-jazzy-rmf-fleet-adapter ros-jazzy-rmf-traffic ros-jazzy-rmf-task
 
 # --- shoppinkki_core (상태 머신) ---
 transitions==0.9.3
@@ -29,7 +26,7 @@ PyQt6==6.11.0
 PyQt6-Qt6==6.11.0
 PyQt6_sip==13.11.1
 
-# --- 공통 (YAML, RMF HTTP 클라이언트 등) ---
+# --- 공통 (YAML 등) ---
 PyYAML==6.0.3
 
 # --- shoppinkki_perception 수치 스택 (jazzy에 설치된 버전) ---
@@ -64,10 +61,9 @@ urllib3==2.6.3
 Werkzeug==3.1.8
 wsproto==1.3.2
 
-# --- conda env jazzy 스냅샷에 없음 (Pi / Docker AI / RMF 전용). 필요 시 별도 설치.
+# --- conda env jazzy 스냅샷에 없음 (Pi / Docker AI 전용). 필요 시 별도 설치.
 # opencv-python-headless
 # ultralytics
-# rmf-adapter
 # Pillow
 
 # --- Raspberry Pi 전용 (pinky_emotion). x86에서는 보통 생략.

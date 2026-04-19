@@ -11,9 +11,13 @@ Sequence:
 
 from __future__ import annotations
 
+import json
 import logging
 import math
+import os
 import threading
+import urllib.parse
+import urllib.request
 from enum import Enum, auto
 from typing import Callable, Optional
 
@@ -26,8 +30,11 @@ logger = logging.getLogger(__name__)
 # 경유 노드 좌표
 EXIT2_NODE: tuple[float, float, float] = (0.0, -1.402, 0.0)       # 출구2
 LOWER_CORRIDOR_NODE: tuple[float, float, float] = (0.0, -1.137, 0.0)  # 하단_복도
-# 이 y좌표 이하면 결제구역/출구 근처 → 출구2 → 하단_복도 경유
+# 결제구역/출구 근처(좁은 세로 통로)일 때만 출구2 → 하단_복도 경유.
+# 같은 y여도 동쪽(x ≥ LOWER_AREA_THRESHOLD_X)에 있으면 복도가 아니라 매장
+# 안쪽이므로 그래프 라우팅이 가능.
 LOWER_AREA_THRESHOLD_Y: float = -1.2
+LOWER_AREA_THRESHOLD_X: float = 0.3
 
 # 하단_복도 → 충전소 graph route (노드간 순차 이동)
 ROUTE_LOWER_TO_P1: list[tuple[float, float, float]] = [
@@ -154,80 +161,119 @@ class ReturnToCharger(py_trees.behaviour.Behaviour):
             return py_trees.common.Status.FAILURE
 
         logger.info('ReturnToCharger: slot=%s', self._slot.get('zone_id'))
-        # 결제구역/출구 근처(y < threshold)일 때만 하단_복도 경유
-        if self._get_current_pose:
-            _, cy, _ = self._get_current_pose()
-            if cy < LOWER_AREA_THRESHOLD_Y:
-                logger.info('ReturnToCharger: y=%.2f < %.2f → 하단_복도 경유',
-                            cy, LOWER_AREA_THRESHOLD_Y)
-                self._phase = _Phase.PRE_NAVIGATE
-                return py_trees.common.Status.RUNNING
-        logger.info('ReturnToCharger: 하단_복도 스킵 → 충전소 직행')
-        self._phase = _Phase.DOCKING
+        # 항상 fleet 그래프 경로로 충전소까지 이동 (직선 금지 — 선반 충돌 방지)
+        self._phase = _Phase.PRE_NAVIGATE
         return py_trees.common.Status.RUNNING
 
+    def _fetch_fleet_route(
+        self, from_x: float, from_y: float, dest_name: str,
+    ) -> list[tuple[float, float, float]]:
+        """control_service REST로 fleet 경로 질의 → [(x,y,theta), ...]."""
+        host = os.environ.get('CONTROL_SERVICE_HOST', '127.0.0.1')
+        port = os.environ.get('REST_PORT', '8081')
+        qs = urllib.parse.urlencode({
+            'from_x': from_x, 'from_y': from_y,
+            'dest': dest_name, 'robot_id': self._robot_id,
+        })
+        url = f'http://{host}:{port}/fleet/route?{qs}'
+        try:
+            with urllib.request.urlopen(url, timeout=3) as resp:
+                data = json.loads(resp.read())
+        except Exception as e:
+            logger.warning('ReturnToCharger: fleet route REST 실패: %s', e)
+            return []
+        route = data.get('route') or []
+        # 중간점 theta = 이동 방향, 최종 theta = 충전소 저장 orientation
+        out: list[tuple[float, float, float]] = []
+        for i, pt in enumerate(route):
+            px = float(pt['x']); py = float(pt['y'])
+            if i == len(route) - 1:
+                # 마지막 = 충전소. slot에 저장된 theta 사용 (fleet route엔 theta 없음)
+                theta = float(self._slot.get('waypoint_theta', 0.0)) if self._slot else 0.0
+            else:
+                nx, ny = float(route[i + 1]['x']), float(route[i + 1]['y'])
+                dx, dy = nx - px, ny - py
+                theta = math.atan2(dy, dx) if (abs(dx) > 1e-3 or abs(dy) > 1e-3) else 0.0
+            out.append((px, py, round(theta, 4)))
+        return out
+
     def _tick_pre_navigate(self) -> py_trees.common.Status:
-        """출구2 → 하단_복도 (inflation OFF) → graph route → 충전소 순차 이동."""
+        """fleet_router 경로로 충전소까지 순차 이동.
+
+        단, 출구/결제구역 근처(y < LOWER_AREA_THRESHOLD_Y)에서 복귀 시에는
+        그래프상 노드가 없는 좁은 통로(출구2 → 하단_복도)를 거쳐야 하므로
+        inflation OFF로 고정 경유점을 먼저 통과한 뒤, 하단_복도부터 그래프
+        경로로 충전소까지 간다.
+        """
         if self._send_nav_goal is None or self._slot is None:
             self._fail()
             return py_trees.common.Status.FAILURE
 
         if self._pre_nav_thread is None:
-            charger_y = float(self._slot.get('waypoint_y', -0.606))
-            # 충전소에 따라 하단_복도 이후 경로 선택
-            if charger_y < -0.75:
-                route_after = ROUTE_LOWER_TO_P2
+            charger_name = 'P2' if self._robot_id == '54' else 'P1'
+            cx, cy = 0.0, -0.606
+            if self._get_current_pose:
+                try:
+                    cx, cy, _ = self._get_current_pose()
+                except Exception:
+                    pass
+
+            in_lower_area = (cy < LOWER_AREA_THRESHOLD_Y
+                             and cx < LOWER_AREA_THRESHOLD_X)
+            if in_lower_area:
+                logger.info(
+                    'ReturnToCharger: (%.2f,%.2f) 출구 좁은 통로 → 출구2/하단_복도 경유',
+                    cx, cy,
+                )
+                # 좁은 출구 통로는 inflation OFF + 고정 좌표로 통과
+                corridor_pts = [EXIT2_NODE, LOWER_CORRIDOR_NODE]
+                fleet_start = (LOWER_CORRIDOR_NODE[0], LOWER_CORRIDOR_NODE[1])
             else:
-                route_after = ROUTE_LOWER_TO_P1
+                corridor_pts = []
+                fleet_start = (cx, cy)
 
-            # 전체 경로: 출구2 → 하단_복도 (inflation OFF) + 이후 경로 (inflation ON) + 충전소
-            corridor_pts = [EXIT2_NODE, LOWER_CORRIDOR_NODE]
-            charger_pt = (
-                float(self._slot.get('waypoint_x', 0.0)),
-                float(self._slot.get('waypoint_y', -0.606)),
-                float(self._slot.get('waypoint_theta', 0.0)),
-            )
-            # route_after 마지막이 충전소이므로 charger_pt는 별도 추가 불필요
-            after_pts = list(route_after)
+            # 하단_복도(혹은 현재 위치)부터 충전소까지 fleet 그래프 경로
+            route_pts = self._fetch_fleet_route(fleet_start[0], fleet_start[1],
+                                                 charger_name)
+            if not route_pts:
+                logger.warning('ReturnToCharger: fleet route fetch 실패 → 충전소 직행')
+                route_pts = [(
+                    float(self._slot.get('waypoint_x', 0.0)),
+                    float(self._slot.get('waypoint_y', -0.606)),
+                    float(self._slot.get('waypoint_theta', 0.0)),
+                )]
 
-            logger.info('ReturnToCharger: 출구2 → 하단_복도 → %d pts → 충전소',
-                        len(after_pts))
+            logger.info('ReturnToCharger: corridor=%d + fleet=%d → 충전소',
+                        len(corridor_pts), len(route_pts))
 
             if self._set_nav2_mode:
                 self._set_nav2_mode('returning')
-            if self._set_inflation:
-                self._set_inflation(False)
 
             def _run():
                 try:
-                    # Phase 1: 출구2 → 하단_복도 (inflation OFF)
-                    for i, (gx, gy, gt) in enumerate(corridor_pts):
-                        logger.info('ReturnToCharger: corridor [%d/%d] → (%.2f, %.2f)',
-                                    i + 1, len(corridor_pts), gx, gy)
-                        if not self._send_nav_goal(gx, gy, gt):
-                            logger.warning('ReturnToCharger: corridor nav failed')
-                            self._pre_nav_success = False
-                            return
+                    # Phase 1: 고정 corridor (좁은 출구 통로) — inflation OFF
+                    if corridor_pts:
+                        if self._set_inflation:
+                            self._set_inflation(False)
+                        for i, (gx, gy, gt) in enumerate(corridor_pts):
+                            logger.info('ReturnToCharger: corridor [%d/%d] → (%.2f, %.2f)',
+                                        i + 1, len(corridor_pts), gx, gy)
+                            if not self._send_nav_goal(gx, gy, gt):
+                                logger.warning('ReturnToCharger: corridor nav failed')
+                                self._pre_nav_success = False
+                                return
 
-                    # Phase 2: inflation ON → graph route to charger
+                    # Phase 2: fleet 그래프 경로 — inflation ON
                     if self._set_inflation:
                         self._set_inflation(True)
-                    logger.info('ReturnToCharger: inflation ON → graph route %d pts',
-                                len(after_pts))
-
-                    for i, (gx, gy, gt) in enumerate(after_pts):
-                        # 마지막 waypoint (충전소)는 returning 모드로
-                        if i == len(after_pts) - 1:
-                            if self._set_nav2_mode:
-                                self._set_nav2_mode('returning')
-                        logger.info('ReturnToCharger: route [%d/%d] → (%.2f, %.2f)',
-                                    i + 1, len(after_pts), gx, gy)
+                    for i, (gx, gy, gt) in enumerate(route_pts):
+                        logger.info('ReturnToCharger: fleet [%d/%d] → (%.2f, %.2f)',
+                                    i + 1, len(route_pts), gx, gy)
                         if not self._send_nav_goal(gx, gy, gt):
-                            logger.warning('ReturnToCharger: route nav failed at [%d]',
+                            logger.warning('ReturnToCharger: fleet nav failed at [%d]',
                                            i + 1)
                             self._pre_nav_success = False
                             return
-
                     self._pre_nav_success = True
                 except Exception as e:
                     logger.error('ReturnToCharger: sequential nav exception: %s', e)

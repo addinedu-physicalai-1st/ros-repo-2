@@ -218,6 +218,10 @@ class CameraDebugPanel(QWidget):
         if robot_id != self._current_robot:
             return
         self._bbox = bbox
+        # 패널이 숨겨져 있으면 QPainter/pixmap 렌더 자체를 건너뛴다.
+        # macOS PyQt6에서 hidden widget에 그리는 게 간헐적 bus error 원인.
+        if not self.isVisible():
+            return
         cx = bbox.get('cx', '-')
         area = bbox.get('area', '-')
         conf = bbox.get('confidence', 0.0)

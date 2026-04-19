@@ -1,0 +1,267 @@
+"""Graph-based routing + lightweight lane reservation.
+
+Replaces Open-RMF traffic_schedule with a minimal in-process coordinator
+suitable for a small fleet (2 Pinky robots) in the ShopPinkki mart.
+
+Waypoints & lanes are loaded from the `fleet_waypoint` / `fleet_lane`
+tables (seeded from shop_nav_graph.yaml).
+"""
+
+from __future__ import annotations
+
+import logging
+import math
+import threading
+from collections import deque
+from typing import Optional
+
+from . import db
+
+logger = logging.getLogger(__name__)
+
+# Weight added to an edge that is reserved by another robot.
+# Large enough to detour, not infinite so we fall back to the shortest
+# path (possibly shared) when no alternative exists.
+_RESERVED_EDGE_PENALTY = 1000
+
+
+class FleetRouter:
+    """Thread-safe graph router with per-robot lane reservations.
+
+    Typical flow::
+
+        route = router.plan(robot_id, from_xy=(x, y), dest_name="가전제품1")
+        router.reserve(robot_id, route)    # before dispatching to Pi
+        ...
+        router.release(robot_id)           # when robot arrives / aborts
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        # (from_idx, to_idx) -> robot_id
+        self._edges: dict[tuple[int, int], str] = {}
+
+    # ──────────────────────────────────────────
+    # Graph loading
+    # ──────────────────────────────────────────
+
+    @staticmethod
+    def _load_graph() -> tuple[list[dict], list[dict]]:
+        try:
+            return db.get_fleet_waypoints(), db.get_fleet_lanes()
+        except Exception:
+            logger.exception('Failed to load fleet graph')
+            return [], []
+
+    @staticmethod
+    def find_nearest_waypoint(x: float, y: float) -> Optional[str]:
+        waypoints, _ = FleetRouter._load_graph()
+        best, best_d = None, float('inf')
+        for w in waypoints:
+            d = math.hypot(w['x'] - x, w['y'] - y)
+            if d < best_d:
+                best_d = d
+                best = w['name']
+        return best
+
+    # ──────────────────────────────────────────
+    # Path planning
+    # ──────────────────────────────────────────
+
+    def plan(
+        self,
+        robot_id: str,
+        from_xy: tuple[float, float],
+        dest_name: str,
+    ) -> list[dict]:
+        """Return a list of ``{x, y}`` waypoints from current pose to dest.
+
+        Edges reserved by *other* robots are heavily penalized so we detour
+        when possible; when the only path is blocked we still return it
+        (Nav2 will handle local avoidance).
+        """
+        waypoints, lanes = self._load_graph()
+        if not waypoints or not lanes:
+            return []
+
+        wp_by_idx = {w['idx']: w for w in waypoints}
+        wp_by_name = {w['name']: w for w in waypoints}
+
+        dest = wp_by_name.get(dest_name)
+        if not dest:
+            return []
+        dest_idx = dest['idx']
+
+        # Directed adjacency list (lanes table holds unidirectional pairs)
+        adj: dict[int, list[int]] = {}
+        for lane in lanes:
+            adj.setdefault(lane['from_idx'], []).append(lane['to_idx'])
+
+        rx, ry = from_xy
+        start_idx = self._closest_idx(waypoints, rx, ry)
+        if start_idx is None:
+            return []
+        if start_idx == dest_idx:
+            return [{'x': float(dest['x']), 'y': float(dest['y'])}]
+
+        with self._lock:
+            reserved = {e: owner for e, owner in self._edges.items()
+                        if owner != robot_id}
+
+        path_idx = self._dijkstra(adj, wp_by_idx, start_idx, dest_idx, reserved)
+        if not path_idx:
+            # Graph disconnected — fall back to a direct hop
+            return [{'x': rx, 'y': ry},
+                    {'x': float(dest['x']), 'y': float(dest['y'])}]
+
+        return [{'x': float(wp_by_idx[i]['x']),
+                 'y': float(wp_by_idx[i]['y'])} for i in path_idx]
+
+    @staticmethod
+    def _closest_idx(waypoints: list[dict], x: float, y: float) -> Optional[int]:
+        best, best_d = None, float('inf')
+        for w in waypoints:
+            d = math.hypot(w['x'] - x, w['y'] - y)
+            if d < best_d:
+                best_d = d
+                best = w['idx']
+        return best
+
+    @staticmethod
+    def _dijkstra(
+        adj: dict[int, list[int]],
+        wp_by_idx: dict[int, dict],
+        start: int,
+        dest: int,
+        reserved: dict[tuple[int, int], str],
+    ) -> list[int]:
+        """Shortest weighted path. Edge cost = euclidean distance +
+        penalty when the edge is reserved by another robot."""
+        import heapq
+
+        dist: dict[int, float] = {start: 0.0}
+        prev: dict[int, int] = {}
+        pq: list[tuple[float, int]] = [(0.0, start)]
+
+        while pq:
+            d, node = heapq.heappop(pq)
+            if node == dest:
+                break
+            if d > dist.get(node, float('inf')):
+                continue
+            node_wp = wp_by_idx.get(node)
+            if not node_wp:
+                continue
+            for nxt in adj.get(node, []):
+                nxt_wp = wp_by_idx.get(nxt)
+                if not nxt_wp:
+                    continue
+                step = math.hypot(nxt_wp['x'] - node_wp['x'],
+                                  nxt_wp['y'] - node_wp['y'])
+                if (node, nxt) in reserved:
+                    step += _RESERVED_EDGE_PENALTY
+                nd = d + step
+                if nd < dist.get(nxt, float('inf')):
+                    dist[nxt] = nd
+                    prev[nxt] = node
+                    heapq.heappush(pq, (nd, nxt))
+
+        if dest not in dist:
+            # Try BFS fallback ignoring reservations
+            return FleetRouter._bfs(adj, start, dest)
+
+        # Reconstruct
+        path = [dest]
+        while path[-1] != start:
+            p = prev.get(path[-1])
+            if p is None:
+                return []
+            path.append(p)
+        return list(reversed(path))
+
+    @staticmethod
+    def _bfs(adj: dict[int, list[int]], start: int, dest: int) -> list[int]:
+        q = deque([(start, [start])])
+        seen = {start}
+        while q:
+            n, p = q.popleft()
+            if n == dest:
+                return p
+            for nxt in adj.get(n, []):
+                if nxt not in seen:
+                    seen.add(nxt)
+                    q.append((nxt, p + [nxt]))
+        return []
+
+    # ──────────────────────────────────────────
+    # Lane reservation
+    # ──────────────────────────────────────────
+
+    def reserve(self, robot_id: str, route: list[dict]) -> None:
+        """Reserve all edges of ``route`` for ``robot_id``.
+
+        추가로 **최종 목적지 vertex로 들어오는 모든 edge**도 점유로 표시한다.
+        (edge 단위 점유만 쓰면 다른 로봇이 "다른 방향에서 같은 vertex로 진입"
+         하는 경로를 택할 수 있어서 destination이 실제로 겹친다.)
+
+        Any prior reservations by the same robot are released first.
+        ``route`` is a list of ``{x, y}`` dicts (output of :meth:`plan`).
+        """
+        edges = self._route_to_edges(route)
+        # 목적지 vertex로 들어오는 모든 edge
+        waypoints, lanes = self._load_graph()
+        dest_in_edges: list[tuple[int, int]] = []
+        if route and waypoints:
+            last = route[-1]
+            dest_idx = None
+            for w in waypoints:
+                if abs(w['x'] - last['x']) < 0.01 and abs(w['y'] - last['y']) < 0.01:
+                    dest_idx = w['idx']
+                    break
+            if dest_idx is not None:
+                dest_in_edges = [(lane['from_idx'], lane['to_idx'])
+                                 for lane in lanes
+                                 if lane['to_idx'] == dest_idx]
+
+        with self._lock:
+            self._release_locked(robot_id)
+            for e in edges:
+                self._edges[e] = robot_id
+            for e in dest_in_edges:
+                # 이미 누가 잡고 있으면 덮어쓰지 않음 (first-come-first-served)
+                self._edges.setdefault(e, robot_id)
+            total = len(self._edges)
+        logger.info(
+            'reserve robot=%s route_edges=%d dest_blockers=%d '
+            '(route_pts=%d, total_reserved=%d)',
+            robot_id, len(edges), len(dest_in_edges), len(route), total)
+
+    def release(self, robot_id: str) -> None:
+        with self._lock:
+            self._release_locked(robot_id)
+
+    def _release_locked(self, robot_id: str) -> None:
+        stale = [e for e, owner in self._edges.items() if owner == robot_id]
+        for e in stale:
+            del self._edges[e]
+
+    @staticmethod
+    def _route_to_edges(route: list[dict]) -> list[tuple[int, int]]:
+        if not route or len(route) < 2:
+            return []
+        waypoints, _ = FleetRouter._load_graph()
+        if not waypoints:
+            return []
+
+        def _idx_at(pt: dict) -> Optional[int]:
+            for w in waypoints:
+                if abs(w['x'] - pt['x']) < 0.01 and abs(w['y'] - pt['y']) < 0.01:
+                    return w['idx']
+            return None
+
+        edges: list[tuple[int, int]] = []
+        for a, b in zip(route, route[1:]):
+            ia, ib = _idx_at(a), _idx_at(b)
+            if ia is not None and ib is not None:
+                edges.append((ia, ib))
+        return edges

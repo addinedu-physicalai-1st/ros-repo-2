@@ -21,8 +21,13 @@
     ROBOT_IDS (기본 54,18)
 """
 
+import faulthandler
 import os
 import sys
+
+# macOS에서 bus error / segfault 발생 시 모든 스레드의 파이썬 스택을 stderr로 덤프.
+# all_threads=True 로 설정해야 실제 크래시를 일으킨 스레드를 식별할 수 있다.
+faulthandler.enable(all_threads=True)
 
 
 def _setup_qt_platform() -> None:

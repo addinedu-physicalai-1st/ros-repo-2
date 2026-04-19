@@ -104,9 +104,11 @@ class ShoppinkkiFSM:
          'source': ['WAITING'],
          'dest': 'LOCKED'},
 
-        # TRACKING / TRACKING_CHECKOUT / WAITING / GUIDING / SEARCHING → RETURNING
+        # TRACKING / TRACKING_CHECKOUT / WAITING / GUIDING / SEARCHING / LOCKED / IDLE → RETURNING
+        # IDLE 허용: 강제 종료 후 관리자가 수동 복귀 트리거.
         {'trigger': 'enter_returning',
-         'source': ['TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'GUIDING', 'SEARCHING', 'LOCKED'],
+         'source': ['TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'GUIDING',
+                    'SEARCHING', 'LOCKED', 'IDLE'],
          'dest': 'RETURNING'},
 
         # RETURNING → CHARGING  (BT5 Nav2 SUCCESS)
@@ -127,11 +129,12 @@ class ShoppinkkiFSM:
          'source': '*', 'dest': 'IDLE'},
 
         # ── Force terminate ───────────────────────────
-        # Active states (not HALTED / LOCKED / CHARGING) → CHARGING
+        # Active states → IDLE (세션 종료만, 자동 복귀 X). 복귀는 관리자가
+        # 별도로 [복귀] 버튼으로 수동 트리거.
         {'trigger': '_force_terminate_trigger',
-         'source': ['IDLE', 'TRACKING', 'TRACKING_CHECKOUT',
+         'source': ['TRACKING', 'TRACKING_CHECKOUT',
                     'GUIDING', 'SEARCHING', 'WAITING', 'RETURNING'],
-         'dest': 'CHARGING'},
+         'dest': 'IDLE'},
     ]
 
     def __init__(

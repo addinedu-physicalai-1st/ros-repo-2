@@ -83,7 +83,11 @@ class NavigateToZone(py_trees.behaviour.Behaviour):
         self._in_progress = True
         self._nav_success = None
 
-        # 다중 경유점 모드 — 경유점마다 순차 NavigateToPose
+        # 다중 경유점 — 순차 NavigateToPose로 각 waypoint를 hard constraint처럼
+        # 강제 방문. 중간점 theta는 control_service가 "다음 waypoint 방향"으로 세팅해
+        # 두었기 때문에 이동 중 자연스럽게 정렬되어 회전 정지가 발생하지 않는다.
+        # NavigateThroughPoses는 Nav2가 중간점을 부드럽게 지나치며 때때로 경로 자체를
+        # 재계산해 우리가 원한 그래프 경로를 따르지 않을 수 있어 사용하지 않는다.
         if self._goals and self._send_nav_goal:
             goals = list(self._goals)
             logger.info('NavigateToZone: sequential %d waypoints', len(goals))
@@ -91,11 +95,12 @@ class NavigateToZone(py_trees.behaviour.Behaviour):
             def _run():
                 try:
                     for i, (gx, gy, gtheta) in enumerate(goals):
-                        logger.info('NavigateToZone: [%d/%d] → (%.2f, %.2f)',
-                                    i + 1, len(goals), gx, gy)
+                        logger.info('NavigateToZone: [%d/%d] → (%.2f, %.2f, θ=%.2f)',
+                                    i + 1, len(goals), gx, gy, gtheta)
                         ok = self._send_nav_goal(gx, gy, gtheta)
                         if not ok:
-                            logger.warning('NavigateToZone: [%d/%d] failed', i + 1, len(goals))
+                            logger.warning('NavigateToZone: [%d/%d] failed',
+                                           i + 1, len(goals))
                             self._nav_success = False
                             return
                     self._nav_success = True

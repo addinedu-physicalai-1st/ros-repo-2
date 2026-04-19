@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────
-# Nav2 / RMF 테스트 도구 (GUIDING / RETURNING / 파라미터 조정)
+# Nav2 테스트 도구 (GUIDING / RETURNING / 파라미터 조정)
 # 사용법:  bash scripts/test_nav.sh [로봇번호]   (기본: 54)
 # ─────────────────────────────────────────────────────────────
 set -eo pipefail
@@ -14,7 +14,7 @@ API="http://localhost:8081"
 NS="robot_${ROBOT_ID}"
 RVIZ_PID=""
 
-# ── 구역 목록 (번호, x, y, theta, 이름, RMF waypoint) ────────
+# ── 구역 목록 (번호, x, y, theta, 이름, waypoint) ────────────
 ZONES=(
   "1   0.619  -0.12   0.0     가전제품    가전제품1"
   "2   0.950  -0.12   0.0     과자        과자1"
@@ -44,21 +44,6 @@ send_cmd() {
   echo
 }
 
-# ── RMF task 전송 ────────────────────────────────────────────
-rmf_dispatch_waypoint() {
-  local robot_name="pinky_${ROBOT_ID}"
-  local waypoint="$1"
-  echo -e "${G}>> RMF task: ${robot_name} → ${waypoint}${NC}"
-  python3 "${SCRIPT_DIR}/rmf_dispatch.py" --robot "$robot_name" --waypoint "$waypoint"
-}
-
-rmf_dispatch_zone() {
-  local robot_name="pinky_${ROBOT_ID}"
-  local zone="$1"
-  echo -e "${G}>> RMF task: ${robot_name} → 구역 [${zone}] (빈 자리 자동)${NC}"
-  python3 "${SCRIPT_DIR}/rmf_dispatch.py" --robot "$robot_name" --zone "$zone"
-}
-
 # ── 파라미터 조회/설정 ────────────────────────────────────────
 get_param() {
   ros2 param get "$1" "$2" 2>/dev/null || echo "(조회 실패)"
@@ -72,7 +57,7 @@ set_param_val() {
 
 show_zones() {
   hr
-  printf "  ${Y}%-4s %-8s %-8s %-8s %-10s %s${NC}\n" "번호" "X" "Y" "Theta" "구역명" "RMF WP"
+  printf "  ${Y}%-4s %-8s %-8s %-8s %-10s %s${NC}\n" "번호" "X" "Y" "Theta" "구역명" "WP"
   hr
   for z in "${ZONES[@]}"; do
     read -r zid zx zy ztheta zname zwp <<< "$z"
@@ -81,28 +66,7 @@ show_zones() {
   hr
 }
 
-# ── RMF 기반 이동 ────────────────────────────────────────────
-do_navigate_rmf() {
-  show_zones
-  read -rp "구역 번호 (1-8): " zid
-  for z in "${ZONES[@]}"; do
-    read -r id zx zy ztheta zname zwp <<< "$z"
-    if [[ "$id" == "$zid" ]]; then
-      echo -e "${G}>> [RMF] 안내이동 → ${zname} (빈 자리 자동 선택)${NC}"
-      rmf_dispatch_zone "$zname"
-      return
-    fi
-  done
-  echo -e "${R}잘못된 구역 번호${NC}"
-}
-
-do_return_rmf() {
-  local wp="${CHARGER_WP[$ROBOT_ID]:-P2}"
-  echo -e "${G}>> [RMF] 충전소 복귀 → ${wp}${NC}"
-  rmf_dispatch_waypoint "$wp"
-}
-
-# ── Nav2 직접 이동 (기존) ────────────────────────────────────
+# ── Nav2 직접 이동 ───────────────────────────────────────────
 do_navigate_nav2() {
   show_zones
   read -rp "구역 번호 (1-8): " zid
@@ -245,21 +209,17 @@ main() {
   clear
   echo -e "${C}"
   echo "  ╔══════════════════════════════════════╗"
-  echo "  ║   쑈삥끼 Nav2/RMF 테스트 도구        ║"
+  echo "  ║   쑈삥끼 Nav2 테스트 도구             ║"
   echo "  ║   로봇: ${ROBOT_ID}  |  도메인: ${ROS_DOMAIN_ID:-0}            ║"
   echo "  ╚══════════════════════════════════════╝"
   echo -e "${NC}"
 
   while true; do
     hr
-    echo -e "  ${Y}[ RMF 기반 이동 — 교통 스케줄 충돌 회피 ]${NC}"
-    echo "    1) 구역으로 안내이동 (RMF)"
-    echo "    2) 충전소 복귀 (RMF)"
-    echo
-    echo -e "  ${Y}[ Nav2 직접 이동 — RMF 없이 ]${NC}"
-    echo "    3) 구역으로 안내이동 (Nav2)"
-    echo "    4) 좌표 직접 입력 이동 (Nav2)"
-    echo "    5) 충전소 복귀 (Nav2)"
+    echo -e "  ${Y}[ Nav2 이동 ]${NC}"
+    echo "    3) 구역으로 안내이동"
+    echo "    4) 좌표 직접 입력 이동"
+    echo "    5) 충전소 복귀"
     echo "    6) 관리자 이동 (IDLE 전용)"
     echo
     echo -e "  ${Y}[ 파라미터 ]${NC}"
@@ -285,8 +245,6 @@ main() {
     read -rp "  > " choice
 
     case "$choice" in
-      1) do_navigate_rmf ;;
-      2) do_return_rmf ;;
       3) do_navigate_nav2 ;;
       4) do_navigate_custom ;;
       5) do_return_nav2 ;;

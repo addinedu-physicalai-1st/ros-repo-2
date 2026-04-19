@@ -169,21 +169,6 @@ def make_robot_actions(robot: dict, delay: float) -> list:
              remappings=[('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel_smoothed')]),
         Node(package='nav2_collision_monitor', executable='collision_monitor',
              name='collision_monitor', output='screen', parameters=sim_params),
-
-        # ── 단일 lifecycle_manager: 리스트 순서대로 순차 activate ──
-        Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',
-             name='lifecycle_manager', output='screen',
-             parameters=[{
-                 'use_sim_time': True,
-                 'autostart': True,
-                 'node_names': [
-                     'map_server', 'amcl',                    # localization 먼저
-                     'controller_server', 'smoother_server',  # navigation 이후
-                     'planner_server', 'behavior_server',
-                     'bt_navigator', 'waypoint_follower',
-                     'velocity_smoother', 'collision_monitor',
-                 ],
-             }]),
     ])
 
     # delay 적용 (두 번째 로봇은 첫 번째 이후에 스폰)
@@ -195,13 +180,17 @@ def make_robot_actions(robot: dict, delay: float) -> list:
 
 def generate_launch_description():
     # GZ_SIM_RESOURCE_PATH 설정 (모델 파일 탐색)
+    # os.path.join(PINKY_DESC, '..') 은 "share/pinky_description/.." 형태로
+    # resolve 되지 않은 문자열을 만들어 gz GUI의 mesh 탐색이 실패한다.
+    # dirname으로 실제 부모 디렉토리(".../share")를 넘긴다.
+    gz_resource_path = (
+        os.path.dirname(PINKY_DESC) + ':'
+        + os.path.join(PINKY_GZ, 'models') + ':'
+        + os.path.expanduser('~/.gazebo/models')
+    )
     set_gz_path = SetEnvironmentVariable(
         name='GZ_SIM_RESOURCE_PATH',
-        value=(
-            os.path.join(PINKY_DESC, '..') + ':'
-            + os.path.join(PINKY_GZ, 'models') + ':'
-            + os.path.expanduser('~/.gazebo/models')
-        ),
+        value=gz_resource_path,
     )
 
     # Gazebo 실행
@@ -210,6 +199,10 @@ def generate_launch_description():
     # Linux: 통합 실행 (Sensors System이 ogre2 렌더링 컨텍스트 필요)
     _is_macos = platform.system() == 'Darwin'
     if _is_macos:
+        # macOS: server만 launch에서 띄운다. GUI는 run_sim.sh가 별도 tmux 창에서
+        # `gz sim -g`로 띄워야 interactive shell 환경(DYLD/OGRE plugin 경로 등)이
+        # 온전히 전달돼 안정적으로 로봇 메시가 렌더링된다. launch 내 ExecuteProcess로
+        # 띄우면 env 전달이 불안정해 mesh 로드 실패/렌더 크래시가 간헐적으로 발생한다.
         gz_server = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(
@@ -222,11 +215,7 @@ def generate_launch_description():
                 'on_exit_shutdown': 'true',
             }.items(),
         )
-        gz_gui = ExecuteProcess(
-            cmd=['gz', 'sim', '-g', '-v4'],
-            output='screen',
-        )
-        gz_actions = [gz_server, gz_gui]
+        gz_actions = [gz_server]
     else:
         gz = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
@@ -239,9 +228,37 @@ def generate_launch_description():
         )
         gz_actions = [gz]
 
-    # 각 로봇 액션 생성 (로봇 18은 15초 딜레이 — 54번 Nav2 초기화 후 시작)
+    # 각 로봇 액션 생성 — 두 로봇을 병렬로 띄우되, lifecycle 활성화는
+    # 아래 단일 lifecycle_manager가 순차 처리하므로 경합 없음.
     robot_54_actions = make_robot_actions(ROBOTS[0], delay=0.0)
-    robot_18_actions = make_robot_actions(ROBOTS[1], delay=15.0)
+    robot_18_actions = make_robot_actions(ROBOTS[1], delay=0.0)
+
+    # ── 통합 lifecycle_manager (네임스페이스 밖, 절대 경로 사용) ──
+    # 로봇별 lifecycle_manager를 각 네임스페이스에 두면 두 매니저가 동시에
+    # 자기 그룹을 configure/activate하면서 DDS/service 경합으로 한쪽이 자주 실패한다.
+    # 하나의 매니저가 모든 노드를 순차 처리하도록 일원화한다.
+    def _nodes_for(rid: str) -> list[str]:
+        ns = f'/robot_{rid}'
+        return [
+            f'{ns}/map_server', f'{ns}/amcl',
+            f'{ns}/controller_server', f'{ns}/smoother_server',
+            f'{ns}/planner_server', f'{ns}/behavior_server',
+            f'{ns}/bt_navigator', f'{ns}/waypoint_follower',
+            f'{ns}/velocity_smoother', f'{ns}/collision_monitor',
+        ]
+
+    unified_lifecycle = Node(
+        package='nav2_lifecycle_manager',
+        executable='lifecycle_manager',
+        name='lifecycle_manager_multi',
+        output='screen',
+        parameters=[{
+            'use_sim_time': True,
+            'autostart': True,
+            'bond_timeout': 0.0,
+            'node_names': _nodes_for('54') + _nodes_for('18'),
+        }],
+    )
     position_adjustment_bridge_yaml = os.path.join(
         SHOPPINKKI_NAV, 'config', 'bridge_position_adjustment.yaml'
     )
@@ -258,10 +275,16 @@ def generate_launch_description():
         output='log',
     )
 
+    # 로봇 노드들이 먼저 생성되도록 lifecycle_manager는 약간의 지연 후 기동.
+    # (configure 요청이 go before service server가 뜨면 잠시 대기하므로 치명적이진 않지만,
+    #  콘솔 경고를 줄이기 위함)
+    delayed_lifecycle = TimerAction(period=5.0, actions=[unified_lifecycle])
+
     return LaunchDescription([
         set_gz_path,
         *gz_actions,
         position_adjustment_bridge,
         *robot_54_actions,
         *robot_18_actions,
+        delayed_lifecycle,
     ])

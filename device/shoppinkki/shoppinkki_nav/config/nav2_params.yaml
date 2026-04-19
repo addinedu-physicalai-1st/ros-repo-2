@@ -94,6 +94,7 @@ controller_server:
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
+      # 도달 판정은 pickup zone에서 상품 픽업 가능 거리로 유지.
       xy_goal_tolerance: 0.06
       yaw_goal_tolerance: 0.12
       check_yaw: true
@@ -123,7 +124,7 @@ controller_server:
       use_approach_velocity_scaling: true
       approach_velocity_scaling_dist: 0.3
       min_approach_linear_velocity: 0.05
-      inflation_cost_scaling_factor: 3.0
+      inflation_cost_scaling_factor: 30.0
       regulated_linear_scaling_min_radius: 0.5
       regulated_linear_scaling_min_speed: 0.05
       use_cost_regulated_linear_velocity_scaling: false
@@ -147,8 +148,8 @@ local_costmap:
       plugins: ["voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.06
+        cost_scaling_factor: 30.0
+        inflation_radius: 0.15
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: True
@@ -165,6 +166,9 @@ local_costmap:
           clearing: True
           marking: True
           data_type: "LaserScan"
+          # 다중 로봇 환경: 상대 로봇이 지나간 자리를 즉시 clear 하기 위해
+          # scan에 더 이상 찍히지 않는 mark는 0초 만에 제거한다.
+          observation_persistence: 0.0
           raytrace_max_range: 3.0
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
@@ -194,6 +198,7 @@ global_costmap:
           clearing: True
           marking: True
           data_type: "LaserScan"
+          observation_persistence: 0.0
           raytrace_max_range: 3.0
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
@@ -204,8 +209,8 @@ global_costmap:
         map_topic: /__NS__/map
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.06
+        cost_scaling_factor: 30.0
+        inflation_radius: 0.15
       always_send_full_costmap: True
 
 map_saver:
@@ -224,7 +229,10 @@ planner_server:
     costmap_update_timeout: 5.0
     GridBased:
       plugin: "nav2_navfn_planner::NavfnPlanner"
-      tolerance: 0.05
+      # pickup_zone 웨이포인트는 벽에서 5~10cm 떨어져 있어 inflation(0.06m)과
+      # 겹칠 수 있다. 0.05는 너무 타이트해서 start/goal이 inflated 셀에 있으면
+      # plan 생성이 실패한다. 0.2로 완화.
+      tolerance: 0.2
       use_astar: true
       allow_unknown: true
 

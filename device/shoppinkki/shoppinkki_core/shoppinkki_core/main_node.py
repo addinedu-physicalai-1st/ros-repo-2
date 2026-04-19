@@ -27,6 +27,7 @@ import cv2
 import numpy as np
 
 import rclpy
+import rclpy.time  # noqa: F401 — submodule 명시 (정적 분석기 경고 방지)
 import tf2_ros
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from rclpy.node import Node
@@ -200,6 +201,9 @@ class ShoppinkkiMainNode(Node):
         # ── Nav2 action client (admin_goto / navigate_to) ─────
         self._nav2_client = None
         self._nav2_through_client = None
+        # 현재 실행 중인 Nav2 goal handle — cancel 요청 시 사용
+        self._active_goal_handle = None
+        self._active_through_goal_handle = None
         if _NAV2_AVAILABLE:
             nav2_action = f'robot_{ROBOT_ID}/navigate_to_pose'
             self._nav2_client = ActionClient(self, NavigateToPose, nav2_action)
@@ -223,6 +227,17 @@ class ShoppinkkiMainNode(Node):
             if hasattr(self._bt_returning, '_set_nav2_mode'):
                 self._bt_returning._set_nav2_mode = self._set_nav2_mode
                 self.get_logger().info('BT5 RETURNING: Nav2 mode switcher connected')
+
+            # BT4 cancel_nav 확장: 로컬 플래그만 리셋하지 말고 실제 Nav2 action도 취소.
+            if hasattr(self._bt_guiding, 'cancel_nav'):
+                _bt_cancel = self._bt_guiding.cancel_nav
+
+                def _cancel_with_action():
+                    _bt_cancel()
+                    self._cancel_active_nav()
+
+                self._bt_guiding.cancel_nav = _cancel_with_action
+                self.get_logger().info('BT4 GUIDING: cancel_nav wired to Nav2 action cancel')
             if hasattr(self._bt_returning, '_set_inflation'):
                 self._bt_returning._set_inflation = self._set_inflation
                 self.get_logger().info('BT5 RETURNING: inflation switcher connected')
@@ -615,7 +630,7 @@ class ShoppinkkiMainNode(Node):
             self.get_logger().warning('set_nav2_mode: %s' % e)
         self.get_logger().info('Nav2 mode → %s (reversing=%s)' % (mode, reversing))
 
-    _INFLATION_RADIUS_DEFAULT = 0.06
+    _INFLATION_RADIUS_DEFAULT = 0.15
 
     def _set_inflation(self, enable: bool) -> None:
         """Inflation 동적 제어 — 좁은 복도 통과 시 비활성화."""
@@ -653,7 +668,10 @@ class ShoppinkkiMainNode(Node):
         goal_msg = NavigateToPose.Goal()
         goal_msg.pose = PoseStamped()
         goal_msg.pose.header.frame_id = 'map'
-        goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
+        # stamp=0 → Nav2가 "최신 TF 사용". 실제 시계(get_clock().now())를 찍으면
+        # sim_time 롤오버/재시작 시 "Lookup would require extrapolation into the past"
+        # TF 에러가 난다.
+        goal_msg.pose.header.stamp = rclpy.time.Time().to_msg()
         goal_msg.pose.pose.position.x = x
         goal_msg.pose.pose.position.y = y
         goal_msg.pose.pose.orientation.z = math.sin(theta / 2.0)
@@ -671,10 +689,12 @@ class ShoppinkkiMainNode(Node):
                 done_event.set()
                 return
             result_holder.append(goal_handle)
+            self._active_goal_handle = goal_handle
             goal_handle.get_result_async().add_done_callback(_result_response)
 
         def _result_response(future):
             result_holder[0] = future.result()
+            self._active_goal_handle = None
             done_event.set()
 
         self._nav2_client.send_goal_async(goal_msg).add_done_callback(_goal_response)
@@ -708,7 +728,7 @@ class ShoppinkkiMainNode(Node):
         for x, y, theta in poses:
             p = PoseStamped()
             p.header.frame_id = 'map'
-            p.header.stamp = self.get_clock().now().to_msg()
+            p.header.stamp = rclpy.time.Time().to_msg()
             p.pose.position.x = x
             p.pose.position.y = y
             p.pose.orientation.z = math.sin(theta / 2.0)
@@ -728,10 +748,12 @@ class ShoppinkkiMainNode(Node):
                 done_event.set()
                 return
             result_holder.append(goal_handle)
+            self._active_through_goal_handle = goal_handle
             goal_handle.get_result_async().add_done_callback(_result_response)
 
         def _result_response(future):
             result_holder[0] = future.result()
+            self._active_through_goal_handle = None
             done_event.set()
 
         self._nav2_through_client.send_goal_async(goal_msg).add_done_callback(_goal_response)
@@ -751,6 +773,24 @@ class ShoppinkkiMainNode(Node):
                                       % result.status)
             return False
 
+    def _cancel_active_nav(self) -> None:
+        """현재 진행 중인 Nav2 goal을 실제로 취소한다.
+
+        force_terminate / navigate_cancel 등 상태 전환 시 BT4의 cancel_nav에서
+        호출한다. goal handle에 cancel_goal_async()를 보내야 Nav2 planner/controller가
+        "Passing new path to controller"를 중단한다.
+        """
+        for attr in ('_active_goal_handle', '_active_through_goal_handle'):
+            gh = getattr(self, attr, None)
+            if gh is None:
+                continue
+            try:
+                gh.cancel_goal_async()
+                self.get_logger().info(f'Nav2 cancel sent ({attr})')
+            except Exception as e:
+                self.get_logger().warning(f'Nav2 cancel failed ({attr}): {e}')
+            setattr(self, attr, None)
+
     def _on_admin_goto(self, x: float, y: float, theta: float) -> None:
         self.get_logger().info('admin_goto: (%.2f, %.2f, %.2f)' % (x, y, theta))
         if self._nav2_client is None:
@@ -760,16 +800,38 @@ class ShoppinkkiMainNode(Node):
             self.get_logger().warning('admin_goto: Nav2 action server not ready')
             return
 
+        # 라이다 기반 장애물 회피 보장: inflation ON + guiding 모드
+        # (이전에 RETURNING에서 inflation OFF/reversing ON으로 바꿔둔 상태일 수
+        #  있어 admin_goto 시점에 명시적으로 복원).
+        try:
+            self._set_nav2_mode('guiding')
+        except Exception:
+            pass
+        try:
+            self._set_inflation(True)
+        except Exception:
+            pass
+
         goal_msg = NavigateToPose.Goal()
         goal_msg.pose = PoseStamped()
         goal_msg.pose.header.frame_id = 'map'
-        goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
+        # stamp=0 → Nav2가 "최신 TF 사용". 실제 시계(get_clock().now())를 찍으면
+        # sim_time 롤오버/재시작 시 "Lookup would require extrapolation into the past"
+        # TF 에러가 난다.
+        goal_msg.pose.header.stamp = rclpy.time.Time().to_msg()
         goal_msg.pose.pose.position.x = x
         goal_msg.pose.pose.position.y = y
         goal_msg.pose.pose.orientation.z = math.sin(theta / 2.0)
         goal_msg.pose.pose.orientation.w = math.cos(theta / 2.0)
 
-        self._nav2_client.send_goal_async(goal_msg)
+        def _store_handle(future):
+            gh = future.result()
+            if gh is not None and gh.accepted:
+                self._active_goal_handle = gh
+                gh.get_result_async().add_done_callback(
+                    lambda _f: setattr(self, '_active_goal_handle', None))
+
+        self._nav2_client.send_goal_async(goal_msg).add_done_callback(_store_handle)
         self.get_logger().info('admin_goto: Nav2 goal sent → (%.2f, %.2f)' % (x, y))
 
     def _on_arrived(self) -> None:
@@ -799,10 +861,10 @@ class ShoppinkkiMainNode(Node):
             return bool((result or {}).get('has_unpaid', False))
         except (HTTPError, URLError, TimeoutError) as e:
             # 조회 실패 시 LOCKED 오탐을 피하기 위해 RETURNING 경로를 우선한다.
-            self.get_logger().warning('has_unpaid_items fallback failed: %s', e)
+            self.get_logger().warning(f'has_unpaid_items fallback failed: {e}')
             return False
         except Exception as e:
-            self.get_logger().warning('has_unpaid_items unexpected error: %s', e)
+            self.get_logger().warning(f'has_unpaid_items unexpected error: {e}')
             return False
 
     def _rest_get_json(self, path: str) -> dict:
@@ -922,7 +984,7 @@ class ShoppinkkiMainNode(Node):
                 read_failures += 1
                 if read_failures in (1, 10):
                     self.get_logger().warning(
-                        '카메라 프레임 읽기 실패(%d): %s', read_failures, str(e)
+                        f'카메라 프레임 읽기 실패({read_failures}): {e}'
                     )
                 # 연속 실패 시 카메라만 재오픈하고 노드는 계속 유지
                 if read_failures >= 10:
@@ -1031,7 +1093,12 @@ class ShoppinkkiMainNode(Node):
     def _stream_loop(self) -> None:
         """가벼운 TCP/MJPEG 스트리머."""
         import socket
-        port = 5007
+        # 다중 로봇 시뮬에서 포트 충돌 방지 — ROBOT_ID로 오프셋.
+        # 예: 54 → 5061, 18 → 5025
+        try:
+            port = 5007 + int(ROBOT_ID)
+        except (TypeError, ValueError):
+            port = 5007
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:

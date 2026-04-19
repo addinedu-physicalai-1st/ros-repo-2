@@ -73,7 +73,7 @@ _FORCE_TERMINATE_DISABLED = {'CHARGING', 'OFFLINE', 'HALTED', 'LOCKED'}
 # 상태 전환 버튼 활성 조건
 _WAITING_MODES = {'TRACKING', 'TRACKING_CHECKOUT', 'SEARCHING'}
 _RESUME_MODES = {'WAITING', 'SEARCHING'}
-_RETURNING_MODES = {'TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'SEARCHING'}
+_RETURNING_MODES = {'TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'SEARCHING', 'IDLE'}
 # 위치 초기화 가능 모드 (시뮬/실물 AMCL 초기 위치 설정)
 _INIT_POSE_MODES = {'CHARGING', 'IDLE'}
 # OFFLINE 판정 기준 (main_window와 동기화)
@@ -90,6 +90,7 @@ class RobotCard(QFrame):
     card_clicked = pyqtSignal(str)       # robot_id
     goto_mode_activated = pyqtSignal(str)  # robot_id or '' (cancel)
     position_adjustment_mode_activated = pyqtSignal(str)  # robot_id or '' (cancel)
+    guide_requested = pyqtSignal(str)    # robot_id — zone 선택 다이얼로그 요청
 
     def __init__(self, robot_id: str, parent=None):
         super().__init__(parent)
@@ -193,6 +194,11 @@ class RobotCard(QFrame):
         self._btn_init_pose.setStyleSheet('color: #2980b9;')
         self._btn_init_pose.clicked.connect(self._on_init_pose)
 
+        self._btn_guide = QPushButton('안내 이동')
+        self._btn_guide.setToolTip('구역을 선택해 GUIDING 시작 (IDLE 상태에서만)')
+        self._btn_guide.setStyleSheet('color: #16a085; font-weight: bold;')
+        self._btn_guide.clicked.connect(self._on_guide)
+
         grid = QGridLayout()
         grid.setHorizontalSpacing(8)
         grid.setVerticalSpacing(6)
@@ -200,9 +206,9 @@ class RobotCard(QFrame):
         grid.addWidget(self._btn_force_terminate, 0, 0)
         grid.addWidget(self._btn_admin_goto, 0, 1)
         grid.addWidget(self._btn_staff_resolved, 0, 2)
-        # 2행: 위치 재조정 | (빈칸) | 위치 초기화
+        # 2행: 위치 재조정 | 안내 이동 | 위치 초기화
         grid.addWidget(self._btn_position_adjustment, 1, 0)
-        grid.addWidget(QLabel(''), 1, 1)
+        grid.addWidget(self._btn_guide, 1, 1)
         grid.addWidget(self._btn_init_pose, 1, 2)
         layout.addLayout(grid)
 
@@ -385,6 +391,12 @@ class RobotCard(QFrame):
         else:
             self._btn_init_pose.setToolTip('AMCL 초기 위치 설정')
 
+        self._btn_guide.setEnabled(mode == 'IDLE')
+        if mode != 'IDLE':
+            self._btn_guide.setToolTip(f'안내 이동 불가 (현재 {mode} — IDLE에서만 가능)')
+        else:
+            self._btn_guide.setToolTip('구역 선택해서 안내 이동 시작')
+
     def _send_cmd(self, payload: dict):
         self.command_requested.emit(self._robot_id, payload)
 
@@ -430,6 +442,10 @@ class RobotCard(QFrame):
         )
         if reply == QMessageBox.StandardButton.Yes:
             self._send_cmd({'cmd': 'staff_resolved', 'robot_id': self._robot_id})
+
+    def _on_guide(self):
+        # 다이얼로그는 REST 주소를 모르므로 MainWindow에 요청만 전달한다.
+        self.guide_requested.emit(self._robot_id)
 
     def _on_init_pose(self):
         reply = QMessageBox.question(

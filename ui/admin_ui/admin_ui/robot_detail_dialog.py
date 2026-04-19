@@ -69,7 +69,12 @@ class RobotDetailDialog(QDialog):
         self.setMinimumHeight(340)
 
         self._build_ui()
-        self._fetch_cart()
+        # _fetch_cart는 urllib blocking 호출(최대 3초 × 2) → __init__에서 부르면
+        # 메인 Qt event loop가 막혀 그동안 쌓인 status 시그널이 dialog 뜨자마자
+        # 폭주해 paint 경합으로 macOS에서 bus error를 유발한다.
+        # 이벤트 루프 한 tick 뒤에 실행.
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._fetch_cart)
 
     # ------------------------------------------------------------------
     # UI 구성

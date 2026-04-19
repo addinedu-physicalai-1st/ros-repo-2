@@ -38,10 +38,18 @@ def register_handlers(socketio, control_clients: dict, llm_cfg: dict):
     def on_connect():
         logger.info("브라우저 SocketIO 연결")
         robot_id, cc = _get_client()
-        if cc and cc.is_connected:
-            socketio.emit("control_connected", {"connected": True})
+        # 해당 로봇의 브라우저 세션만 받도록 room 가입.
+        # (이벤트 유출 방지: 예) robot 54의 checkout_zone_enter가 robot 18 탭에도
+        #  뜨는 문제를 차단)
+        if robot_id:
+            from flask_socketio import join_room
+            join_room(str(robot_id))
+        connected = bool(cc and cc.is_connected)
+        if robot_id:
+            socketio.emit("control_connected", {"connected": connected},
+                          room=str(robot_id))
         else:
-            socketio.emit("control_connected", {"connected": False})
+            socketio.emit("control_connected", {"connected": connected})
 
     @socketio.on("disconnect")
     def on_disconnect():
@@ -194,8 +202,11 @@ def register_handlers(socketio, control_clients: dict, llm_cfg: dict):
         → LLM 서버 질의 → navigate_to relay
         """
         name = data.get("name") if isinstance(data, dict) else None
+        robot_id = session.get("robot_id")
+        room = str(robot_id) if robot_id else None
         if not name:
-            socketio.emit("find_product_result", {"error": "검색어를 입력해주세요."})
+            socketio.emit("find_product_result", {"error": "검색어를 입력해주세요."},
+                          room=room)
             return
 
         result = llm.query(
@@ -204,26 +215,18 @@ def register_handlers(socketio, control_clients: dict, llm_cfg: dict):
             port=llm_cfg.get("port", 8000),
         )
         if result is None:
-            socketio.emit("find_product_result", {"error": "상품을 찾을 수 없습니다."})
+            socketio.emit("find_product_result", {"error": "상품을 찾을 수 없습니다."},
+                          room=room)
             return
 
         zone_id = result["zone_id"]
         zone_name = result["zone_name"]
 
-        # 브라우저에 결과 즉시 전달 (AI 답변 포함)
+        # 브라우저에 결과 즉시 전달 (AI 답변 포함) — 해당 로봇 세션만
         socketio.emit("find_product_result", {
             "type": "find_product_result",
             "zone_id": zone_id,
             "zone_name": zone_name,
             "display_name": result.get("display_name", zone_name),
             "answer": result.get("answer", f"{zone_name}으로 안내합니다.")
-        })
-
-        # 실제 경로 데이터를 위해 control_service에 별도 요청
-        robot_id, cc = _get_client()
-        if cc:
-            cc.send({
-                "cmd": "get_path_preview",
-                "robot_id": robot_id,
-                "zone_id": zone_id
-            })
+        }, room=room)

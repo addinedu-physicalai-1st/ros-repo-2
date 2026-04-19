@@ -31,17 +31,26 @@ API:
 """
 
 import json
+import queue
 import socket
 import threading
 import time
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
 
 
 class TCPClientThread(QThread):
-    """TCP 클라이언트 스레드."""
+    """TCP 클라이언트 스레드.
 
-    message_received = pyqtSignal(dict)
+    중요: macOS PyQt6에서 worker thread의 pyqtSignal emit이 dict/object를
+    크로스-스레드 마셜링할 때 간헐적 bus error를 일으킨다. 이를 피하기 위해
+    수신된 메시지는 thread-safe Queue에 쌓기만 하고, **메인 스레드의
+    QTimer가 polling하여 꺼내 시그널 emit**한다 (emit이 메인 스레드에서
+    발생하므로 마셜링이 필요 없음).
+    """
+
+    # 메인 스레드에서만 emit → 마셜링 없음 → 안전
+    message_received = pyqtSignal(object)
     connection_changed = pyqtSignal(bool)
 
     RECONNECT_DELAY = 5  # seconds
@@ -54,6 +63,35 @@ class TCPClientThread(QThread):
         self._sock: socket.socket | None = None
         self._running = False
         self._lock = threading.Lock()
+        # TCP thread → main thread: 메시지/연결상태 큐
+        self._msg_q: 'queue.Queue[dict]' = queue.Queue()
+        self._conn_q: 'queue.Queue[bool]' = queue.Queue()
+        # 메인 스레드에서 주기적으로 큐를 드레인
+        self._drain_timer = QTimer(self)
+        self._drain_timer.setInterval(50)  # 20 Hz
+        self._drain_timer.timeout.connect(self._drain_queues)
+        self._drain_timer.start()
+
+    def _drain_queues(self) -> None:
+        """메인 스레드에서 실행 — 큐를 비우며 시그널 emit."""
+        for _ in range(200):
+            try:
+                msg = self._msg_q.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                self.message_received.emit(msg)
+            except Exception:
+                pass
+        for _ in range(10):
+            try:
+                ok = self._conn_q.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                self.connection_changed.emit(ok)
+            except Exception:
+                pass
 
     def run(self):
         """메인 연결 + 수신 루프."""
@@ -64,7 +102,7 @@ class TCPClientThread(QThread):
             except Exception:
                 pass
             if self._running:
-                self.connection_changed.emit(False)
+                self._conn_q.put(False)
                 time.sleep(self.RECONNECT_DELAY)
 
     def _connect_and_receive(self):
@@ -80,7 +118,7 @@ class TCPClientThread(QThread):
         # 등록 메시지 전송
         reg = json.dumps({'type': 'register', 'role': 'admin'}) + '\n'
         sock.sendall(reg.encode('utf-8'))
-        self.connection_changed.emit(True)
+        self._conn_q.put(True)
 
         buf = ''
         try:
@@ -96,7 +134,7 @@ class TCPClientThread(QThread):
                         continue
                     try:
                         data = json.loads(line)
-                        self.message_received.emit(data)
+                        self._msg_q.put(data)
                     except json.JSONDecodeError:
                         pass
         finally:

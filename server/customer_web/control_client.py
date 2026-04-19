@@ -131,7 +131,8 @@ class ControlClient:
             "find_product_path",
         }
         if msg_type in known:
-            self._sio.emit(msg_type, msg)
+            # 로봇별 방(room)으로만 브로드캐스트 — 다른 로봇 탭으로 새어 나가지 않게.
+            self._sio.emit(msg_type, msg, room=str(self.robot_id))
         else:
             logger.debug("미처리 메시지 타입: %s", msg_type)
 

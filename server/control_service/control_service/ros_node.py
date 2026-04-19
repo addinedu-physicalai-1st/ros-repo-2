@@ -21,7 +21,6 @@ import json
 import logging
 import math
 import os
-import time
 import threading
 from typing import TYPE_CHECKING
 
@@ -56,22 +55,6 @@ class ControlServiceNode:
         self._SetEntityPose = None
 
         from geometry_msgs.msg import PoseWithCovarianceStamped
-        from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
-        try:
-            from rmf_fleet_msgs.msg import FleetState
-        except ImportError:
-            FleetState = None
-        try:
-            from rmf_task_msgs.msg import ApiRequest as _ApiRequest
-            self._ApiRequest = _ApiRequest
-        except ImportError:
-            self._ApiRequest = None
-
-        _rmf_qos = QoSProfile(
-            reliability=QoSReliabilityPolicy.RELIABLE,
-            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-            depth=10,
-        )
 
         class _Node(Node):
             def __init__(inner_self):
@@ -100,16 +83,6 @@ class ControlServiceNode:
                     # Publish initialpose
                     self._init_pose_publishers[rid] = inner_self.create_publisher(
                         PoseWithCovarianceStamped, f'/robot_{rid}/initialpose', 10)
-                # RMF Path Monitoring
-                if FleetState:
-                    inner_self.create_subscription(
-                        FleetState, '/fleet_states', self._on_fleet_states, 10)
-                # RMF Task Dispatch
-                if self._ApiRequest is not None:
-                    self._rmf_task_pub = inner_self.create_publisher(
-                        self._ApiRequest, '/task_api_requests', _rmf_qos)
-                else:
-                    self._rmf_task_pub = None
                 inner_self.get_logger().info('ControlServiceNode ready')
 
         self._init_pose_publishers: dict = {}
@@ -119,8 +92,6 @@ class ControlServiceNode:
         robot_manager.publish_init_pose = self.publish_init_pose
         robot_manager.publish_initialpose_at = self.publish_initialpose_at
         robot_manager.adjust_position_in_sim = self.adjust_position_in_sim
-        if self._rmf_task_pub is not None:
-            robot_manager.dispatch_rmf_navigate = self.dispatch_rmf_navigate
 
         try:
             from ros_gz_interfaces.srv import SetEntityPose
@@ -130,36 +101,6 @@ class ControlServiceNode:
             )
         except Exception as e:
             logger.warning('Gazebo SetEntityPose unavailable: %s', e)
-
-    def dispatch_rmf_navigate(self, robot_id: str, waypoint_name: str) -> bool:
-        """RMF patrol task를 /task_api_requests로 발행하여 경로 기반 네비게이션."""
-        if self._rmf_task_pub is None or self._ApiRequest is None:
-            return False
-        import uuid
-        request_id = str(uuid.uuid4())
-        robot_name = f'pinky_{robot_id.strip()}'
-        now_ms = int(time.time() * 1000)
-        task_json = {
-            'type': 'robot_task_request',
-            'robot': robot_name,
-            'fleet': 'pinky_fleet',
-            'request': {
-                'unix_millis_earliest_start_time': now_ms,
-                'category': 'patrol',
-                'description': {
-                    'places': [waypoint_name],
-                    'rounds': 1,
-                },
-                'requester': 'control_service',
-            },
-        }
-        msg = self._ApiRequest()
-        msg.request_id = request_id
-        msg.json_msg = json.dumps(task_json)
-        self._rmf_task_pub.publish(msg)
-        logger.info('RMF dispatch: %s → %s (req=%s)',
-                    robot_name, waypoint_name, request_id[:8])
-        return True
 
     def publish_cmd(self, robot_id: str, payload: dict) -> None:
         from std_msgs.msg import String
@@ -344,15 +285,3 @@ class ControlServiceNode:
             self._rm.on_customer_event(robot_id, json.loads(raw))
         except Exception as e:
             logger.error('on_customer_event error: %s', e)
-
-    def _on_fleet_states(self, msg) -> None:
-        """RMF /fleet_states에서 로봇별 전체 예상 경로 추출."""
-        for rs in msg.robots:
-            # pinky_54 -> 54
-            name = rs.name
-            if name.startswith('pinky_'):
-                rid = name.replace('pinky_', '')
-                path_points = [{'x': float(loc.x), 'y': float(loc.y)} for loc in rs.path]
-                if path_points:
-                    logger.info(f"[RMF Path] Received {len(path_points)} waypoints for robot {rid}")
-                self._rm.on_rmf_path(rid, path_points)

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CycloneDDS xmlns="https://cdds.io/config"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/master/etc/cyclonedds.xsd">
+  <Domain Id="any">
+    <!-- macOS에서 shared memory 전송은 포트/인덱스 한도가 낮아 20+ 노드 동시
+         기동 시 "Failed to find a free participant index" 에러가 발생한다.
+         UDP로 고정. -->
+    <SharedMemory>
+      <Enable>false</Enable>
+    </SharedMemory>
+    <General>
+      <!-- multi-robot 시뮬에서 participant 수가 쉽게 40~60을 넘기므로 여유 확보 -->
+      <MaxMessageSize>65500B</MaxMessageSize>
+    </General>
+    <Discovery>
+      <!-- 기본 max participant index 보다 큰 도메인을 허용 -->
+      <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
+    </Discovery>
+  </Domain>
+</CycloneDDS>
