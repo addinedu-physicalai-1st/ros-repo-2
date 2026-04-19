@@ -218,3 +218,12 @@ def register_handlers(socketio, control_clients: dict, llm_cfg: dict):
             "display_name": result.get("display_name", zone_name),
             "answer": result.get("answer", f"{zone_name}으로 안내합니다.")
         })
+
+        # 실제 경로 데이터를 위해 control_service에 별도 요청
+        robot_id, cc = _get_client()
+        if cc:
+            cc.send({
+                "cmd": "get_path_preview",
+                "robot_id": robot_id,
+                "zone_id": zone_id
+            })

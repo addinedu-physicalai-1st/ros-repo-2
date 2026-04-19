@@ -507,6 +507,19 @@ class RobotManager:
             self._handle_update_quantity(robot_id, payload)
         elif cmd == 'delete_item':
             self._handle_delete_item(robot_id, payload)
+        elif cmd == 'get_path_preview':
+            zone_id = payload.get('zone_id')
+            if zone_id is None:
+                return
+            wp_name = self._pick_waypoint_for_zone(robot_id, zone_id)
+            if wp_name:
+                route = self._compute_graph_route(robot_id, wp_name)
+                self._push_web(robot_id, {
+                    'type': 'find_product_path',
+                    'robot_id': robot_id,
+                    'zone_id': zone_id,
+                    'path': route
+                })
         elif cmd == 'navigate_to':
             zone_id = payload.get('zone_id')
             if zone_id is None:

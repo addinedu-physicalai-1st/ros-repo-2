@@ -138,12 +138,9 @@
     </div>
     <div id="find-result" class="search-result"></div>
     
-    <!-- 지도 미리보기 프리뷰 영역 (Placeholder) -->
+    <!-- 지도 미리보기 프리뷰 영역 (Live Map) -->
     <div id="find-map-preview" class="map-preview-small hidden">
-      <div class="map-placeholder-content">
-        <span class="map-icon">📍</span>
-        <span class="map-text">안내 경로 탐색 중...</span>
-      </div>
+      <canvas id="previewMapCanvas"></canvas>
     </div>
 
     <!-- 기존 버튼 그룹을 재사용 (상황에 따라 글자/기능 변경) -->
@@ -259,8 +256,12 @@
 <script src="/static/js/map.js"></script>
 <script src="/static/js/socket.js"></script>
 <script>
-  // 맵 초기화
-  MapRenderer.init("mapCanvas", "{{ robot_id }}");
+  // 맵 초기화 (메인 지도 및 상품 검색용 미니 지도)
+  window.mainMap = new MapRenderer();
+  window.mainMap.init("mapCanvas", "{{ robot_id }}");
+
+  window.previewMap = new MapRenderer();
+  window.previewMap.init("previewMapCanvas", "{{ robot_id }}");
 </script>
 </body>
 </html>

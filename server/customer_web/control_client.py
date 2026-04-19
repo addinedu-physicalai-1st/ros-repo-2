@@ -128,6 +128,7 @@ class ControlClient:
             "arrived", "nav_failed", "enter_locked", "enter_halted", "staff_resolved",
             "session_ended",
             "doll_detected",
+            "find_product_path",
         }
         if msg_type in known:
             self._sio.emit(msg_type, msg)

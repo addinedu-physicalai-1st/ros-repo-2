@@ -19,7 +19,7 @@
 
 "use strict";
 
-/* global io, updateCart, hasUnpaidItems, deleteItem, MapRenderer */
+/* global io, updateCart, hasUnpaidItems, deleteItem, MapRenderer, mainMap, previewMap */
 
 const socket = io();
 
@@ -88,8 +88,11 @@ socket.on("status", (data) => {
   // 상태 업데이트 타이밍에 따른 버튼 깜빡임/오판정이 줄어든다.
   updateFollowDisabledBanner(data.my_robot?.follow_disabled ?? data.follow_disabled);
   updatePanelVisibility(data.my_robot?.mode ?? data.mode);
-  if (typeof MapRenderer !== "undefined") {
-    MapRenderer.updateFromStatus(data);
+  if (window.mainMap) {
+    window.mainMap.updateFromStatus(data);
+  }
+  if (window.previewMap) {
+    window.previewMap.updateFromStatus(data);
   }
 });
 
@@ -123,9 +126,14 @@ socket.on("checkout_blocked", () => {
   showToast("결제 후 통과 가능합니다");
 });
 
-// 상품 검색 결과
 socket.on("find_product_result", (data) => {
   showFindProductResult(data);
+});
+
+socket.on("find_product_path", (data) => {
+  if (window.previewMap) {
+    window.previewMap.startPreviewSequence(data.path);
+  }
 });
 
 // 도착
@@ -389,8 +397,13 @@ function showFindProductResult(data) {
     btnSecondary.onclick = () => continueSearching();
   }
 
-  // 지도 미리보기 영역 표시 (Placeholder)
+  // 지도 미리보기 영역 표시 (Live Map)
   if (mapPreview) mapPreview.classList.remove("hidden");
+
+  // 미니 맵 가시화 (데이터 수신 시 애니메이션 트리거 예정)
+  if (window.previewMap) {
+    window.previewMap.setVisible(true);
+  }
 }
 
 function startNavigationFromSearch(zoneId, zoneName) {
@@ -414,6 +427,11 @@ function _resetFindPanelState() {
   if (input) { input.value = ""; input.focus(); }
   if (resultEl) resultEl.textContent = "";
   if (mapPreview) mapPreview.classList.add("hidden");
+
+  if (window.previewMap) {
+    window.previewMap.setVisible(false);
+    window.previewMap.previewPath = null;
+  }
 
   if (btnPrimary) {
     btnPrimary.disabled = false;
@@ -602,13 +620,13 @@ function _animateQrBar() {
 function openMapOverlay() {
   const overlay = document.getElementById("map-overlay");
   if (overlay) overlay.classList.remove("hidden");
-  if (typeof MapRenderer !== "undefined") MapRenderer.setVisible(true);
+  if (window.mainMap) window.mainMap.setVisible(true);
 }
 
 function closeMapOverlay() {
   const overlay = document.getElementById("map-overlay");
   if (overlay) overlay.classList.add("hidden");
-  if (typeof MapRenderer !== "undefined") MapRenderer.setVisible(false);
+  if (window.mainMap) window.mainMap.setVisible(false);
 }
 
 // ── 쇼핑 종료 ──────────────────────────────────────────────────
