@@ -630,7 +630,7 @@ class ShoppinkkiMainNode(Node):
             self.get_logger().warning('set_nav2_mode: %s' % e)
         self.get_logger().info('Nav2 mode → %s (reversing=%s)' % (mode, reversing))
 
-    _INFLATION_RADIUS_DEFAULT = 0.15
+    _INFLATION_RADIUS_DEFAULT = 0.10
 
     def _set_inflation(self, enable: bool) -> None:
         """Inflation 동적 제어 — 좁은 복도 통과 시 비활성화."""

@@ -36,19 +36,6 @@ LOWER_CORRIDOR_NODE: tuple[float, float, float] = (0.0, -1.137, 0.0)  # 하단_�
 LOWER_AREA_THRESHOLD_Y: float = -1.2
 LOWER_AREA_THRESHOLD_X: float = 0.3
 
-# 하단_복도 → 충전소 graph route (노드간 순차 이동)
-ROUTE_LOWER_TO_P1: list[tuple[float, float, float]] = [
-    (0.245, -1.137, 0.0),   # 하단_입구
-    (0.245, -0.899, 0.0),   # 3열_입구
-    (0.245, -0.606, 0.0),   # 2열_입구
-    (0.0,   -0.606, 0.0),   # P1
-]
-ROUTE_LOWER_TO_P2: list[tuple[float, float, float]] = [
-    (0.245, -1.137, 0.0),   # 하단_입구
-    (0.245, -0.899, 0.0),   # 3열_입구
-    (0.0,   -0.899, 0.0),   # P2
-]
-
 
 
 class _Phase(Enum):

@@ -25,15 +25,22 @@ services:
       context: ./llm
       dockerfile: Dockerfile
     container_name: shoppinkki_llm
-    network_mode: "host"
+    # macOS Docker Desktop에서는 network_mode: host가 호스트(Mac) 네트워크를
+    # 공유하지 않는다. 명시적 포트 매핑 + host.docker.internal로 호스트
+    # (postgres, Ollama) 접근.
+    ports:
+      - "8000:8000"
     environment:
-      - PG_HOST=${PG_HOST:-127.0.0.1}
+      - PG_HOST=${PG_HOST:-host.docker.internal}
       - PG_PORT=${PG_PORT:-5432}
       - PG_USER=${PG_USER:-shoppinkki}
       - PG_PASSWORD=${PG_PASSWORD:-shoppinkki}
       - PG_DATABASE=${PG_DATABASE:-shoppinkki}
       - HOST=0.0.0.0
       - PORT=8000
-      - OLLAMA_URL=http://127.0.0.1:11434/api/generate
-      - OLLAMA_MODEL=qwen2.5:3b
+      # 호스트의 Ollama에 접속 — host.docker.internal은 Docker Desktop 내장 호스트 DNS
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434/api/generate}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:14b}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped

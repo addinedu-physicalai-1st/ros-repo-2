@@ -535,12 +535,15 @@ class RobotManager:
                 return
             wp_name = self._pick_waypoint_for_zone(robot_id, zone_id)
             if wp_name:
-                route = self._compute_graph_route(robot_id, wp_name)
+                with self._lock:
+                    st = self._get_or_create(robot_id)
+                    rx, ry = st.pos_x, st.pos_y
+                route = self._router.plan(robot_id, (rx, ry), wp_name)
                 self._push_web(robot_id, {
                     'type': 'find_product_path',
                     'robot_id': robot_id,
                     'zone_id': zone_id,
-                    'path': route
+                    'path': route,
                 })
         elif cmd == 'navigate_to':
             self._dispatch_navigate_to(robot_id, payload)

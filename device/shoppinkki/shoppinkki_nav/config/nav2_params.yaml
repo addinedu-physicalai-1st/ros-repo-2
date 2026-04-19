@@ -89,8 +89,10 @@ controller_server:
     enable_stamped_cmd_vel: false
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
-      required_movement_radius: 0.1
-      movement_time_allowance: 10.0
+      required_movement_radius: 0.05
+      # 다중 로봇 + 좁은 통로에서 재계획 여유. 10s는 짧아서 상대 로봇 대기/
+      # 벽 옆 미세 이동 시 abort가 자주 난다.
+      movement_time_allowance: 20.0
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
@@ -149,7 +151,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 30.0
-        inflation_radius: 0.15
+        inflation_radius: 0.10
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: True
@@ -210,7 +212,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 30.0
-        inflation_radius: 0.15
+        inflation_radius: 0.10
       always_send_full_costmap: True
 
 map_saver:
