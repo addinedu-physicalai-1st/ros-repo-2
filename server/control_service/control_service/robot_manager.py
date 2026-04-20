@@ -202,6 +202,12 @@ class RobotManager:
             except Exception:
                 logger.exception('returning deadlock resolver failed')
 
+        if state.mode == 'GUIDING':
+            try:
+                self._check_yield_resume(robot_id, state)
+            except Exception:
+                logger.exception('guiding yield resume failed')
+
         # Push status update to admin and web
         self._push_status(robot_id, state)
 
@@ -1298,6 +1304,20 @@ class RobotManager:
             robot_id, (rx, ry), wp_name, blocked_vertices=blocked)
         logger.info('navigate_to: wp=%s, route=%d points (blocked=%d)',
                     wp_name, len(route), len(blocked))
+
+        # GUIDING preemptive conflict resolution
+        with self._lock:
+            mode = st.mode
+        if mode == 'GUIDING':
+            try:
+                route, should_proceed = self._resolve_guiding_conflict(
+                    robot_id, route, payload)
+            except Exception:
+                logger.exception('guiding conflict resolve failed')
+                should_proceed = True
+            if not should_proceed:
+                # loser 분기 — 이미 내부에서 dispatch 또는 in-place wait 처리됨
+                return
 
         # 계획된 경로를 즉시 state에 반영하고 UI에 push.
         # stagger/block으로 Pi dispatch가 지연되더라도 admin/customer UI는

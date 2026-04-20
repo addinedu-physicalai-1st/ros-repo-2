@@ -630,3 +630,24 @@ class TestGuidingYield:
 
         assert dispatch_calls == []
         assert '54' in rm._pending_navigate
+
+    def test_dispatch_navigate_to_calls_resolve_for_guiding(self):
+        rm = make_rm()
+        rm.on_status('54', {'mode': 'GUIDING', 'pos_x': 0.0, 'pos_y': 0.0,
+                            'battery': 90.0, 'is_locked_return': False})
+        rm._pick_waypoint_for_zone_locked = lambda rid, zid: '음료1'
+        import control_service.robot_manager as rm_mod
+        rm_mod.db.get_fleet_waypoints = lambda: [
+            {'idx': 22, 'name': '음료1', 'x': 0.699, 'y': -0.899, 'theta': 0.0,
+             'holding_point': False},
+        ]
+        rm._router.plan = MagicMock(return_value=[
+            {'x': 0.0, 'y': 0.0}, {'x': 0.699, 'y': -0.899}])
+        rm._resolve_guiding_conflict = MagicMock(
+            return_value=([{'x': 0.0, 'y': 0.0}, {'x': 0.699, 'y': -0.899}], True))
+        rm._relay_to_pi = MagicMock()
+        rm._router.reserve = MagicMock()
+
+        rm._dispatch_navigate_to('54', {'zone_id': 22})
+
+        rm._resolve_guiding_conflict.assert_called_once()
