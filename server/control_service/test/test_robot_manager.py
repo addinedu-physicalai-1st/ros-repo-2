@@ -651,3 +651,38 @@ class TestGuidingYield:
         rm._dispatch_navigate_to('54', {'zone_id': 22})
 
         rm._resolve_guiding_conflict.assert_called_once()
+
+    def test_tiebreaker_lexical_robot_id_wins(self):
+        """잔여거리 동점이면 robot_id 사전순 앞이 winner."""
+        rm = make_rm()
+        rm.on_status('54', {'mode': 'GUIDING', 'pos_x': 0.0, 'pos_y': 0.0,
+                            'battery': 90.0, 'is_locked_return': False})
+        rm.on_status('18', {'mode': 'GUIDING', 'pos_x': 0.0, 'pos_y': 5.0,
+                            'battery': 90.0, 'is_locked_return': False})
+        st54 = rm.get_state('54')
+        st18 = rm.get_state('18')
+        # Both remaining = 1.0
+        st54.dest_x = 1.0; st54.dest_y = 0.0
+        st18.dest_x = 0.0; st18.dest_y = 6.0
+        st54.path = [{'x': 0.0, 'y': 0.0}, {'x': 1.0, 'y': 0.0}]
+        st18.path = [{'x': 0.0, 'y': 5.0}, {'x': 0.0, 'y': 6.0}]
+
+        from control_service.fleet_router import ConflictInfo
+        info = ConflictInfo(partner_id='18', conflict_entry_idx=0,
+                            conflict_exit_idx=1, conflict_type='E_OPPOSE')
+        rm._router.detect_conflict = MagicMock(return_value=info)
+        rm._pick_yield_vertex = MagicMock(return_value=None)  # triggers in-place wait
+
+        route = [{'x': 0.0, 'y': 0.0}, {'x': 1.0, 'y': 0.0}]
+        # '18' < '54' 사전순 → '18' winner, '54' loser
+        _, proceed54 = rm._resolve_guiding_conflict('54', route, {'zone_id': 22})
+        assert proceed54 is False  # 54 is loser
+
+        # Reverse: ask from 18's perspective
+        rm._pending_navigate.clear()
+        info_rev = ConflictInfo(partner_id='54', conflict_entry_idx=0,
+                                conflict_exit_idx=1, conflict_type='E_OPPOSE')
+        rm._router.detect_conflict = MagicMock(return_value=info_rev)
+        route18 = [{'x': 0.0, 'y': 5.0}, {'x': 0.0, 'y': 6.0}]
+        _, proceed18 = rm._resolve_guiding_conflict('18', route18, {'zone_id': 23})
+        assert proceed18 is True   # 18 is winner
