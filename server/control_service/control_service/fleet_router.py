@@ -276,6 +276,13 @@ class FleetRouter:
                             and (route_idx[exit_i], route_idx[exit_i + 1]) in partner_edges:
                         exit_i += 1
                     return ConflictInfo(partner_id, i, exit_i, 'E_SHARE')
+                # E_OPPOSE
+                if (v, u) in partner_edges:
+                    exit_i = i + 1
+                    while exit_i < len(route_idx) - 1 \
+                            and (route_idx[exit_i + 1], route_idx[exit_i]) in partner_edges:
+                        exit_i += 1
+                    return ConflictInfo(partner_id, i, exit_i, 'E_OPPOSE')
         return None
 
     # ──────────────────────────────────────────

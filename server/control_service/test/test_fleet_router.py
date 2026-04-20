@@ -152,3 +152,15 @@ class TestDetectConflict:
         assert info.partner_id == 'r2'
         assert info.conflict_type == 'E_SHARE'
         assert info.conflict_entry_idx == 0  # edge (A,B) is first conflict
+
+    def test_e_oppose_head_on(self, router):
+        # r2 reserves A→B→C (edges (0,1), (1,2))
+        r2_route = router.plan('r2', (0.0, 0.0), 'C')
+        router.reserve('r2', r2_route)
+        # r1 plans the reverse C→B→A (edges (2,1), (1,0))
+        my_route = [{'x': 2.0, 'y': 0.0}, {'x': 1.0, 'y': 0.0}, {'x': 0.0, 'y': 0.0}]
+        info = router.detect_conflict(my_route, 'r1')
+        assert info is not None
+        assert info.partner_id == 'r2'
+        assert info.conflict_type == 'E_OPPOSE'
+        assert info.conflict_entry_idx == 0
