@@ -472,3 +472,61 @@ class TestGuidingYield:
         route = [{'x': 1.0, 'y': 0.0}, {'x': 1.0, 'y': 3.0}, {'x': 4.0, 'y': 3.0}]
         # 0→(1,0) = 1.0; (1,0)→(1,3) = 3.0; (1,3)→(4,3) = 3.0. Total 7.0.
         assert abs(rm._guiding_remaining(state, route) - 7.0) < 1e-6
+
+    def test_pick_yield_vertex_tier1_on_route_holding(self):
+        rm = make_rm()
+        # route_idx: [start=10, holding=11, conflict_entry=12, endpoint=13]
+        route_idx = [10, 11, 12, 13]
+        all_wps = [
+            {'idx': 10, 'name': 'S', 'x': 0.0, 'y': 0.0, 'holding_point': False},
+            {'idx': 11, 'name': 'H', 'x': 1.0, 'y': 0.0, 'holding_point': True},
+            {'idx': 12, 'name': 'X', 'x': 2.0, 'y': 0.0, 'holding_point': False},
+            {'idx': 13, 'name': 'Y', 'x': 3.0, 'y': 0.0, 'holding_point': False},
+        ]
+        # Conflict enters at edge (12,13) → entry_idx = 2; walk back from i=1 finds H
+        winner_route = [99, 12, 13]
+        pick = rm._pick_yield_vertex(
+            route_idx, entry_idx=2,
+            partner_route_idx=winner_route,
+            partner_pos=(2.5, 0.0),
+            my_pos=(0.0, 0.0),
+            all_wps=all_wps,
+        )
+        assert pick is not None
+        assert pick['name'] == 'H'
+
+    def test_pick_yield_vertex_tier2_off_route_holding(self):
+        rm = make_rm()
+        # Route has NO holding_point before conflict.
+        route_idx = [10, 12]  # S → X (immediate conflict at edge 0)
+        all_wps = [
+            {'idx': 10, 'name': 'S', 'x': 0.0, 'y': 0.0, 'holding_point': False},
+            {'idx': 12, 'name': 'X', 'x': 2.0, 'y': 0.0, 'holding_point': False},
+            # Off-route holding_point candidate (close to my_pos, far from partner)
+            {'idx': 20, 'name': 'OFF', 'x': 0.2, 'y': 1.0, 'holding_point': True},
+        ]
+        pick = rm._pick_yield_vertex(
+            route_idx, entry_idx=0,
+            partner_route_idx=[99, 12],
+            partner_pos=(2.0, 0.0),
+            my_pos=(0.0, 0.0),
+            all_wps=all_wps,
+        )
+        assert pick is not None
+        assert pick['name'] == 'OFF'
+
+    def test_pick_yield_vertex_tier3_no_candidate(self):
+        rm = make_rm()
+        route_idx = [10, 12]
+        all_wps = [
+            {'idx': 10, 'name': 'S', 'x': 0.0, 'y': 0.0, 'holding_point': False},
+            {'idx': 12, 'name': 'X', 'x': 2.0, 'y': 0.0, 'holding_point': False},
+        ]
+        pick = rm._pick_yield_vertex(
+            route_idx, entry_idx=0,
+            partner_route_idx=[99, 12],
+            partner_pos=(2.0, 0.0),
+            my_pos=(0.0, 0.0),
+            all_wps=all_wps,
+        )
+        assert pick is None

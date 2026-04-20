@@ -1018,6 +1018,57 @@ class RobotManager:
             total += math.hypot(b['x'] - a['x'], b['y'] - a['y'])
         return total
 
+    _YIELD_PARTNER_CLEARANCE_M = 0.25
+
+    def _pick_yield_vertex(
+        self,
+        route_idx: list[int],
+        entry_idx: int,
+        partner_route_idx: list[int],
+        partner_pos: tuple[float, float],
+        my_pos: tuple[float, float],
+        all_wps: list[dict],
+    ) -> Optional[dict]:
+        """Loser 양보 vertex 선택 (3단계).
+
+        1차: route 위 entry_idx 직전 vertex 들을 역순 훑어 holding_point 이면서
+             winner 경로 vertex 아닌 것
+        2차: route 밖 holding_point 중 winner 경로·현 위치에서 충분히 떨어진 것 중
+             내 현 위치에서 가장 가까운 것
+        3차: 후보 없음 → None (caller 가 in-place wait 처리)
+        """
+        wp_by_idx = {w['idx']: w for w in all_wps}
+        winner_vertices = set(partner_route_idx)
+
+        # 1차
+        for i in range(entry_idx - 1, -1, -1):
+            v = route_idx[i]
+            wp = wp_by_idx.get(v)
+            if wp is None:
+                continue
+            if wp.get('holding_point', False) and v not in winner_vertices:
+                return wp
+
+        # 2차
+        candidates: list[tuple[float, dict]] = []
+        for wp in all_wps:
+            if not wp.get('holding_point', False):
+                continue
+            if wp['idx'] in winner_vertices:
+                continue
+            d_partner = math.hypot(wp['x'] - partner_pos[0],
+                                   wp['y'] - partner_pos[1])
+            if d_partner < self._YIELD_PARTNER_CLEARANCE_M:
+                continue
+            d_me = math.hypot(wp['x'] - my_pos[0], wp['y'] - my_pos[1])
+            candidates.append((d_me, wp))
+        if candidates:
+            candidates.sort(key=lambda t: t[0])
+            return candidates[0][1]
+
+        # 3차
+        return None
+
     def _plan_return_route(
         self, robot_id: str, pos_x: float, pos_y: float,
     ) -> list[dict]:
