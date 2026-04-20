@@ -13,3 +13,4 @@ log/
 .rmf_schedule_node.yaml
 scripts/qr_codes/
 *.mp4
+.playwright-mcp/
