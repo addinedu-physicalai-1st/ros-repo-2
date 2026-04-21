@@ -1,40 +1,39 @@
 <section class="flex flex-col">
   <h2 class="text-em-xl font-black mt-0 mb-6 text-center w-full">추종: <span style="color:#A78BFA">ByteTracker</span></h2>
 
-  <div class="flex gap-6 w-full flex-1 min-h-0 items-stretch">
+  <div class="flex gap-4 w-1/2 mx-auto flex-1 min-h-0 items-stretch">
 
-    <!-- 왼쪽: ByteTracker란? -->
-    <div class="flex-1 flex flex-col justify-center">
-      <div class="rounded-2xl px-4 py-3 h-full flex flex-col justify-center" style="background:#0A1929;border:1px solid #A78BFA">
-        <div class="flex items-center gap-2 mb-1.5">
+    <!-- 왼쪽: ByteTracker 역할 -->
+    <div class="flex-1 flex flex-col gap-3">
+      <div class="rounded-2xl px-4 py-3" style="background:#0A1929;border:1px solid #A78BFA">
+        <div class="flex items-center gap-2 mb-2">
           <span class="material-icons-round text-em-xs shrink-0" style="color:#A78BFA">track_changes</span>
           <p class="text-em-2xs font-extrabold m-0" style="color:#A78BFA">ByteTracker란?</p>
         </div>
-        <p class="text-em-3xs m-0 mt-2" style="color:#8BACC8">
-          YOLO bbox에 <strong style="color:#E2E8F0">일관된 track_id</strong>를 부여하는 다중 객체 추적 알고리즘.
-        </p>
-        <p class="text-em-3xs m-0 mt-3" style="color:#8BACC8">
-          AI 서버에서 <code style="color:#A78BFA">model.track(persist=True)</code> 한 줄로 활성화됩니다.
+        <p class="text-em-3xs m-0" style="color:#8BACC8">
+          프레임 간 <strong style="color:#E2E8F0">동일 객체를 이어붙이는</strong> 다중 객체 추적 알고리즘<br/>
         </p>
       </div>
-    </div>
 
-    <!-- 오른쪽: yolo_server.py 코드 -->
-    <div class="flex-1 flex flex-col justify-center">
-      <div class="rounded-2xl overflow-hidden h-full flex flex-col" style="background:#0A1929;border:1px solid #1E3A5A">
+      <div class="rounded-2xl overflow-hidden flex-1 flex flex-col" style="background:#0A1929;border:1px solid #1E3A5A">
         <div class="px-3 py-1 text-em-3xs font-mono shrink-0" style="background:#0E2840;color:#7BA5C8;border-bottom:1px solid #1E3A5A">yolo_server.py</div>
         <pre class="text-em-3xs font-mono m-0 px-4 py-2 leading-relaxed" style="color:#CBD5E1"><span style="color:#64748B"># ByteTracker 적용 (persist=True)</span>
-results = model.<span style="color:#A78BFA">track</span>(
-    img,
-    <span style="color:#FBBF24">persist</span>=<span style="color:#4ADE80">True</span>,   <span style="color:#64748B"># 프레임 간 트랙 유지</span>
-    conf=confidence,
-    imgsz=<span style="color:#38BDF8">640</span>
-)
+results = model.<span style="color:#A78BFA">track</span>(img, <span style="color:#FBBF24">persist</span>=<span style="color:#4ADE80">True</span>)
 
 <span style="color:#64748B"># track_id 추출</span>
-track_id = <span style="color:#FB923C">int</span>(det.boxes.id[<span style="color:#38BDF8">0</span>]) <span style="color:#64748B">if</span> det.boxes.id <span style="color:#64748B">is not None else</span> <span style="color:#38BDF8">-1</span></pre>
+track_id = <span style="color:#FB923C">int</span>(det.boxes.id[<span style="color:#38BDF8">0</span>])</pre>
       </div>
     </div>
-
   </div>
+
+  <aside class="notes">
+    추종을 위한 기술 첫번째, 바이트 트래커입니다.
+    바이트 트래커란 프레임 간 동일 객체를 이어붙이는 다중 객체 추적 알고리즘입니다. 
+    코드에서 persist true 라고만 하면 바로 적용이 되는데요, track_id 를 추출해서 사용하실 수 있습니다. 
+    여기서 track_id 는 인식된 객체를 나타내는 아이디입니다. 
+    만약 화면에 여러 객체가 나타나면 여러 track_id 를 부여받을거구요, 
+    화면상에서 나갔다가 들어오면 새로운 track_id 를 부여받게 됩니다.
+    그런데 변화하는 track_id 속에서 우리는 주인을 찾아야하기 때문에 
+    track_id 를 가진 바운딩 박스 이미지와 주인 이미지를 매칭하는 방법이 필요하게 됩니다.
+  </aside>
 </section>

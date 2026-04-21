@@ -10,7 +10,7 @@
         <h3 class="text-em-sm font-extrabold m-0" style="color:#38BDF8">ReID (Re-Identification)</h3>
       </div>
       <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
-        이미지를 <strong style="color:#38BDF8">512차원 특징 벡터</strong>로 변환해 <strong style="color:#38BDF8;text-decoration:underline;cursor:pointer" onclick="goToSlide(65)">코사인 유사도</strong>로 비교,
+        이미지를 <strong style="color:#38BDF8">512차원 특징 벡터</strong>로 변환해 <strong style="color:#38BDF8;text-decoration:underline;cursor:pointer" onclick="goToSlide(66)">코사인 유사도</strong>로 비교,
         매 프레임마다 <strong style="color:#E2E8F0">주인 인형을 식별</strong>합니다.
       </p>
       <div class="flex gap-2 mt-auto">
@@ -33,7 +33,7 @@
         <h3 class="text-em-sm font-extrabold m-0" style="color:#FB923C">HSV 히스토그램 상관계수</h3>
       </div>
       <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
-        색 분포를 <strong style="color:#FB923C;text-decoration:underline;cursor:pointer" onclick="goToSlide(66)">히스토그램 상관계수</strong>로 비교해 ReID를 보완,
+        색 분포를 <strong style="color:#FB923C;text-decoration:underline;cursor:pointer" onclick="goToSlide(67)">히스토그램 상관계수</strong>로 비교해 ReID를 보완,
         <strong style="color:#E2E8F0">조명 변화에 강하고 오인식을 줄입니다.</strong>
       </p>
       <div class="flex gap-2 mt-auto">
@@ -57,4 +57,17 @@
     </div>
 
   </div>
+
+  <aside class="notes">
+    그래서 ReID와 HSV 상관계수를 함께 사용했습니다.
+
+    ReID는 이미지를 512차원 특징 벡터로 변환해 코사인 유사도로 비교합니다.
+    매 프레임마다 등록된 주인 인형과 비슷한 것을 찾아 식별합니다.
+    쉽게 말해 "비슷한 이미지면 주인이다"라는 방식입니다.
+
+    그런데 ReID만으로는 비슷하게 생긴 다른 인형에서 오인식이 날 수 있어,
+    HSV 히스토그램 상관계수를 보조로 씁니다. HSV로 표현하면 밝기가 분리되기 때문에
+    조명 변화에도 강하고, 옷·몸체 색상이 얼마나 비슷한지 알아낼 수 있습니다.
+    즉 "특징도 비슷하고 색도 비슷하면 같은 인형"이라고 판정하는 겁니다.
+  </aside>
 </section>

@@ -36,13 +36,13 @@
           <line x1="162" y1="5" x2="162" y2="70" stroke="#1E3A5A" stroke-width="0.8" stroke-dasharray="2,2"/>
           <rect x="144" y="18" width="35" height="35" rx="2" fill="rgba(74,222,128,0.12)" stroke="#4ADE80" stroke-width="1.5" stroke-dasharray="3,2"/>
           <text x="162" y="38" fill="#4ADE80" font-size="7" text-anchor="middle">인형</text>
-          <text x="162" y="80" fill="#8BACC8" font-size="7.5" text-anchor="middle">■ 직진</text>
+          <text x="162" y="80" fill="#8BACC8" font-size="7.5" text-anchor="middle">■ 정지</text>
           <line x1="210" y1="37" x2="230" y2="37" stroke="#475569" stroke-width="1" stroke-dasharray="3,2"/>
 
           <rect x="235" y="5" width="85" height="65" rx="5" fill="#071320" stroke="#1E3A5A" stroke-width="1.2"/>
           <line x1="277" y1="5" x2="277" y2="70" stroke="#1E3A5A" stroke-width="0.8" stroke-dasharray="2,2"/>
-          <rect x="255" y="18" width="35" height="35" rx="2" fill="rgba(251,146,60,0.15)" stroke="#FB923C" stroke-width="1.5" stroke-dasharray="3,2"/>
-          <text x="272" y="38" fill="#FB923C" font-size="7" text-anchor="middle">인형</text>
+          <rect x="280" y="18" width="35" height="35" rx="2" fill="rgba(251,146,60,0.15)" stroke="#FB923C" stroke-width="1.5" stroke-dasharray="3,2"/>
+          <text x="297" y="38" fill="#FB923C" font-size="7" text-anchor="middle">인형</text>
           <text x="277" y="80" fill="#8BACC8" font-size="7.5" text-anchor="middle">오른쪽 회전 ▶</text>
         </svg>
       </div>
@@ -50,10 +50,12 @@
     </div>
   </div>
   <aside class="notes">
-    <p>각속도 제어는 bbox 중심 X 좌표를 기준으로 얼마나 회전할지 결정합니다. 인형이 화면 왼쪽에 있으면 왼쪽으로, 오른쪽에 있으면 오른쪽으로 돕니다. deadzone ±45px 안에 있으면 회전하지 않아 불필요한 떨림을 방지합니다.</p>
+    <p>다음은 각속도, 그러니까 로봇이 좌우로 얼마나 도는지 제어하는 부분이에요. 기준은 간단합니다. 카메라 화면에서 인형 bbox의 중심 X 좌표를 봅니다. 인형이 화면 왼쪽에 있으면 왼쪽으로, 오른쪽에 있으면 오른쪽으로 돌아서 인형을 화면 가운데로 맞추는 방식이죠.</p>
 
-    <p>I가 없는 이유: 오버슈팅 때문입니다. 각도 오차가 조금씩 누적되면 I 항이 커져서 목표 방향에 도달한 후에도 필요 이상으로 계속 돌아버리고, 그게 반대 방향 오차를 만들어 진동으로 이어집니다.</p>
+    <p>그리고 화면 중앙 근처에 ±45픽셀짜리 deadzone을 뒀어요. 이 범위 안에 들어오면 아예 회전 명령을 안 줍니다. 왜냐하면 인형이 중앙에 있어도 bbox 중심이 프레임마다 몇 픽셀씩 흔들리는데, 그걸 다 따라가려고 하면 로봇이 계속 좌우로 덜덜 떨거든요. deadzone으로 그걸 막은 겁니다.</p>
 
-    <p>D가 없는 이유: bbox 중심 X도 프레임마다 노이즈가 있어 D를 켜면 작은 떨림에 과잉 반응합니다. 대신 angular_z에 low-pass 스무딩을 적용해서, 새 계산값 30%와 이전 값 70%를 섞어 부드럽게 변화시킵니다.</p>
+    <p>각속도는 P만 썼는데요, I를 뺀 이유는 오버슈팅 때문이에요. 각도 오차가 조금씩 쌓이면 I 항이 커져서, 목표 방향에 도달한 뒤에도 필요 이상으로 더 돌아버립니다. 그러면 이번엔 반대쪽으로 오차가 생기고, 또 반대로 돌고... 이런 식으로 진동이 계속 이어져요.</p>
+
+    <p>D도 안 썼습니다. 선속도 때랑 비슷한 이유인데, bbox 중심 X 좌표도 프레임마다 노이즈가 꽤 있거든요. D를 켜면 이 작은 떨림에 과하게 반응해서 오히려 불안정해집니다. 대신 angular_z 출력값에 low-pass 스무딩을 걸었어요. 새로 계산한 값을 30%만 반영하고 이전 값을 70% 유지하는 식으로 섞어서, 각속도가 급격히 튀지 않고 부드럽게 변하도록 만들었습니다.</p>
   </aside>
 </section>

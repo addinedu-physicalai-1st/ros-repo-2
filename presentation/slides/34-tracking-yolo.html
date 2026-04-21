@@ -4,12 +4,8 @@
     <div class="flex flex-col gap-3 justify-center" style="flex:1">
       <h2 class="text-em-xl font-black mt-0 mb-2">추종: <span style="color:#A78BFA">커스텀 YOLOv8</span></h2>
       <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
-        <strong style="color:#38BDF8">SAM3</strong>로 인형 마스크 <strong style="color:#E2E8F0">300장</strong>을 생성,
-        인형 전용 YOLOv8 모델을 훈련했습니다.
-      </p>
-      <p class="text-em-2xs leading-relaxed m-0" style="color:#8BACC8">
-        모델은 <strong style="color:#38BDF8">Docker AI 서버</strong>에서 실행,
-        로봇이 JPEG 프레임을 전송하면 bbox를 JSON으로 반환합니다.
+        <strong style="color:#38BDF8">SAM3</strong>로 라벨링 한 <strong style="color:#E2E8F0">300장</strong>을 생성,
+        인형 전용 YOLOv8 모델을 훈련
       </p>
     </div>
     <!-- 비디오 -->
@@ -17,4 +13,9 @@
       <video src="https://woolimi.cdn.prismic.io/woolimi/ad_IuJ1ZCF7ETOYi_how_sam3_works.mp4" class="absolute inset-0 w-full h-full object-contain" autoplay loop muted playsinline></video>
     </div>
   </div>
+
+  <aside class="notes">
+    커스텀 yolo 모델입니다. sam3 로 라벨링을 했구요, sam3 는 메타에서 만든 segment anything model 로, 라벨링을 도와주는 모델입니다. 
+    보이시는 것처럼 red_clown 을 치면 인형만 표시되는 것을 보실 수 있어요. 이걸 이용해서 300장 데이터를 만들어서 훈련을 시켰습니다.
+  </aside>
 </section>
