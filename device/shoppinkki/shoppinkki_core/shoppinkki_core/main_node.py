@@ -31,6 +31,7 @@ from std_msgs.msg import String
 
 from .bt_runner import BTRunner
 from .cart_session_manager import CartSessionManager
+from .checkout_zone_guard import CheckoutZoneGuard
 from .cmd_handler import CmdHandler
 from .localization_manager import LocalizationManager
 from .nav_manager import NavManager
@@ -284,9 +285,10 @@ class ShoppinkkiMainNode(Node):
         # ── TF + AMCL 위치 추적 ───────────────
         self._localization = LocalizationManager(self, robot_id=ROBOT_ID)
 
-        # ── 결제 구역 (BoundaryMonitor) ── REST에서 폴리곤 로드, AMCL로 진입 감지
+        # ── 결제 구역 (BoundaryMonitor + CheckoutZoneGuard) ─────────────
+        # REST에서 폴리곤 로드 → BoundaryMonitor 생성 → CheckoutZoneGuard로 래핑.
+        # CheckoutZoneGuard가 LocalizationManager.on_pose_updated를 직접 wire한다.
         self._boundary_monitor: Optional[object] = None
-        self._last_checkout_blocked_toast: float = 0.0
         try:
             from shoppinkki_core.boundary_monitor import (
                 BoundaryMonitor,
@@ -295,9 +297,10 @@ class ShoppinkkiMainNode(Node):
             _bounds = load_boundaries_from_rest(_cs_host, _cs_port)
             self._boundary_monitor = BoundaryMonitor(
                 boundaries=_bounds,
-                on_checkout_enter=self._emit_checkout_zone_enter,
-                on_checkout_exit_blocked=self._on_checkout_exit_blocked,
-                on_checkout_reenter=self._on_checkout_reenter,
+                # 콜백은 CheckoutZoneGuard 생성자에서 재배선됨.
+                on_checkout_enter=None,
+                on_checkout_exit_blocked=None,
+                on_checkout_reenter=None,
                 get_state=lambda: self.sm.state,
                 node=None,
             )
@@ -308,11 +311,18 @@ class ShoppinkkiMainNode(Node):
         except Exception as e:
             self.get_logger().warning(f'BoundaryMonitor unavailable: {e}')
 
-        # LocalizationManager → BoundaryMonitor wiring (AMCL pose 갱신 시 호출)
-        if self._boundary_monitor is not None:
-            self._localization.on_pose_updated = (
-                lambda x, y: self._boundary_monitor.on_pose_update(x, y)
-            )
+        # CheckoutZoneGuard: BoundaryMonitor 콜백 + Localization wiring + hook.
+        self._checkout = CheckoutZoneGuard(
+            self,
+            localization=self._localization,
+            boundary_monitor=self._boundary_monitor,
+            is_exit_allowed=lambda: self.sm.state in (
+                'TRACKING_CHECKOUT', 'RETURNING'
+            ),
+        )
+        self._checkout.on_zone_enter = self._emit_checkout_zone_enter
+        self._checkout.on_exit_blocked = self._on_checkout_exit_blocked
+        self._checkout.on_reenter = self._on_checkout_reenter
 
         # ── Internal state ────────────────────
         # NOTE: _battery, _cart_items는 CartSessionManager가 소유한다 (Phase 3).
@@ -361,20 +371,16 @@ class ShoppinkkiMainNode(Node):
         return self._latest_scan
 
     def _emit_checkout_zone_enter(self) -> None:
-        """TRACKING 상태에서 결제 구역 최초 진입 시 control_service로 WebSocket 이벤트 요청."""
+        """CheckoutZoneGuard hook: 결제 구역 최초 진입 시 WebSocket 이벤트 요청."""
         payload = json.dumps({'type': 'checkout_zone_enter'})
         msg = String()
         msg.data = payload
         self._customer_event_pub.publish(msg)
         self.get_logger().info('Published customer_event checkout_zone_enter')
 
-    def _is_checkout_exit_allowed(self) -> bool:
-        """결제 구역 밖으로 이동 허용 상태."""
-        return self.sm.state in ('TRACKING_CHECKOUT', 'RETURNING')
-
     def _on_checkout_exit_blocked(self) -> None:
-        """결제 구역 이탈 시도: 허용 상태가 아니면 속도 0으로 차단."""
-        if self._is_checkout_exit_allowed():
+        """CheckoutZoneGuard hook: 이탈 시도 처리 (허용 시 차단 해제, 아니면 차단)."""
+        if self._checkout.is_exit_allowed():
             if hasattr(self._robot_publisher, 'set_motion_blocked'):
                 self._robot_publisher.set_motion_blocked(False)
             return
@@ -382,10 +388,8 @@ class ShoppinkkiMainNode(Node):
         if hasattr(self._robot_publisher, 'set_motion_blocked'):
             self._robot_publisher.set_motion_blocked(True)
 
-        # 웹 토스트용 이벤트 (rate-limit)
-        now = time.monotonic()
-        if now - self._last_checkout_blocked_toast >= 1.0:
-            self._last_checkout_blocked_toast = now
+        # 웹 토스트용 이벤트 (rate-limit은 CheckoutZoneGuard가 관리)
+        if self._checkout.should_emit_blocked_toast(min_interval_sec=1.0):
             payload = json.dumps({'type': 'checkout_blocked'})
             msg = String()
             msg.data = payload
@@ -396,7 +400,7 @@ class ShoppinkkiMainNode(Node):
             )
 
     def _on_checkout_reenter(self) -> None:
-        """결제 구역 재진입: 차단 해제."""
+        """CheckoutZoneGuard hook: 결제 구역 재진입 시 차단 해제."""
         if hasattr(self._robot_publisher, 'set_motion_blocked'):
             self._robot_publisher.set_motion_blocked(False)
 
