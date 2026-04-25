@@ -43,17 +43,29 @@ from .reid_engine import ReIDEngine
 
 logger = logging.getLogger(__name__)
 
-# ── 상수 ──────────────────────────────────────────────────────────────────────
-MIN_CONFIDENCE: float = float(os.environ.get('MIN_CONFIDENCE', '0.42'))  # YOLO 최소 신뢰도 (0.45 -> 0.42)
-REGISTRATION_MIN_CONFIDENCE: float = 0.20  # 등록 단계 추가 신뢰도 임계값
-REGISTRATION_MIN_AREA_RATIO: float = 0.005  # 등록 단계 bbox 최소 화면 점유율
-REGISTRATION_SNAPSHOT_COOLDOWN: float = 0.4  # 등록 스냅샷 최소 간격(초)
-REGISTRATION_STABLE_FRAMES: int = 1  # 동일 후보 연속 감지 필요 프레임 수
-REID_THRESHOLD: float = float(os.environ.get('REID_THRESHOLD', '0.48')) # ReID 임계값 (0.55 -> 0.48)
-HSV_THRESHOLD: float = 0.38       # HSV 히스토그램 상관계수 임계값 (0.45 -> 0.38)
-CALIBRATION_ADD_THRESHOLD: float = 0.94  # 이 이상이면 이미 커버됨 → 갤러리 추가 안 함
-MAX_GALLERY_SIZE: int = 50        # 최대 갤러리 크기
-VERIFY_FRAMES: int = 5            # safe_id 잠금 필요 연속 매칭 횟수
+# ── 상수 (튜닝값은 detector_constants.py로 분리) ─────────────────────────────
+from .detector_constants import (
+    CALIBRATION_ADD_THRESHOLD,
+    CALIBRATION_INTERVAL,
+    HSV_THRESHOLD,
+    MAX_GALLERY_SIZE,
+    MIN_CONFIDENCE,
+    RED_HUE_LOWER_RANGE,
+    RED_HUE_UPPER_RANGE,
+    RED_SATURATION_MIN,
+    RED_VALUE_MIN,
+    REGISTRATION_BASE_HEIGHT,
+    REGISTRATION_BASE_WIDTH,
+    REGISTRATION_ELLIPSE_MIN_R,
+    REGISTRATION_ELLIPSE_RX,
+    REGISTRATION_ELLIPSE_RY,
+    REGISTRATION_MIN_AREA_RATIO,
+    REGISTRATION_MIN_CONFIDENCE,
+    REGISTRATION_SNAPSHOT_COOLDOWN,
+    REGISTRATION_STABLE_FRAMES,
+    REID_THRESHOLD,
+    VERIFY_FRAMES,
+)
 
 # ── Smoothing & Prediction ────────────────────────────────────────────────────
 class BBoxSmoother:
@@ -97,7 +109,6 @@ class BBoxSmoother:
         self.state = None
         self.velocity = np.zeros(3)
         self.last_time = 0.0
-CALIBRATION_INTERVAL: int = 30    # 자동 보정 프레임 간격
 
 
 class DollDetector:
@@ -412,8 +423,10 @@ class DollDetector:
 
             # Keep visual proportions aligned with HWController ellipse
             # while scaling to camera resolution.
-            rx = max(20.0, (w / 320.0) * 140.0)
-            ry = max(20.0, (h / 240.0) * 210.0)
+            rx = max(REGISTRATION_ELLIPSE_MIN_R,
+                     (w / REGISTRATION_BASE_WIDTH) * REGISTRATION_ELLIPSE_RX)
+            ry = max(REGISTRATION_ELLIPSE_MIN_R,
+                     (h / REGISTRATION_BASE_HEIGHT) * REGISTRATION_ELLIPSE_RY)
 
             dx = (cx - ex) / rx
             dy = (cy - ey) / ry
@@ -720,19 +733,18 @@ class DollDetector:
             import cv2
             import numpy as np
             roi = self._extract_roi(frame, det)
-            if roi is None or roi.size == 0:
+            if roi is None:
                 return 0.0
-            
+
             # BGR → HSV 변환
             hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
             
-            # 'Natural Red' Hue 범위 (H: 0-10, 170-180)
-            # Saturation(S) 70 이상: 무채색(검정/회색) 제외
-            # Value(V) 50 이상: 너무 어두운 영역 제외
-            lower_red1 = np.array([0, 70, 50])
-            upper_red1 = np.array([10, 255, 255])
-            lower_red2 = np.array([165, 70, 50])
-            upper_red2 = np.array([180, 255, 255])
+            # 'Natural Red' Hue 범위 — wrap-around 때문에 두 구간으로 분리.
+            # 채도/명도 임계값으로 무채색·암부 제외 (detector_constants 참조).
+            lower_red1 = np.array([RED_HUE_LOWER_RANGE[0], RED_SATURATION_MIN, RED_VALUE_MIN])
+            upper_red1 = np.array([RED_HUE_LOWER_RANGE[1], 255, 255])
+            lower_red2 = np.array([RED_HUE_UPPER_RANGE[0], RED_SATURATION_MIN, RED_VALUE_MIN])
+            upper_red2 = np.array([RED_HUE_UPPER_RANGE[1], 255, 255])
             
             mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
             mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
@@ -770,7 +782,7 @@ class DollDetector:
             import cv2
             import numpy as np
             roi = self._extract_roi(frame, det)
-            if roi is None or roi.size == 0:
+            if roi is None:
                 return False
             hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
             dark_mask = cv2.inRange(hsv, np.array([0, 0, 0]), np.array([180, 255, 60]))
@@ -964,7 +976,11 @@ class DollDetector:
     # ── 피처 추출 ─────────────────────────────────────────────────────────────
 
     def _extract_roi(self, frame, det: dict):
-        """bbox dict (cx, cy, x1, y1, x2, y2) 로 ROI 크롭."""
+        """bbox dict (cx, cy, x1, y1, x2, y2) 로 ROI 크롭.
+
+        반환 계약: 항상 None 또는 size > 0인 numpy array. 호출자는 None 체크만
+        하면 되고 추가로 size == 0 검사는 불필요.
+        """
         try:
             import numpy as np
             img = _ensure_numpy(frame)
@@ -986,7 +1002,10 @@ class DollDetector:
 
             if x2 <= x1 or y2 <= y1:
                 return None
-            return img[y1:y2, x1:x2]
+            roi = img[y1:y2, x1:x2]
+            if roi.size == 0:
+                return None
+            return roi
         except Exception as e:
             logger.debug('DollDetector: ROI 추출 실패: %s', e)
             return None

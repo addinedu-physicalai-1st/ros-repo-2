@@ -20,7 +20,16 @@ from cv_bridge import CvBridge
 import cv2
 import numpy as np
 
+# 등록 화면 ellipse 좌표는 doll_detector와 동일 좌표계 사용 → 같은 상수 import.
+from shoppinkki_perception.detector_constants import (
+    REGISTRATION_ELLIPSE_RX,
+    REGISTRATION_ELLIPSE_RY,
+)
+
 logger = logging.getLogger(__name__)
+
+# LCD 네이티브 좌표계 기준 ellipse 축 (정수 픽셀)
+_REG_ELLIPSE_AXES: tuple[int, int] = (int(REGISTRATION_ELLIPSE_RX), int(REGISTRATION_ELLIPSE_RY))
 
 # LED colour presets  (R, G, B) — used with /set_led
 LED_OFF = (0, 0, 0)
@@ -277,8 +286,7 @@ class HWController:
                 mask = np.zeros((h, w), dtype=np.uint8)
                 center = (w // 2, h // 2)
                 # Bigger guide ellipse for easier registration alignment
-                axes = (140, 210)
-                cv2.ellipse(mask, center, axes, 0, 0, 360, 255, -1)
+                cv2.ellipse(mask, center, _REG_ELLIPSE_AXES, 0, 0, 360, 255, -1)
                 self._reg_mask = mask
                 self._reg_mask_inv = cv2.bitwise_not(mask)
 
@@ -290,7 +298,7 @@ class HWController:
             result = cv2.add(res_fg, res_bg)
             
             # 4. Final Guide Ring
-            cv2.ellipse(result, (w // 2, h // 2), (140, 210), 0, 0, 360, (255, 255, 255), 1, cv2.LINE_AA)
+            cv2.ellipse(result, (w // 2, h // 2), _REG_ELLIPSE_AXES, 0, 0, 360, (255, 255, 255), 1, cv2.LINE_AA)
             
             return result
         except Exception as e:

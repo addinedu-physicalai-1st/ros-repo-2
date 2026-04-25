@@ -659,23 +659,30 @@ class ShoppinkkiMainNode(Node):
         self._set_nav2_mode('returning')
         return self._send_nav_goal(x, y, theta)
 
+    def _create_nav_goal_msg(self, x: float, y: float, theta: float) -> 'NavigateToPose.Goal':
+        """map 프레임 (x, y, θ) 용 NavigateToPose.Goal 메시지 생성.
+
+        stamp=0 → Nav2가 "최신 TF 사용". 실제 시계(get_clock().now())를 찍으면
+        sim_time 롤오버/재시작 시 "Lookup would require extrapolation into the past"
+        TF 에러가 난다.
+        """
+        goal_msg = NavigateToPose.Goal()
+        goal_msg.pose = PoseStamped()
+        goal_msg.pose.header.frame_id = 'map'
+        goal_msg.pose.header.stamp = rclpy.time.Time().to_msg()
+        goal_msg.pose.pose.position.x = x
+        goal_msg.pose.pose.position.y = y
+        goal_msg.pose.pose.orientation.z = math.sin(theta / 2.0)
+        goal_msg.pose.pose.orientation.w = math.cos(theta / 2.0)
+        return goal_msg
+
     def _send_nav_goal(self, x: float, y: float, theta: float) -> bool:
         """Nav2 NavigateToPose 동기 호출 — BT4/BT5 콜백용 (threading.Event 기반)."""
         if self._nav2_client is None or not self._nav2_client.server_is_ready():
             self.get_logger().warning('send_nav_goal: Nav2 not ready')
             return False
 
-        goal_msg = NavigateToPose.Goal()
-        goal_msg.pose = PoseStamped()
-        goal_msg.pose.header.frame_id = 'map'
-        # stamp=0 → Nav2가 "최신 TF 사용". 실제 시계(get_clock().now())를 찍으면
-        # sim_time 롤오버/재시작 시 "Lookup would require extrapolation into the past"
-        # TF 에러가 난다.
-        goal_msg.pose.header.stamp = rclpy.time.Time().to_msg()
-        goal_msg.pose.pose.position.x = x
-        goal_msg.pose.pose.position.y = y
-        goal_msg.pose.pose.orientation.z = math.sin(theta / 2.0)
-        goal_msg.pose.pose.orientation.w = math.cos(theta / 2.0)
+        goal_msg = self._create_nav_goal_msg(x, y, theta)
 
         self.get_logger().info('send_nav_goal: (%.2f, %.2f, θ=%.2f)' % (x, y, theta))
 
@@ -812,17 +819,7 @@ class ShoppinkkiMainNode(Node):
         except Exception:
             pass
 
-        goal_msg = NavigateToPose.Goal()
-        goal_msg.pose = PoseStamped()
-        goal_msg.pose.header.frame_id = 'map'
-        # stamp=0 → Nav2가 "최신 TF 사용". 실제 시계(get_clock().now())를 찍으면
-        # sim_time 롤오버/재시작 시 "Lookup would require extrapolation into the past"
-        # TF 에러가 난다.
-        goal_msg.pose.header.stamp = rclpy.time.Time().to_msg()
-        goal_msg.pose.pose.position.x = x
-        goal_msg.pose.pose.position.y = y
-        goal_msg.pose.pose.orientation.z = math.sin(theta / 2.0)
-        goal_msg.pose.pose.orientation.w = math.cos(theta / 2.0)
+        goal_msg = self._create_nav_goal_msg(x, y, theta)
 
         def _store_handle(future):
             gh = future.result()
