@@ -460,10 +460,9 @@ if __name__ == "__main__":
     except Exception:
         _private_ip = '127.0.0.1'
 
+    urls = ' | '.join(f'http://{_private_ip}:{PORT}/?robot_id={rid}'
+                       for rid in KNOWN_ROBOT_IDS)
     logger.info("ShopPinkki Customer Web 시작 (포트 %d, 로봇: %s)", PORT, KNOWN_ROBOT_IDS)
-    print(f"\n  접속 URL ({_private_ip}):")
-    for rid in KNOWN_ROBOT_IDS:
-        print(f"    http://{_private_ip}:{PORT}/?robot_id={rid}")
-    print(f"  테스트 아이디 / 비밀번호: test01 / 1234  (또는 test02 / 1234)")
-    print()
+    logger.info("접속 URL: %s", urls)
+    logger.info("테스트 아이디/비밀번호: test01 / 1234  (또는 test02 / 1234)")
     socketio.run(app, host="0.0.0.0", port=PORT, debug=False)
