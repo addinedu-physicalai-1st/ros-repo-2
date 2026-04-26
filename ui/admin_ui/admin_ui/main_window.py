@@ -258,11 +258,16 @@ class MainWindow(QMainWindow):
         self._camera_panel.hide()
         right_splitter.addWidget(self._camera_panel)
 
+        # 우하: 사용자/세션 관리 패널
+        self._management_panel = ManagementPanel(self._rest_base)
+        right_splitter.addWidget(self._management_panel)
+        right_splitter.setStretchFactor(0, 1)  # card
+        right_splitter.setStretchFactor(2, 1)  # management
+
         # 하단: 스태프 패널 + 이벤트 로그
         bottom_splitter = QSplitter(Qt.Orientation.Horizontal)
         root_layout.addWidget(bottom_splitter, stretch=0)
-        bottom_splitter.setFixedHeight(280)
-        bottom_splitter.setMaximumHeight(280)
+        bottom_splitter.setFixedHeight(160)
 
         self._staff_panel = StaffCallPanel()
         self._staff_panel.resolve_requested.connect(self._on_resolve_requested)
@@ -272,12 +277,8 @@ class MainWindow(QMainWindow):
         self._event_log_panel.row_clicked.connect(self._on_event_row_clicked)
         bottom_splitter.addWidget(self._event_log_panel)
 
-        self._management_panel = ManagementPanel(self._rest_base)
-        bottom_splitter.addWidget(self._management_panel)
-
         bottom_splitter.setStretchFactor(0, 1)
         bottom_splitter.setStretchFactor(1, 2)
-        bottom_splitter.setStretchFactor(2, 3)
 
         # 상태 바
         self.setStatusBar(QStatusBar())
