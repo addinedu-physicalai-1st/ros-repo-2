@@ -12,9 +12,12 @@ from __future__ import annotations
 import json
 import logging
 import math
+import atexit
 import os
 import tempfile
 import urllib.request
+
+_tmp_files: list[str] = []
 
 from shoppinkki_core.config import CHARGER_ZONE_IDS
 
@@ -121,4 +124,16 @@ def resolve_nav2_params(
     )
     tmp.write(content)
     tmp.close()
+    _tmp_files.append(tmp.name)
     return tmp.name
+
+
+def _cleanup_tmp() -> None:
+    for p in _tmp_files:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+
+atexit.register(_cleanup_tmp)
