@@ -92,7 +92,11 @@ CONTROL_PORT = int(os.environ.get("CONTROL_SERVICE_PORT", 8080))
 CONTROL_HTTP_PORT = int(os.environ.get("CONTROL_SERVICE_HTTP_PORT", 8081))
 LLM_HOST = os.environ.get("LLM_HOST", "127.0.0.1")
 LLM_PORT = int(os.environ.get("LLM_PORT", 8000))
-SECRET_KEY = os.environ.get("SECRET_KEY", "shoppinkki-secret")
+SECRET_KEY = os.environ.get("SECRET_KEY", "")
+if not SECRET_KEY:
+    import secrets
+    SECRET_KEY = secrets.token_hex(32)
+    logger.warning("SECRET_KEY not set — using random key (sessions reset on restart)")
 
 # ── shop.yaml 맵 파라미터 로드 ─────────────────────────────────
 _SHOP_YAML_PATH = os.environ.get(
