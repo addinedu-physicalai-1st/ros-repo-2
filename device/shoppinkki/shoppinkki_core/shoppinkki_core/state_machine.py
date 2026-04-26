@@ -99,9 +99,9 @@ class ShoppinkkiFSM:
          'source': 'TRACKING', 'dest': 'TRACKING_CHECKOUT'},
 
         # ── Locked / Returning ────────────────────────
-        # WAITING → LOCKED  (unpaid items)
+        # TRACKING / TRACKING_CHECKOUT / WAITING → LOCKED  (unpaid items)
         {'trigger': 'enter_locked',
-         'source': ['WAITING'],
+         'source': ['TRACKING', 'TRACKING_CHECKOUT', 'WAITING'],
          'dest': 'LOCKED'},
 
         # TRACKING / TRACKING_CHECKOUT / WAITING / GUIDING / SEARCHING / LOCKED / IDLE → RETURNING

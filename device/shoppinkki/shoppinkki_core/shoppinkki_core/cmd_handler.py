@@ -163,10 +163,8 @@ class CmdHandler:
                 self.sm.enter_returning()
 
         elif value == 'LOCKED':
-            # LOCKED is only meaningful as a WAITING-exit path (unpaid timeout).
-            # Other flows should use RETURNING + is_locked_return flag.
-            if state != 'WAITING':
-                logger.warning('mode=LOCKED ignored in state=%s (expected WAITING)', state)
+            if state not in ('TRACKING', 'TRACKING_CHECKOUT', 'WAITING'):
+                logger.warning('mode=LOCKED ignored in state=%s', state)
                 return
             self.sm.enter_locked()
 
