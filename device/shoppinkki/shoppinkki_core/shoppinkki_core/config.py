@@ -61,6 +61,11 @@ CHARGER_WAYPOINT_NAMES: dict[str, str] = {
     '18': 'P1',
 }
 
+# 쇼핑 종료(return) 시 Pi로 mode=RETURNING 릴레이 가능한 SM 상태
+RETURN_RELAY_MODES: frozenset[str] = frozenset({
+    'TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'GUIDING', 'SEARCHING',
+})
+
 # ── Robot connectivity ────────────────────────
 ROBOT_TIMEOUT_SEC: int = 30   # seconds without /status → OFFLINE
 
