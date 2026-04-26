@@ -262,7 +262,7 @@ class MainWindow(QMainWindow):
         # 하단: 스태프 패널 + 이벤트 로그
         bottom_splitter = QSplitter(Qt.Orientation.Horizontal)
         root_layout.addWidget(bottom_splitter, stretch=0)
-        bottom_splitter.setFixedHeight(180)
+        bottom_splitter.setFixedHeight(140)
 
         self._staff_panel = StaffCallPanel()
         self._staff_panel.resolve_requested.connect(self._on_resolve_requested)
