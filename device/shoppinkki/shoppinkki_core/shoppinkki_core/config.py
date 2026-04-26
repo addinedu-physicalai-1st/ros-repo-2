@@ -54,6 +54,13 @@ CHARGER_ZONE_IDS: dict[str, int] = {
     '18': 140,   # 충전소_18(P1)
 }
 
+# robot_id → charger waypoint name (fleet_waypoint 테이블 기준)
+CHARGER_WAYPOINT_NAMES: dict[str, str] = {
+    '11': 'P1',
+    '54': 'P2',
+    '18': 'P1',
+}
+
 # ── Robot connectivity ────────────────────────
 ROBOT_TIMEOUT_SEC: int = 30   # seconds without /status → OFFLINE
 
