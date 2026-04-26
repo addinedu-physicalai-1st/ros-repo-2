@@ -277,7 +277,7 @@ class MainWindow(QMainWindow):
 
         bottom_splitter.setStretchFactor(0, 1)
         bottom_splitter.setStretchFactor(1, 2)
-        bottom_splitter.setStretchFactor(2, 2)
+        bottom_splitter.setStretchFactor(2, 3)
 
         # 상태 바
         self.setStatusBar(QStatusBar())

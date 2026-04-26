@@ -70,7 +70,8 @@ class ManagementPanel(QWidget):
         # ── Users section ──
         user_box = QWidget()
         ul = QVBoxLayout(user_box)
-        ul.setContentsMargins(4, 4, 4, 2)
+        ul.setContentsMargins(2, 2, 2, 1)
+        ul.setSpacing(2)
 
         uh = QHBoxLayout()
         uh.addWidget(QLabel('<b>회원 목록</b>'))
@@ -91,13 +92,15 @@ class ManagementPanel(QWidget):
         self._user_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._user_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._user_table.verticalHeader().setVisible(False)
+        self._user_table.verticalHeader().setDefaultSectionSize(24)
         ul.addWidget(self._user_table)
         splitter.addWidget(user_box)
 
         # ── Sessions section ──
         sess_box = QWidget()
         sl = QVBoxLayout(sess_box)
-        sl.setContentsMargins(4, 2, 4, 4)
+        sl.setContentsMargins(2, 1, 2, 2)
+        sl.setSpacing(2)
         sl.addWidget(QLabel('<b>활성 세션</b>'))
 
         self._session_table = QTableWidget(0, 5)
@@ -113,6 +116,7 @@ class ManagementPanel(QWidget):
             3, QHeaderView.ResizeMode.ResizeToContents)
         self._session_table.horizontalHeader().setSectionResizeMode(
             4, QHeaderView.ResizeMode.ResizeToContents)
+        self._session_table.verticalHeader().setDefaultSectionSize(24)
         self._session_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._session_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._session_table.verticalHeader().setVisible(False)
