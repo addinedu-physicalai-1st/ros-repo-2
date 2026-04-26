@@ -92,7 +92,9 @@ def generate_launch_description():
              name='waypoint_follower', output='screen', parameters=params),
         Node(package='nav2_velocity_smoother', executable='velocity_smoother',
              name='velocity_smoother', output='screen', parameters=params,
-             remappings=[('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel')]),
+             remappings=[('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel_smoothed')]),
+        Node(package='nav2_collision_monitor', executable='collision_monitor',
+             name='collision_monitor', output='screen', parameters=params),
 
         # 단일 lifecycle_manager: localization → navigation 순차 activate
         Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',
@@ -106,7 +108,7 @@ def generate_launch_description():
                      'controller_server', 'smoother_server',
                      'planner_server', 'behavior_server',
                      'bt_navigator', 'waypoint_follower',
-                     'velocity_smoother',
+                     'velocity_smoother', 'collision_monitor',
                  ],
              }]),
     ])
