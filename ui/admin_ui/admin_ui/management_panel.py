@@ -52,7 +52,7 @@ class ManagementPanel(QWidget):
     # ── UI ────────────────────────────────────
 
     def _build_ui(self):
-        self.setMaximumHeight(200)
+        self.setMaximumHeight(280)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
