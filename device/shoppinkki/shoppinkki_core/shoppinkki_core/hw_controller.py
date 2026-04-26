@@ -118,6 +118,7 @@ class HWController:
         try:
             from pinky_interfaces.srv import SetLed
             req = SetLed.Request()
+            req.command = 'fill'
             req.r = r
             req.g = g
             req.b = b
