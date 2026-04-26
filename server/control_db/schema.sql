@@ -74,6 +74,15 @@ CREATE TABLE llm_fewshot_example (
     description     TEXT
 );
 
+CREATE TABLE intent_routing (
+    id              SERIAL PRIMARY KEY,
+    keywords        TEXT NOT NULL,
+    zone_id         INTEGER NOT NULL REFERENCES zone(zone_id) ON DELETE CASCADE,
+    item_name       TEXT,
+    empathy_prefix  TEXT,
+    priority        INTEGER DEFAULT 0
+);
+
 CREATE TABLE boundary_config (
     id          SERIAL PRIMARY KEY,
     description VARCHAR(100) NOT NULL UNIQUE,
