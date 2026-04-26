@@ -158,6 +158,7 @@ def get_all_users() -> List[Dict]:
 
 def delete_user(user_id: str) -> bool:
     with _cursor() as cur:
+        cur.execute('DELETE FROM session WHERE user_id = %s', (user_id,))
         cur.execute('DELETE FROM users WHERE user_id = %s', (user_id,))
         return cur.rowcount > 0
 
