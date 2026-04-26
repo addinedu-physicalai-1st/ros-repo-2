@@ -22,6 +22,7 @@ from typing import Any, Callable, Dict, List, Optional
 from . import db
 from .fleet_router import FleetRouter
 from shoppinkki_core.config import (
+    CHARGER_WAYPOINT_NAMES,
     CHECKOUT_AUTO_RETURN_FROM,
     ROBOT_TIMEOUT_SEC,
     WAITING_TIMEOUT,
@@ -1241,7 +1242,7 @@ class RobotManager:
         하단 구역(y < -1.2 AND x < 0.3)은 그래프 노드가 없는 좁은 통로이므로
         고정 경유점(출구2 → 하단_복도)을 먼저 붙이고 나머지는 그래프 plan.
         """
-        charger = 'P2' if robot_id == '54' else 'P1'
+        charger = CHARGER_WAYPOINT_NAMES.get(robot_id, 'P1')
         blocked = self._vertices_blocked_by_others(robot_id)
         if pos_y < -1.2 and pos_x < 0.3:
             exit2 = {'x': 0.0, 'y': -1.402}
