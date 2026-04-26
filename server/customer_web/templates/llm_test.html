@@ -141,6 +141,12 @@
     alert('이 테스트 모드에서는 사용 불가능합니다.');
   }
 
+  function _esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
   // ── 검색 함수 ────────────────────────────────────────
 
   async function submitFind() {
@@ -173,7 +179,7 @@
         resultDiv.innerHTML = `
           <div style="padding:16px; background:#fee2e2; border-radius:8px; border-left:4px solid #dc2626;">
             <p style="color:#991b1b; font-weight:500;">❌ 검색 실패</p>
-            <p style="color:#7f1d1d; font-size:13px; margin-top:4px;">${data.error || '알 수 없는 오류'}</p>
+            <p style="color:#7f1d1d; font-size:13px; margin-top:4px;">${_esc(data.error || '알 수 없는 오류')}</p>
           </div>
         `;
       } else {
@@ -182,11 +188,11 @@
           <div style="padding:16px; background:#ecfdf5; border-radius:8px; border-left:4px solid #22c55e;">
             <p style="color:#15803d; font-weight:500; margin-bottom:8px;">✓ 검색 결과</p>
             <p style="color:#166534; margin-bottom:8px;">
-              <strong style="font-size:16px;">${data.display_name || data.zone_name}</strong>
+              <strong style="font-size:16px;">${_esc(data.display_name || data.zone_name)}</strong>
             </p>
-            <p style="color:#166534; font-size:13px; line-height:1.5;">${answer}</p>
+            <p style="color:#166534; font-size:13px; line-height:1.5;">${_esc(answer)}</p>
             <p style="color:#15803d; font-size:12px; margin-top:12px; padding-top:12px; border-top:1px solid #86efac;">
-              구역 ID: ${data.zone_id}
+              구역 ID: ${_esc(String(data.zone_id))}
             </p>
           </div>
         `;
@@ -195,7 +201,7 @@
         document.getElementById('search-result-area').innerHTML = `
           <div style="padding:12px; background:#e0f2fe; border-radius:6px;">
             <p style="font-weight:600; color:#0369a1; margin-bottom:4px;">🎯 검색 완료</p>
-            <p style="color:#075985; font-size:13px;">"${query}" → <strong>${data.display_name || data.zone_name}</strong></p>
+            <p style="color:#075985; font-size:13px;">"${_esc(query)}" → <strong>${_esc(data.display_name || data.zone_name)}</strong></p>
           </div>
         `;
       }
@@ -203,7 +209,7 @@
       resultDiv.innerHTML = `
         <div style="padding:16px; background:#fee2e2; border-radius:8px; border-left:4px solid #dc2626;">
           <p style="color:#991b1b; font-weight:500;">❌ 요청 실패</p>
-          <p style="color:#7f1d1d; font-size:13px; margin-top:4px;">${err.message}</p>
+          <p style="color:#7f1d1d; font-size:13px; margin-top:4px;">${_esc(err.message)}</p>
         </div>
       `;
     } finally {
