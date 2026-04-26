@@ -21,7 +21,7 @@ import rclpy
 import rclpy.time  # noqa: F401 — submodule 명시 (정적 분석기 경고 방지)
 from rclpy.node import Node
 from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
-from std_msgs.msg import String
+from std_msgs.msg import Float32, String
 
 from .bt_runner import BTRunner
 from .cart_session_manager import CartSessionManager
@@ -250,6 +250,9 @@ class ShoppinkkiMainNode(Node):
         self.create_subscription(
             String, f'/robot_{ROBOT_ID}/cmd',
             self._cmd_callback, 10)
+        self.create_subscription(
+            Float32, f'/robot_{ROBOT_ID}/battery/percent',
+            self._battery_callback, 10)
 
         # ── Timers ────────────────────────────
         self.create_timer(0.05, self._bt_tick_callback)   # 20 Hz BT tick (increased for PID responsiveness)
@@ -304,6 +307,10 @@ class ShoppinkkiMainNode(Node):
     # ──────────────────────────────────────────
     # ROS callbacks
     # ──────────────────────────────────────────
+
+    def _battery_callback(self, msg: Float32) -> None:
+        """배터리 퍼센트 갱신 (battery_publisher → CartSessionManager)."""
+        self._cart.update_battery(msg.data)
 
     def _scan_callback(self, msg) -> None:
         """LiDAR 스캔 캐시 갱신 (BT1/BT2 장애물 회피용)."""
