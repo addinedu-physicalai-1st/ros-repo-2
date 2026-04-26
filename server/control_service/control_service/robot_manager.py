@@ -24,17 +24,15 @@ from .fleet_router import FleetRouter
 from shoppinkki_core.config import (
     CHARGER_WAYPOINT_NAMES,
     CHECKOUT_AUTO_RETURN_FROM,
+    RETURN_RELAY_MODES,
     ROBOT_TIMEOUT_SEC,
     WAITING_TIMEOUT,
 )
 
 logger = logging.getLogger(__name__)
 
-# 쇼핑 종료(return) 시 Pi로 mode=RETURNING 릴레이 가능한 SM 상태.
-# shoppinkki_core.cmd_handler._handle_mode 과 동일 집합을 유지할 것.
-_RETURN_RELAY_MODES = frozenset({
-    'TRACKING', 'TRACKING_CHECKOUT', 'WAITING', 'GUIDING', 'SEARCHING',
-})
+# shoppinkki_core.config.RETURN_RELAY_MODES 사용
+_RETURN_RELAY_MODES = RETURN_RELAY_MODES
 
 
 # ──────────────────────────────────────────────
