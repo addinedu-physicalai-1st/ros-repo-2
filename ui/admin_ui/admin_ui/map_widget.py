@@ -66,6 +66,7 @@ MAP_SHELF_COLOR = QColor('#3D5A80')      # 조금 더 밝고 푸른빛이 도는
 MAP_UNKNOWN_COLOR = QColor('#CED4DA')    # 미확인 영역 (외부)
 MAP_SUBTLE_COLOR = QColor('#BDC3C7')     # 보조선 (결제구역 등)
 MAP_BG_COLOR = QColor('#FFFFFF')         # 맵 외부 배경 (순백색)
+MAP_GRID_COLOR = QColor('#D5D8DC')      # 격자선
 
 ROBOT_COLORS = [
     QColor('#f1c40f'),   # yellow (Sun Flower)
