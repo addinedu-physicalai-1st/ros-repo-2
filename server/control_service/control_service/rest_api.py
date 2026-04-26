@@ -30,6 +30,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+import bcrypt
 from flask import Flask, Response, jsonify, request
 
 from . import db
@@ -212,10 +213,15 @@ def create_app(robot_manager: 'RobotManager',
         if not robot_id or not user_id:
             return jsonify({'error': 'robot_id and user_id required'}), 400
 
-        # Check user exists
+        # Check user exists + password
+        password = data.get('password', '')
         user = db.get_user(user_id)
         if not user:
             return jsonify({'error': 'user not found'}), 404
+        stored_hash = user.get('password_hash', '')
+        if not stored_hash or not bcrypt.checkpw(
+                password.encode('utf-8'), stored_hash.encode('utf-8')):
+            return jsonify({'error': 'invalid password'}), 401
 
         # Check robot availability by mode (strict: IDLE only)
         robot = db.get_robot(robot_id)
