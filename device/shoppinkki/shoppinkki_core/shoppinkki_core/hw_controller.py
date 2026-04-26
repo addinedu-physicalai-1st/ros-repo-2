@@ -158,11 +158,9 @@ class HWController:
         if self._node is None:
             return
         try:
-            from pinky_interfaces.srv import SetEmotion
-            from rclpy.node import Node
-            # SetEmotion is defined in pinky_interfaces; call async
-            client = self._node.create_client(SetEmotion, f'/robot_{self._robot_id}/set_emotion')
-            req = SetEmotion.Request()
+            from pinky_interfaces.srv import Emotion
+            client = self._node.create_client(Emotion, f'/robot_{self._robot_id}/set_emotion')
+            req = Emotion.Request()
             req.emotion = emotion
             client.call_async(req)
         except Exception as e:
