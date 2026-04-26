@@ -57,6 +57,7 @@ from PyQt5.QtWidgets import (
 
 from .camera_panel import CameraDebugPanel
 from .event_log_panel import EventLogPanel
+from .management_panel import ManagementPanel
 from .map_widget import MapWidget
 from .robot_card import RobotCard
 from .robot_detail_dialog import RobotDetailDialog
@@ -269,8 +270,13 @@ class MainWindow(QMainWindow):
         self._event_log_panel = EventLogPanel()
         self._event_log_panel.row_clicked.connect(self._on_event_row_clicked)
         bottom_splitter.addWidget(self._event_log_panel)
+
+        self._management_panel = ManagementPanel(self._rest_base)
+        bottom_splitter.addWidget(self._management_panel)
+
         bottom_splitter.setStretchFactor(0, 1)
         bottom_splitter.setStretchFactor(1, 2)
+        bottom_splitter.setStretchFactor(2, 2)
 
         # 상태 바
         self.setStatusBar(QStatusBar())
