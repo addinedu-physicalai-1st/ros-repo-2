@@ -65,7 +65,12 @@ class FleetRouter:
     @staticmethod
     def _load_graph() -> tuple[list[dict], list[dict]]:
         try:
-            return db.get_fleet_waypoints(), db.get_fleet_lanes()
+            wps, lanes = db.get_fleet_waypoints(), db.get_fleet_lanes()
+            if not wps or not lanes:
+                logger.error('Fleet graph is empty (waypoints=%d, lanes=%d) '
+                             '— routing will fall back to direct hops',
+                             len(wps), len(lanes))
+            return wps, lanes
         except Exception:
             logger.exception('Failed to load fleet graph')
             return [], []
