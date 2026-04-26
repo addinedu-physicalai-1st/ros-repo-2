@@ -231,7 +231,6 @@ class NavManager:
                 self._node.get_logger().warning('send_nav_goal: goal rejected')
                 done_event.set()
                 return
-            result_holder.append(goal_handle)
             self._active_goal_handle = goal_handle
             goal_handle.get_result_async().add_done_callback(_result_response)
 
@@ -296,7 +295,6 @@ class NavManager:
                     'send_nav_through_poses: goal rejected')
                 done_event.set()
                 return
-            result_holder.append(goal_handle)
             self._active_through_goal_handle = goal_handle
             goal_handle.get_result_async().add_done_callback(_result_response)
 
