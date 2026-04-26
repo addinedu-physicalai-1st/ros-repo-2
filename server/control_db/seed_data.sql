@@ -286,16 +286,7 @@ INSERT INTO llm_fewshot_example (input_query, output_keywords, description) VALU
 ('안녕? 넌 누구니?', '알 수 없음', '인사말 샘플')
 ON CONFLICT DO NOTHING;
 
--- INTENT_ROUTING (Hardcoded mapping to DB)
-CREATE TABLE IF NOT EXISTS intent_routing (
-    id SERIAL PRIMARY KEY,
-    keywords TEXT NOT NULL,
-    zone_id INTEGER NOT NULL REFERENCES zone(zone_id) ON DELETE CASCADE,
-    item_name TEXT,
-    empathy_prefix TEXT,
-    priority INTEGER DEFAULT 0
-);
-
+-- INTENT_ROUTING
 INSERT INTO intent_routing (keywords, zone_id, item_name, empathy_prefix, priority) VALUES
 ('우울,슬퍼,슬프다,눈물,울고 싶,기분이 안 좋', 2, '초콜릿', '기분이 조금 가라앉으셨나요? 달콤한 초콜릿으로 기분 전환을 해보시는 건 어떨까요?', 10),
 ('힘들,스트레스,술 생각,술 한 잔,고된', 6, '맥주', '오늘 정말 고된 하루를 보내셨군요. 시원한 맥주 한 잔으로 스트레스를 날려버리시는 건 어떨까요?', 10),
