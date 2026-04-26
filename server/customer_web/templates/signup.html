@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#4f46e5">
-  <title>ShopPinkki — 로그인</title>
+  <title>ShopPinkki — 회원가입</title>
   <link rel="stylesheet" href="/static/css/style.css">
   <style>
     body { display: flex; align-items: flex-start; justify-content: center; min-height: 100vh; background: var(--bg); }
@@ -15,14 +15,14 @@
     <div class="login-brand">
       <span class="brand-icon">🛒</span>
       <h1>ShopPinkki</h1>
-      <p>스마트 카트 서비스 &nbsp;·&nbsp; #{{ robot_id }}</p>
+      <p>회원가입 &nbsp;·&nbsp; #{{ robot_id }}</p>
     </div>
 
     {% if error %}
     <div class="error-msg" role="alert">⚠ {{ error }}</div>
     {% endif %}
 
-    <form method="POST" action="/login?robot_id={{ robot_id }}" autocomplete="off" novalidate>
+    <form method="POST" action="/signup?robot_id={{ robot_id }}" autocomplete="off" novalidate>
       <input type="hidden" name="robot_id" value="{{ robot_id }}">
 
       <div class="form-group">
@@ -32,7 +32,7 @@
           type="text"
           id="user_id"
           name="user_id"
-          placeholder="아이디를 입력하세요"
+          placeholder="아이디를 입력하세요 (2자 이상)"
           autocapitalize="none"
           autocorrect="off"
           required
@@ -46,17 +46,29 @@
           type="password"
           id="password"
           name="password"
-          placeholder="비밀번호를 입력하세요"
+          placeholder="비밀번호를 입력하세요 (4자 이상)"
+          required
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="password_confirm">비밀번호 확인</label>
+        <input
+          class="form-control"
+          type="password"
+          id="password_confirm"
+          name="password_confirm"
+          placeholder="비밀번호를 다시 입력하세요"
           required
         >
       </div>
 
       <button type="submit" class="btn btn-primary btn-full" style="margin-top: 8px;">
-        로그인
+        회원가입
       </button>
     </form>
     <p style="margin-top:14px; text-align:center; font-size:14px;">
-      <a href="/signup?robot_id={{ robot_id }}">회원가입</a>
+      <a href="/login?robot_id={{ robot_id }}">로그인으로 돌아가기</a>
     </p>
   </div>
 </body>

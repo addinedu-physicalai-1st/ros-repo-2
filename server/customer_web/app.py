@@ -336,6 +336,45 @@ def login():
     return render_template("login.html", robot_id=robot_id, error=error)
 
 
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    robot_id = _require_robot_id(
+        request.args.get("robot_id", "").strip()
+        or request.form.get("robot_id", "").strip()
+    )
+
+    if request.method == "POST":
+        user_id = request.form.get("user_id", "").strip()
+        password = request.form.get("password", "")
+        password_confirm = request.form.get("password_confirm", "")
+
+        if not user_id or not password:
+            flash("아이디와 비밀번호를 입력해주세요.")
+        elif password != password_confirm:
+            flash("비밀번호가 일치하지 않습니다.")
+        elif len(password) < 4:
+            flash("비밀번호는 4자 이상이어야 합니다.")
+        else:
+            data = _ctrl_rest("POST", "/user", json={
+                "user_id": user_id, "password": password,
+            })
+            if data is None:
+                flash("서버에 연결할 수 없습니다.")
+            elif data.get("error") == "user_id already exists":
+                flash("이미 존재하는 아이디입니다.")
+            elif data.get("error"):
+                flash(f"회원가입 실패: {data.get('error')}")
+            else:
+                flash("회원가입이 완료되었습니다. 로그인해주세요.")
+                return redirect(url_for("login", robot_id=robot_id))
+
+        return redirect(url_for("signup", robot_id=robot_id))
+
+    messages = get_flashed_messages()
+    error = messages[0] if messages else None
+    return render_template("signup.html", robot_id=robot_id, error=error)
+
+
 @app.route("/register")
 def register():
     if "session_id" not in session:
