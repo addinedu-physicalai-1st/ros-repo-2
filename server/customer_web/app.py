@@ -27,7 +27,7 @@ import eventlet
 eventlet.monkey_patch()  # noqa: E402 — 반드시 최상단에서 패치
 
 import requests
-from flask import Flask, abort, flash, get_flashed_messages, redirect, render_template, request, send_file, session, url_for
+from flask import Flask, abort, flash, get_flashed_messages, jsonify, redirect, render_template, request, send_file, session, url_for
 from flask_socketio import SocketIO
 
 from control_client import ControlClient
@@ -452,6 +452,26 @@ def logout():
     robot_id = session.get("robot_id", "")
     session.clear()
     return redirect(url_for("login", robot_id=robot_id)) if robot_id else redirect(url_for("login"))
+
+
+@app.route("/api/cards")
+def api_cards():
+    user_id = request.args.get("user_id", "").strip()
+    if not user_id:
+        return jsonify({"error": "user_id required"}), 400
+    data = _ctrl_rest("GET", f"/cards?user_id={user_id}")
+    if data is None:
+        return jsonify({"error": "server error"}), 503
+    return jsonify(data)
+
+
+@app.route("/api/card", methods=["POST"])
+def api_card():
+    payload = request.get_json(silent=True) or {}
+    data = _ctrl_rest("POST", "/card", json=payload)
+    if data is None:
+        return jsonify({"error": "server error"}), 503
+    return jsonify(data)
 
 
 # ── LLM 테스트 ─────────────────────────────────────────────

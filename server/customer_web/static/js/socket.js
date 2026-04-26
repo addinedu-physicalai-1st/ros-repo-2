@@ -784,3 +784,92 @@ function _modeLabel(mode) {
   };
   return labels[mode] || mode;
 }
+
+// ── 카드 체크 + 결제 ────────────────────────────────────
+
+function requestPayment() {
+  const userId = window.USER_ID;
+  if (!userId) {
+    socket.emit("payment", {});
+    closeCheckoutModal();
+    return;
+  }
+  fetch(`/api/cards?user_id=${encodeURIComponent(userId)}`)
+    .then(r => r.json())
+    .then(cards => {
+      if (!Array.isArray(cards) || cards.length === 0) {
+        _showCardRegistrationModal();
+      } else {
+        socket.emit("payment", {});
+        closeCheckoutModal();
+      }
+    })
+    .catch(() => {
+      socket.emit("payment", {});
+      closeCheckoutModal();
+    });
+}
+
+function _showCardRegistrationModal() {
+  let modal = document.getElementById("card-register-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "card-register-modal";
+    modal.className = "modal-backdrop";
+    modal.innerHTML = `
+      <div class="modal-box">
+        <div class="modal-title">카드 등록</div>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:14px;">
+          결제를 위해 카드를 먼저 등록해주세요.
+        </p>
+        <div class="form-group">
+          <label for="card-alias-input">카드 별칭</label>
+          <input id="card-alias-input" class="form-control" type="text"
+                 placeholder="예: 신한카드 1234">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button class="btn btn-primary btn-full" onclick="_submitCardRegistration()">
+            등록하기
+          </button>
+          <button class="btn btn-outline btn-full" onclick="_closeCardModal()">
+            취소
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.classList.remove("hidden");
+  const input = document.getElementById("card-alias-input");
+  if (input) { input.value = ""; input.focus(); }
+}
+
+function _closeCardModal() {
+  const modal = document.getElementById("card-register-modal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function _submitCardRegistration() {
+  const input = document.getElementById("card-alias-input");
+  const alias = input ? input.value.trim() : "";
+  if (!alias) {
+    showToast("카드 별칭을 입력해주세요.");
+    return;
+  }
+  fetch("/api/card", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: window.USER_ID, card_alias: alias }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        showToast("카드 등록 실패: " + data.error);
+      } else {
+        _closeCardModal();
+        showToast("카드가 등록되었습니다.");
+        socket.emit("payment", {});
+        closeCheckoutModal();
+      }
+    })
+    .catch(() => showToast("카드 등록 중 오류가 발생했습니다."));
+}
