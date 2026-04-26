@@ -110,7 +110,7 @@ class StaffCallPanel(QWidget):
         super().__init__(parent)
         self._items: dict[str, _StaffCallItem] = {}  # robot_id → item
 
-        self.setMinimumHeight(160)
+        self.setMinimumHeight(80)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
