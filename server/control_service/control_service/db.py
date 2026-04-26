@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import bcrypt
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
@@ -135,6 +136,58 @@ def update_robot(robot_id: str, **fields) -> None:
 def get_user(user_id: str) -> Optional[Dict]:
     with _cursor() as cur:
         cur.execute('SELECT * FROM users WHERE user_id = %s', (user_id,))
+        return cur.fetchone()
+
+
+def create_user(user_id: str, password: str) -> Dict:
+    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    with _cursor() as cur:
+        cur.execute(
+            'INSERT INTO users (user_id, password_hash) VALUES (%s, %s) '
+            'RETURNING user_id, created_at',
+            (user_id, hashed),
+        )
+        return cur.fetchone()
+
+
+def get_all_users() -> List[Dict]:
+    with _cursor() as cur:
+        cur.execute('SELECT user_id, created_at FROM users ORDER BY created_at DESC')
+        return cur.fetchall()
+
+
+def delete_user(user_id: str) -> bool:
+    with _cursor() as cur:
+        cur.execute('DELETE FROM users WHERE user_id = %s', (user_id,))
+        return cur.rowcount > 0
+
+
+def get_active_sessions() -> List[Dict]:
+    with _cursor() as cur:
+        cur.execute(
+            'SELECT session_id, robot_id, user_id, created_at '
+            'FROM session WHERE is_active = TRUE AND expires_at > NOW() '
+            'ORDER BY created_at DESC',
+        )
+        return cur.fetchall()
+
+
+def get_cards_by_user(user_id: str) -> List[Dict]:
+    with _cursor() as cur:
+        cur.execute(
+            'SELECT card_id, user_id, card_alias FROM card WHERE user_id = %s',
+            (user_id,),
+        )
+        return cur.fetchall()
+
+
+def create_card(user_id: str, card_alias: str) -> Dict:
+    with _cursor() as cur:
+        cur.execute(
+            'INSERT INTO card (user_id, card_alias) VALUES (%s, %s) '
+            'RETURNING card_id, user_id, card_alias',
+            (user_id, card_alias),
+        )
         return cur.fetchone()
 
 
