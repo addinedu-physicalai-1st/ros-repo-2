@@ -336,6 +336,68 @@ def create_app(robot_manager: 'RobotManager',
             robot_manager.set_cached_active_user_id(rid, None)
         return jsonify({'ok': True})
 
+    # ── User (signup / admin management) ─────
+
+    @app.post('/user')
+    def create_user_endpoint():
+        data = request.get_json(silent=True) or {}
+        user_id = data.get('user_id', '').strip()
+        password = data.get('password', '')
+        if not user_id or not password:
+            return jsonify({'error': 'user_id and password required'}), 400
+        if len(user_id) < 2 or len(user_id) > 50:
+            return jsonify({'error': 'user_id must be 2-50 characters'}), 400
+        if len(password) < 4:
+            return jsonify({'error': 'password must be at least 4 characters'}), 400
+        try:
+            result = db.create_user(user_id, password)
+            return jsonify(_serialize_row(result)), 201
+        except psycopg2.errors.UniqueViolation:
+            return jsonify({'error': 'user_id already exists'}), 409
+
+    @app.get('/users')
+    def get_users():
+        return jsonify(_serialize_rows(db.get_all_users()))
+
+    @app.delete('/user/<user_id>')
+    def delete_user_endpoint(user_id: str):
+        active = db.get_active_session_by_user(user_id)
+        if active:
+            sid = active['session_id']
+            rid = active['robot_id']
+            db.end_session(sid)
+            db.update_robot(rid, active_user_id=None)
+            robot_manager._push_event(rid, 'SESSION_END', user_id=user_id)
+            robot_manager.set_cached_active_user_id(rid, None)
+        if not db.delete_user(user_id):
+            return jsonify({'error': 'user not found'}), 404
+        return jsonify({'ok': True})
+
+    @app.get('/sessions')
+    def get_sessions():
+        return jsonify(_serialize_rows(db.get_active_sessions()))
+
+    # ── Card ─────────────────────────────────
+
+    @app.get('/cards')
+    def get_cards():
+        user_id = request.args.get('user_id', '').strip()
+        if not user_id:
+            return jsonify({'error': 'user_id required'}), 400
+        return jsonify(db.get_cards_by_user(user_id))
+
+    @app.post('/card')
+    def create_card_endpoint():
+        data = request.get_json(silent=True) or {}
+        user_id = data.get('user_id', '').strip()
+        card_alias = data.get('card_alias', '').strip()
+        if not user_id or not card_alias:
+            return jsonify({'error': 'user_id and card_alias required'}), 400
+        try:
+            return jsonify(db.create_card(user_id, card_alias)), 201
+        except psycopg2.errors.UniqueViolation:
+            return jsonify({'error': 'card_alias already exists for this user'}), 409
+
     # ── Cart ──────────────────────────────────
 
     @app.get('/cart/<int:cart_id>')
