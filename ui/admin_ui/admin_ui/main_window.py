@@ -166,13 +166,14 @@ class MainWindow(QMainWindow):
 
         # -- 좌: 맵 위젯
         self._map_widget = MapWidget()
+        self._map_widget.setMinimumWidth(500)
         self._map_widget.map_clicked.connect(self._on_map_clicked)
         main_splitter.addWidget(self._map_widget)
 
         # -- 우: 수직 splitter (카드 패널 / 하단 패널)
         right_splitter = QSplitter(Qt.Orientation.Vertical)
         main_splitter.addWidget(right_splitter)
-        main_splitter.setStretchFactor(0, 1)
+        main_splitter.setStretchFactor(0, 3)
         main_splitter.setStretchFactor(1, 1)
 
         # 우상: 로봇 셀렉터 + 선택된 카드
@@ -261,7 +262,7 @@ class MainWindow(QMainWindow):
         # 하단: 스태프 패널 + 이벤트 로그
         bottom_splitter = QSplitter(Qt.Orientation.Horizontal)
         root_layout.addWidget(bottom_splitter, stretch=0)
-        bottom_splitter.setFixedHeight(220)
+        bottom_splitter.setFixedHeight(180)
 
         self._staff_panel = StaffCallPanel()
         self._staff_panel.resolve_requested.connect(self._on_resolve_requested)
