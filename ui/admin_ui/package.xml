@@ -3,11 +3,11 @@
 <package format="3">
   <name>admin_ui</name>
   <version>0.1.0</version>
-  <description>ShopPinkki Admin UI — PyQt6 데스크톱 관제 앱 (채널 B TCP 클라이언트)</description>
+  <description>ShopPinkki Admin UI — PyQt5 데스크톱 관제 앱 (채널 B TCP 클라이언트)</description>
   <maintainer email="admin@shoppinkki.local">shoppinkki</maintainer>
   <license>Apache-2.0</license>
 
-  <exec_depend>python3-pyqt6</exec_depend>
+  <exec_depend>python3-pyqt5</exec_depend>
   <exec_depend>python3-requests</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
